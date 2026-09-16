@@ -4,7 +4,8 @@ import Login from './pages/Login';
 import Layout from './components/Layout'; // นำเข้า Layout ที่เราเพิ่งสร้าง
 import Dashboard from './pages/Dashboard';
 import Branches from './pages/Branches';
-import Products from './pages/Products'; // นำเข้าหน้า Products
+// import Products from './pages/Products'; // นำเข้าหน้า Products
+import SyncMaster from './pages/SyncMaster'; // 1. นำเข้าไฟล์ใหม่
 
 function App() {
   return (
@@ -17,7 +18,7 @@ function App() {
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/branches" element={<Branches />} />
-          <Route path="/products" element={<Products />} />
+          <Route path="/sync-master" element={<SyncMaster />} /> {/* 2. เพิ่ม Route ใหม่ */}
         </Route>
       </Routes>
     </BrowserRouter>

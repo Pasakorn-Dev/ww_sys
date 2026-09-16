@@ -1,0 +1,3285 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+public/
+  fonts/
+    Sarabun-Bold.ttf
+    Sarabun-Medium.ttf
+    Sarabun-Regular.ttf
+  favicon.svg
+  icons.svg
+src/
+  assets/
+    hero.png
+    react.svg
+    vite.svg
+  components/
+    BranchPriceModal.jsx
+    Layout.jsx
+  config/
+    api.js
+  pages/
+    Branches.jsx
+    Dashboard.jsx
+    Login.jsx
+    SyncMaster.jsx
+  services/
+    apiFetch.js
+  App.css
+  App.jsx
+  index.css
+  main.jsx
+.env.example
+.gitignore
+index.html
+.oxlintrc.json
+package.json
+pnpm-workspace.yaml
+README.md
+.repomixignore
+repomix-output.md
+vite.config.js
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="public/favicon.svg">
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="46" fill="none" viewBox="0 0 48 46"><path fill="#863bff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z" style="fill:#863bff;fill:color(display-p3 .5252 .23 1);fill-opacity:1"/><mask id="a" width="48" height="46" x="0" y="0" maskUnits="userSpaceOnUse" style="mask-type:alpha"><path fill="#000" d="M25.842 44.938c-.664.844-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.183c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.498 0-3.579-1.842-3.579H1.133c-.92 0-1.456-1.04-.92-1.787L9.91.473c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.578 1.842 3.578h11.377c.943 0 1.473 1.088.89 1.832L25.843 44.94z" style="fill:#000;fill-opacity:1"/></mask><g mask="url(#a)"><g filter="url(#b)"><ellipse cx="5.508" cy="14.704" fill="#ede6ff" rx="5.508" ry="14.704" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -4.47 31.516)"/></g><g filter="url(#c)"><ellipse cx="10.399" cy="29.851" fill="#ede6ff" rx="10.399" ry="29.851" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -39.328 7.883)"/></g><g filter="url(#d)"><ellipse cx="5.508" cy="30.487" fill="#7e14ff" rx="5.508" ry="30.487" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.814 -25.913 -14.639)scale(1 -1)"/></g><g filter="url(#e)"><ellipse cx="5.508" cy="30.599" fill="#7e14ff" rx="5.508" ry="30.599" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.814 -32.644 -3.334)scale(1 -1)"/></g><g filter="url(#f)"><ellipse cx="5.508" cy="30.599" fill="#7e14ff" rx="5.508" ry="30.599" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -34.34 30.47)"/></g><g filter="url(#g)"><ellipse cx="14.072" cy="22.078" fill="#ede6ff" rx="14.072" ry="22.078" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="rotate(93.35 24.506 48.493)scale(-1 1)"/></g><g filter="url(#h)"><ellipse cx="3.47" cy="21.501" fill="#7e14ff" rx="3.47" ry="21.501" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.009 28.708 47.59)scale(-1 1)"/></g><g filter="url(#i)"><ellipse cx="3.47" cy="21.501" fill="#7e14ff" rx="3.47" ry="21.501" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.009 28.708 47.59)scale(-1 1)"/></g><g filter="url(#j)"><ellipse cx=".387" cy="8.972" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(39.51 .387 8.972)"/></g><g filter="url(#k)"><ellipse cx="47.523" cy="-6.092" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 47.523 -6.092)"/></g><g filter="url(#l)"><ellipse cx="41.412" cy="6.333" fill="#47bfff" rx="5.971" ry="9.665" style="fill:#47bfff;fill:color(display-p3 .2799 .748 1);fill-opacity:1" transform="rotate(37.892 41.412 6.333)"/></g><g filter="url(#m)"><ellipse cx="-1.879" cy="38.332" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 -1.88 38.332)"/></g><g filter="url(#n)"><ellipse cx="-1.879" cy="38.332" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 -1.88 38.332)"/></g><g filter="url(#o)"><ellipse cx="35.651" cy="29.907" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 35.651 29.907)"/></g><g filter="url(#p)"><ellipse cx="38.418" cy="32.4" fill="#47bfff" rx="5.971" ry="15.297" style="fill:#47bfff;fill:color(display-p3 .2799 .748 1);fill-opacity:1" transform="rotate(37.892 38.418 32.4)"/></g></g><defs><filter id="b" width="60.045" height="41.654" x="-19.77" y="16.149" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="c" width="90.34" height="51.437" x="-54.613" y="-7.533" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="d" width="79.355" height="29.4" x="-49.64" y="2.03" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="e" width="79.579" height="29.4" x="-45.045" y="20.029" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="f" width="79.579" height="29.4" x="-43.513" y="21.178" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="g" width="74.749" height="58.852" x="15.756" y="-17.901" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="h" width="61.377" height="25.362" x="23.548" y="2.284" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="i" width="61.377" height="25.362" x="23.548" y="2.284" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="j" width="56.045" height="63.649" x="-27.636" y="-22.853" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="k" width="54.814" height="64.646" x="20.116" y="-38.415" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="l" width="33.541" height="35.313" x="24.641" y="-11.323" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="m" width="54.814" height="64.646" x="-29.286" y="6.009" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="n" width="54.814" height="64.646" x="-29.286" y="6.009" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="o" width="54.814" height="64.646" x="8.244" y="-2.416" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="p" width="39.409" height="43.623" x="18.713" y="10.588" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter></defs></svg>
+</file>
+
+<file path="public/icons.svg">
+<svg xmlns="http://www.w3.org/2000/svg">
+  <symbol id="bluesky-icon" viewBox="0 0 16 17">
+    <g clip-path="url(#bluesky-clip)"><path fill="#08060d" d="M7.75 7.735c-.693-1.348-2.58-3.86-4.334-5.097-1.68-1.187-2.32-.981-2.74-.79C.188 2.065.1 2.812.1 3.251s.241 3.602.398 4.13c.52 1.744 2.367 2.333 4.07 2.145-2.495.37-4.71 1.278-1.805 4.512 3.196 3.309 4.38-.71 4.987-2.746.608 2.036 1.307 5.91 4.93 2.746 2.72-2.746.747-4.143-1.747-4.512 1.702.189 3.55-.4 4.07-2.145.156-.528.397-3.691.397-4.13s-.088-1.186-.575-1.406c-.42-.19-1.06-.395-2.741.79-1.755 1.24-3.64 3.752-4.334 5.099"/></g>
+    <defs><clipPath id="bluesky-clip"><path fill="#fff" d="M.1.85h15.3v15.3H.1z"/></clipPath></defs>
+  </symbol>
+  <symbol id="discord-icon" viewBox="0 0 20 19">
+    <path fill="#08060d" d="M16.224 3.768a14.5 14.5 0 0 0-3.67-1.153c-.158.286-.343.67-.47.976a13.5 13.5 0 0 0-4.067 0c-.128-.306-.317-.69-.476-.976A14.4 14.4 0 0 0 3.868 3.77C1.546 7.28.916 10.703 1.231 14.077a14.7 14.7 0 0 0 4.5 2.306q.545-.748.965-1.587a9.5 9.5 0 0 1-1.518-.74q.191-.14.372-.293c2.927 1.369 6.107 1.369 8.999 0q.183.152.372.294-.723.437-1.52.74.418.838.963 1.588a14.6 14.6 0 0 0 4.504-2.308c.37-3.911-.63-7.302-2.644-10.309m-9.13 8.234c-.878 0-1.599-.82-1.599-1.82 0-.998.705-1.82 1.6-1.82.894 0 1.614.82 1.599 1.82.001 1-.705 1.82-1.6 1.82m5.91 0c-.878 0-1.599-.82-1.599-1.82 0-.998.705-1.82 1.6-1.82.893 0 1.614.82 1.599 1.82 0 1-.706 1.82-1.6 1.82"/>
+  </symbol>
+  <symbol id="documentation-icon" viewBox="0 0 21 20">
+    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="m15.5 13.333 1.533 1.322c.645.555.967.833.967 1.178s-.322.623-.967 1.179L15.5 18.333m-3.333-5-1.534 1.322c-.644.555-.966.833-.966 1.178s.322.623.966 1.179l1.534 1.321"/>
+    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="M17.167 10.836v-4.32c0-1.41 0-2.117-.224-2.68-.359-.906-1.118-1.621-2.08-1.96-.599-.21-1.349-.21-2.848-.21-2.623 0-3.935 0-4.983.369-1.684.591-3.013 1.842-3.641 3.428C3 6.449 3 7.684 3 10.154v2.122c0 2.558 0 3.838.706 4.726q.306.383.713.671c.76.536 1.79.64 3.581.66"/>
+    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="M3 10a2.78 2.78 0 0 1 2.778-2.778c.555 0 1.209.097 1.748-.047.48-.129.854-.503.982-.982.145-.54.048-1.194.048-1.749a2.78 2.78 0 0 1 2.777-2.777"/>
+  </symbol>
+  <symbol id="github-icon" viewBox="0 0 19 19">
+    <path fill="#08060d" fill-rule="evenodd" d="M9.356 1.85C5.05 1.85 1.57 5.356 1.57 9.694a7.84 7.84 0 0 0 5.324 7.44c.387.079.528-.168.528-.376 0-.182-.013-.805-.013-1.454-2.165.467-2.616-.935-2.616-.935-.349-.91-.864-1.143-.864-1.143-.71-.48.051-.48.051-.48.787.051 1.2.805 1.2.805.695 1.194 1.817.857 2.268.649.064-.507.27-.857.49-1.052-1.728-.182-3.545-.857-3.545-3.87 0-.857.31-1.558.8-2.104-.078-.195-.349-1 .077-2.078 0 0 .657-.208 2.14.805a7.5 7.5 0 0 1 1.946-.26c.657 0 1.328.092 1.946.26 1.483-1.013 2.14-.805 2.14-.805.426 1.078.155 1.883.078 2.078.502.546.799 1.247.799 2.104 0 3.013-1.818 3.675-3.558 3.87.284.247.528.714.528 1.454 0 1.052-.012 1.896-.012 2.156 0 .208.142.455.528.377a7.84 7.84 0 0 0 5.324-7.441c.013-4.338-3.48-7.844-7.773-7.844" clip-rule="evenodd"/>
+  </symbol>
+  <symbol id="social-icon" viewBox="0 0 20 20">
+    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="M12.5 6.667a4.167 4.167 0 1 0-8.334 0 4.167 4.167 0 0 0 8.334 0"/>
+    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="M2.5 16.667a5.833 5.833 0 0 1 8.75-5.053m3.837.474.513 1.035c.07.144.257.282.414.309l.93.155c.596.1.736.536.307.965l-.723.73a.64.64 0 0 0-.152.531l.207.903c.164.715-.213.991-.84.618l-.872-.52a.63.63 0 0 0-.577 0l-.872.52c-.624.373-1.003.094-.84-.618l.207-.903a.64.64 0 0 0-.152-.532l-.723-.729c-.426-.43-.289-.864.306-.964l.93-.156a.64.64 0 0 0 .412-.31l.513-1.034c.28-.562.735-.562 1.012 0"/>
+  </symbol>
+  <symbol id="x-icon" viewBox="0 0 19 19">
+    <path fill="#08060d" fill-rule="evenodd" d="M1.893 1.98c.052.072 1.245 1.769 2.653 3.77l2.892 4.114c.183.261.333.48.333.486s-.068.089-.152.183l-.522.593-.765.867-3.597 4.087c-.375.426-.734.834-.798.905a1 1 0 0 0-.118.148c0 .01.236.017.664.017h.663l.729-.83c.4-.457.796-.906.879-.999a692 692 0 0 0 1.794-2.038c.034-.037.301-.34.594-.675l.551-.624.345-.392a7 7 0 0 1 .34-.374c.006 0 .93 1.306 2.052 2.903l2.084 2.965.045.063h2.275c1.87 0 2.273-.003 2.266-.021-.008-.02-1.098-1.572-3.894-5.547-2.013-2.862-2.28-3.246-2.273-3.266.008-.019.282-.332 2.085-2.38l2-2.274 1.567-1.782c.022-.028-.016-.03-.65-.03h-.674l-.3.342a871 871 0 0 1-1.782 2.025c-.067.075-.405.458-.75.852a100 100 0 0 1-.803.91c-.148.172-.299.344-.99 1.127-.304.343-.32.358-.345.327-.015-.019-.904-1.282-1.976-2.808L6.365 1.85H1.8zm1.782.91 8.078 11.294c.772 1.08 1.413 1.973 1.425 1.984.016.017.241.02 1.05.017l1.03-.004-2.694-3.766L7.796 5.75 5.722 2.852l-1.039-.004-1.039-.004z" clip-rule="evenodd"/>
+  </symbol>
+</svg>
+</file>
+
+<file path="src/assets/react.svg">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="35.93" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 228"><path fill="#00D8FF" d="M210.483 73.824a171.49 171.49 0 0 0-8.24-2.597c.465-1.9.893-3.777 1.273-5.621c6.238-30.281 2.16-54.676-11.769-62.708c-13.355-7.7-35.196.329-57.254 19.526a171.23 171.23 0 0 0-6.375 5.848a155.866 155.866 0 0 0-4.241-3.917C100.759 3.829 77.587-4.822 63.673 3.233C50.33 10.957 46.379 33.89 51.995 62.588a170.974 170.974 0 0 0 1.892 8.48c-3.28.932-6.445 1.924-9.474 2.98C17.309 83.498 0 98.307 0 113.668c0 15.865 18.582 31.778 46.812 41.427a145.52 145.52 0 0 0 6.921 2.165a167.467 167.467 0 0 0-2.01 9.138c-5.354 28.2-1.173 50.591 12.134 58.266c13.744 7.926 36.812-.22 59.273-19.855a145.567 145.567 0 0 0 5.342-4.923a168.064 168.064 0 0 0 6.92 6.314c21.758 18.722 43.246 26.282 56.54 18.586c13.731-7.949 18.194-32.003 12.4-61.268a145.016 145.016 0 0 0-1.535-6.842c1.62-.48 3.21-.974 4.76-1.488c29.348-9.723 48.443-25.443 48.443-41.52c0-15.417-17.868-30.326-45.517-39.844Zm-6.365 70.984c-1.4.463-2.836.91-4.3 1.345c-3.24-10.257-7.612-21.163-12.963-32.432c5.106-11 9.31-21.767 12.459-31.957c2.619.758 5.16 1.557 7.61 2.4c23.69 8.156 38.14 20.213 38.14 29.504c0 9.896-15.606 22.743-40.946 31.14Zm-10.514 20.834c2.562 12.94 2.927 24.64 1.23 33.787c-1.524 8.219-4.59 13.698-8.382 15.893c-8.067 4.67-25.32-1.4-43.927-17.412a156.726 156.726 0 0 1-6.437-5.87c7.214-7.889 14.423-17.06 21.459-27.246c12.376-1.098 24.068-2.894 34.671-5.345a134.17 134.17 0 0 1 1.386 6.193ZM87.276 214.515c-7.882 2.783-14.16 2.863-17.955.675c-8.075-4.657-11.432-22.636-6.853-46.752a156.923 156.923 0 0 1 1.869-8.499c10.486 2.32 22.093 3.988 34.498 4.994c7.084 9.967 14.501 19.128 21.976 27.15a134.668 134.668 0 0 1-4.877 4.492c-9.933 8.682-19.886 14.842-28.658 17.94ZM50.35 144.747c-12.483-4.267-22.792-9.812-29.858-15.863c-6.35-5.437-9.555-10.836-9.555-15.216c0-9.322 13.897-21.212 37.076-29.293c2.813-.98 5.757-1.905 8.812-2.773c3.204 10.42 7.406 21.315 12.477 32.332c-5.137 11.18-9.399 22.249-12.634 32.792a134.718 134.718 0 0 1-6.318-1.979Zm12.378-84.26c-4.811-24.587-1.616-43.134 6.425-47.789c8.564-4.958 27.502 2.111 47.463 19.835a144.318 144.318 0 0 1 3.841 3.545c-7.438 7.987-14.787 17.08-21.808 26.988c-12.04 1.116-23.565 2.908-34.161 5.309a160.342 160.342 0 0 1-1.76-7.887Zm110.427 27.268a347.8 347.8 0 0 0-7.785-12.803c8.168 1.033 15.994 2.404 23.343 4.08c-2.206 7.072-4.956 14.465-8.193 22.045a381.151 381.151 0 0 0-7.365-13.322Zm-45.032-43.861c5.044 5.465 10.096 11.566 15.065 18.186a322.04 322.04 0 0 0-30.257-.006c4.974-6.559 10.069-12.652 15.192-18.18ZM82.802 87.83a323.167 323.167 0 0 0-7.227 13.238c-3.184-7.553-5.909-14.98-8.134-22.152c7.304-1.634 15.093-2.97 23.209-3.984a321.524 321.524 0 0 0-7.848 12.897Zm8.081 65.352c-8.385-.936-16.291-2.203-23.593-3.793c2.26-7.3 5.045-14.885 8.298-22.6a321.187 321.187 0 0 0 7.257 13.246c2.594 4.48 5.28 8.868 8.038 13.147Zm37.542 31.03c-5.184-5.592-10.354-11.779-15.403-18.433c4.902.192 9.899.29 14.978.29c5.218 0 10.376-.117 15.453-.343c-4.985 6.774-10.018 12.97-15.028 18.486Zm52.198-57.817c3.422 7.8 6.306 15.345 8.596 22.52c-7.422 1.694-15.436 3.058-23.88 4.071a382.417 382.417 0 0 0 7.859-13.026a347.403 347.403 0 0 0 7.425-13.565Zm-16.898 8.101a358.557 358.557 0 0 1-12.281 19.815a329.4 329.4 0 0 1-23.444.823c-7.967 0-15.716-.248-23.178-.732a310.202 310.202 0 0 1-12.513-19.846h.001a307.41 307.41 0 0 1-10.923-20.627a310.278 310.278 0 0 1 10.89-20.637l-.001.001a307.318 307.318 0 0 1 12.413-19.761c7.613-.576 15.42-.876 23.31-.876H128c7.926 0 15.743.303 23.354.883a329.357 329.357 0 0 1 12.335 19.695a358.489 358.489 0 0 1 11.036 20.54a329.472 329.472 0 0 1-11 20.722Zm22.56-122.124c8.572 4.944 11.906 24.881 6.52 51.026c-.344 1.668-.73 3.367-1.15 5.09c-10.622-2.452-22.155-4.275-34.23-5.408c-7.034-10.017-14.323-19.124-21.64-27.008a160.789 160.789 0 0 1 5.888-5.4c18.9-16.447 36.564-22.941 44.612-18.3ZM128 90.808c12.625 0 22.86 10.235 22.86 22.86s-10.235 22.86-22.86 22.86s-22.86-10.235-22.86-22.86s10.235-22.86 22.86-22.86Z"></path></svg>
+</file>
+
+<file path="src/assets/vite.svg">
+<svg xmlns="http://www.w3.org/2000/svg" width="77" height="47" fill="none" aria-labelledby="vite-logo-title" viewBox="0 0 77 47"><title id="vite-logo-title">Vite</title><style>.parenthesis{fill:#000}@media (prefers-color-scheme:dark){.parenthesis{fill:#fff}}</style><path fill="#9135ff" d="M40.151 45.71c-.663.844-2.02.374-2.02-.699V34.708a2.26 2.26 0 0 0-2.262-2.262H24.493c-.92 0-1.457-1.04-.92-1.788l7.479-10.471c1.07-1.498 0-3.578-1.842-3.578H15.443c-.92 0-1.456-1.04-.92-1.788l9.696-13.576c.213-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.472c-1.07 1.497 0 3.578 1.842 3.578h11.376c.944 0 1.474 1.087.89 1.83L40.153 45.712z"/><mask id="a" width="48" height="47" x="14" y="0" maskUnits="userSpaceOnUse" style="mask-type:alpha"><path fill="#000" d="M40.047 45.71c-.663.843-2.02.374-2.02-.699V34.708a2.26 2.26 0 0 0-2.262-2.262H24.389c-.92 0-1.457-1.04-.92-1.788l7.479-10.472c1.07-1.497 0-3.578-1.842-3.578H15.34c-.92 0-1.456-1.04-.92-1.788l9.696-13.575c.213-.297.556-.474.92-.474H53.93c.92 0 1.456 1.04.92 1.788L47.37 13.03c-1.07 1.498 0 3.578 1.842 3.578h11.376c.944 0 1.474 1.088.89 1.831L40.049 45.712z"/></mask><g mask="url(#a)"><g filter="url(#b)"><ellipse cx="5.508" cy="14.704" fill="#eee6ff" rx="5.508" ry="14.704" transform="rotate(269.814 20.96 11.29)scale(-1 1)"/></g><g filter="url(#c)"><ellipse cx="10.399" cy="29.851" fill="#eee6ff" rx="10.399" ry="29.851" transform="rotate(89.814 -16.902 -8.275)scale(1 -1)"/></g><g filter="url(#d)"><ellipse cx="5.508" cy="30.487" fill="#8900ff" rx="5.508" ry="30.487" transform="rotate(89.814 -19.197 -7.127)scale(1 -1)"/></g><g filter="url(#e)"><ellipse cx="5.508" cy="30.599" fill="#8900ff" rx="5.508" ry="30.599" transform="rotate(89.814 -25.928 4.177)scale(1 -1)"/></g><g filter="url(#f)"><ellipse cx="5.508" cy="30.599" fill="#8900ff" rx="5.508" ry="30.599" transform="rotate(89.814 -25.738 5.52)scale(1 -1)"/></g><g filter="url(#g)"><ellipse cx="14.072" cy="22.078" fill="#eee6ff" rx="14.072" ry="22.078" transform="rotate(93.35 31.245 55.578)scale(-1 1)"/></g><g filter="url(#h)"><ellipse cx="3.47" cy="21.501" fill="#8900ff" rx="3.47" ry="21.501" transform="rotate(89.009 35.419 55.202)scale(-1 1)"/></g><g filter="url(#i)"><ellipse cx="3.47" cy="21.501" fill="#8900ff" rx="3.47" ry="21.501" transform="rotate(89.009 35.419 55.202)scale(-1 1)"/></g><g filter="url(#j)"><ellipse cx="14.592" cy="9.743" fill="#8900ff" rx="4.407" ry="29.108" transform="rotate(39.51 14.592 9.743)"/></g><g filter="url(#k)"><ellipse cx="61.728" cy="-5.321" fill="#8900ff" rx="4.407" ry="29.108" transform="rotate(37.892 61.728 -5.32)"/></g><g filter="url(#l)"><ellipse cx="55.618" cy="7.104" fill="#00c2ff" rx="5.971" ry="9.665" transform="rotate(37.892 55.618 7.104)"/></g><g filter="url(#m)"><ellipse cx="12.326" cy="39.103" fill="#8900ff" rx="4.407" ry="29.108" transform="rotate(37.892 12.326 39.103)"/></g><g filter="url(#n)"><ellipse cx="12.326" cy="39.103" fill="#8900ff" rx="4.407" ry="29.108" transform="rotate(37.892 12.326 39.103)"/></g><g filter="url(#o)"><ellipse cx="49.857" cy="30.678" fill="#8900ff" rx="4.407" ry="29.108" transform="rotate(37.892 49.857 30.678)"/></g><g filter="url(#p)"><ellipse cx="52.623" cy="33.171" fill="#00c2ff" rx="5.971" ry="15.297" transform="rotate(37.892 52.623 33.17)"/></g></g><path d="M6.919 0c-9.198 13.166-9.252 33.575 0 46.789h6.215c-9.25-13.214-9.196-33.623 0-46.789zm62.424 0h-6.215c9.198 13.166 9.252 33.575 0 46.789h6.215c9.25-13.214 9.196-33.623 0-46.789" class="parenthesis"/><defs><filter id="b" width="60.045" height="41.654" x="-5.564" y="16.92" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="7.659"/></filter><filter id="c" width="90.34" height="51.437" x="-40.407" y="-6.762" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="7.659"/></filter><filter id="d" width="79.355" height="29.4" x="-35.435" y="2.801" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="e" width="79.579" height="29.4" x="-30.84" y="20.8" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="f" width="79.579" height="29.4" x="-29.307" y="21.949" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="g" width="74.749" height="58.852" x="29.961" y="-17.13" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="7.659"/></filter><filter id="h" width="61.377" height="25.362" x="37.754" y="3.055" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="i" width="61.377" height="25.362" x="37.754" y="3.055" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="j" width="56.045" height="63.649" x="-13.43" y="-22.082" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="k" width="54.814" height="64.646" x="34.321" y="-37.644" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="l" width="33.541" height="35.313" x="38.847" y="-10.552" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="m" width="54.814" height="64.646" x="-15.081" y="6.78" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="n" width="54.814" height="64.646" x="-15.081" y="6.78" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="o" width="54.814" height="64.646" x="22.45" y="-1.645" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter><filter id="p" width="39.409" height="43.623" x="32.919" y="11.36" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17286" stdDeviation="4.596"/></filter></defs></svg>
+</file>
+
+<file path="src/components/BranchPriceModal.jsx">
+// src/components/BranchPriceModal.jsx
+// ─────────────────────────────────────────────────────────────
+// Modal สำหรับกำหนดราคาสินค้าแยกตามสาขา (Multi-Branch Pricing)
+// - โหลดราคาสาขาตามสิทธิ์ของ user (access_level)
+// - บันทึกผ่าน apiFetch (ไม่มี hardcode URL)
+// - Level 1 (Admin): เห็นทุกสาขา
+// - Level 2/3: เห็นเฉพาะสาขาที่มีสิทธิ์
+// ─────────────────────────────────────────────────────────────
+
+import { useState, useEffect } from 'react';
+import Swal from 'sweetalert2';
+import apiFetch from '../services/apiFetch';
+
+export default function BranchPriceModal({ product, isOpen, onClose, onSaved }) {
+  // ─── State ────────────────────────────────────────────────
+  const [branchPrices, setBranchPrices] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // ─── Effect: โหลดข้อมูลเมื่อเปิด modal ─────────────────────
+  useEffect(() => {
+    if (!isOpen || !product) {
+      // ถ้าปิด modal → เคลียร์ข้อมูลเก่าทิ้ง
+      setBranchPrices([]);
+      return;
+    }
+
+    let isMounted = true;
+
+    (async () => {
+      setLoading(true);
+      try {
+        const data = await apiFetch(`/products/${product.id}/branch-prices`);
+
+        if (!isMounted) return;
+
+        if (data?.success) {
+          setBranchPrices(data.data);
+        } else {
+          Swal.fire(
+            'ข้อผิดพลาด',
+            data?.message || 'ไม่สามารถโหลดข้อมูลราคาสาขาได้',
+            'error'
+          );
+        }
+      } catch (err) {
+        console.error('Fetch branch prices error:', err);
+        if (isMounted) {
+          Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, product]);
+
+  // ─── Handler: แก้ไขค่าในแต่ละสาขา ─────────────────────────
+  const handleInputChange = (branchId, field, value) => {
+    setBranchPrices((prev) =>
+      prev.map((item) =>
+        item.branch_id === branchId ? { ...item, [field]: value } : item
+      )
+    );
+  };
+
+  // ─── Handler: บันทึก ─────────────────────────────────────
+  const handleSave = async () => {
+    // ป้องกันกด Save ตอนโหลดไม่เสร็จ
+    if (loading || branchPrices.length === 0) return;
+
+    setSaving(true);
+
+    try {
+      // ส่งเฉพาะ field ที่ backend ใช้ (branch_id, price, reorder_point, is_active)
+      const payload = {
+        prices: branchPrices.map((b) => ({
+          branch_id: b.branch_id,
+          price: b.price === '' || b.price === null ? null : Number(b.price),
+          reorder_point: Number(b.reorder_point ?? 0),
+          is_active: Boolean(b.is_active),
+        })),
+      };
+
+      const data = await apiFetch(`/products/${product.id}/branch-prices`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      if (data?.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'บันทึกราคาสาขาสำเร็จ',
+          timer: 1500,
+          showConfirmButton: false,
+        });
+        if (onSaved) onSaved();
+        onClose();
+      } else {
+        Swal.fire('เกิดข้อผิดพลาด', data?.message || 'ไม่สามารถบันทึกได้', 'error');
+      }
+    } catch (err) {
+      console.error('Save branch prices error:', err);
+      Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ─── ไม่แสดงอะไรถ้าไม่เปิด ────────────────────────────────
+  if (!isOpen) return null;
+
+  // ─── Render ───────────────────────────────────────────────
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-gray-100 dark:border-gray-700 transform transition-all">
+
+        {/* Header */}
+        <div className="p-5 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900">
+          <div>
+            <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+              <i className="fas fa-tags text-purple-600 dark:text-purple-400"></i>
+              กำหนดราคาขายตามสาขา
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              สินค้า:{' '}
+              <span className="font-semibold text-blue-600 dark:text-blue-400">
+                {product?.name}
+              </span>
+              <span className="ml-2 px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs font-mono">
+                ราคากลาง: ฿{Number(product?.price || 0).toFixed(2)}
+              </span>
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-white p-1 rounded-lg transition-colors"
+          >
+            <i className="fas fa-times text-xl"></i>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4 custom-scrollbar">
+          {loading ? (
+            <div className="text-center py-10 text-gray-500 dark:text-gray-400 flex flex-col items-center gap-2">
+              <i className="fas fa-circle-notch fa-spin text-2xl text-blue-500"></i>
+              <span>กำลังดึงข้อมูลสาขาตามสิทธิ์...</span>
+            </div>
+          ) : branchPrices.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              ไม่พบสาขาที่คุณมีสิทธิ์จัดการ
+            </div>
+          ) : (
+            branchPrices.map((item) => (
+              <div
+                key={item.branch_id}
+                className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-750 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:shadow-sm"
+              >
+                {/* ชื่อสาขา */}
+                <div className="sm:w-1/3">
+                  <span className="font-bold text-gray-800 dark:text-gray-200 text-sm flex items-center gap-2">
+                    <i className="fas fa-store text-blue-500"></i>
+                    {item.branch_name}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {item.price !== null && item.price !== ''
+                      ? 'ใช้ราคาเฉพาะสาขา'
+                      : 'ใช้ราคากลางอัตโนมัติ'}
+                  </span>
+                </div>
+
+                {/* ช่องกรอกราคา Override */}
+                <div className="sm:w-1/3">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                    ราคาขายสาขา (฿)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder={`ราคากลาง (฿${product?.price})`}
+                    value={item.price ?? ''}
+                    onChange={(e) =>
+                      handleInputChange(item.branch_id, 'price', e.target.value)
+                    }
+                    className="w-full px-3 py-1.5 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-sm outline-none focus:ring-2 focus:ring-purple-500 transition-colors"
+                  />
+                </div>
+
+                {/* สวิตช์เปิด/ปิดขายเฉพาะสาขา */}
+                <div className="sm:w-1/4 flex items-center sm:justify-end gap-2 pt-1 sm:pt-0">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={item.is_active}
+                      onChange={(e) =>
+                        handleInputChange(item.branch_id, 'is_active', e.target.checked)
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+                    <span className="ml-2 text-xs font-semibold text-gray-700 dark:text-gray-300">
+                      {item.is_active ? 'เปิดขาย' : 'ปิดขาย'}
+                    </span>
+                  </label>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t dark:border-gray-700 flex justify-end gap-3 bg-gray-50 dark:bg-gray-900">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          >
+            ยกเลิก
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || loading || branchPrices.length === 0}
+            className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium shadow-md transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? (
+              <>
+                <i className="fas fa-spinner fa-spin"></i> กำลังบันทึก...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-save"></i> บันทึกราคาสาขา
+              </>
+            )}
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="src/components/Layout.jsx">
+// src/components/Layout.jsx
+// ─────────────────────────────────────────────────────────────
+// Layout หลักของระบบ PPOS
+// - Sidebar ที่โหลดเมนูตามสิทธิ์ (RBAC)
+// - Header + Dark mode toggle
+// - ตรวจสอบ token ก่อนเข้าใช้งานทุกครั้ง
+// - ใช้ apiFetch แทน fetch ตรงๆ (ไม่มี hardcode URL)
+// ─────────────────────────────────────────────────────────────
+
+import { useEffect, useState } from 'react';
+import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
+import apiFetch from '../services/apiFetch';
+
+export default function Layout() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // ─── State ────────────────────────────────────────────────
+  const [user, setUser] = useState(null);
+  const [menus, setMenus] = useState([]);
+  const [expandedMenu, setExpandedMenu] = useState(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+
+  // ─── Effect: จัดการ Dark mode ─────────────────────────────
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(theme === 'light' ? 'dark' : 'light');
+
+  // ─── Effect: ตรวจสอบ token + โหลดเมนู ─────────────────────
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
+
+    // 1. ถ้าไม่มี token/user → กลับไป login
+    if (!token || !storedUser || storedUser === 'undefined' || storedUser === 'null') {
+      localStorage.clear();
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    // 2. Parse user (ถ้า parse ไม่ได้ → session เสีย → login ใหม่)
+    try {
+      setUser(JSON.parse(storedUser));
+    } catch (error) {
+      console.error('Invalid user session', error);
+      localStorage.clear();
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    // 3. โหลดเมนูตามสิทธิ์
+    let isMounted = true;
+
+    (async () => {
+      try {
+        const data = await apiFetch('/menus');
+
+        // ถ้า component unmount แล้ว → ไม่ต้อง setState
+        if (!isMounted) return;
+
+        if (data?.success) {
+          setMenus(data.data);
+
+          // Auto-expand parent menu ของหน้าที่กำลังเปิดอยู่
+          const currentMenu = data.data.find((m) => m.link === location.pathname);
+          if (currentMenu && currentMenu.parent_id !== 0) {
+            setExpandedMenu(currentMenu.parent_id);
+          }
+        } else {
+          // backend ตอบ success:false → token ไม่ valid
+          localStorage.clear();
+          navigate('/login', { replace: true });
+        }
+      } catch (err) {
+        console.error('Error fetching menus:', err);
+        if (isMounted) {
+          localStorage.clear();
+          navigate('/login', { replace: true });
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [navigate, location.pathname]);
+
+  // ─── Handler: Logout ──────────────────────────────────────
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/login', { replace: true });
+  };
+
+  // ─── Loading state ────────────────────────────────────────
+  if (!user) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 dark:text-white">
+        กำลังโหลดข้อมูล...
+      </div>
+    );
+  }
+
+  // ─── Filter เมนูหลัก (parent_id = 0 หรือ null) ────────────
+  const mainMenus = menus.filter((m) => m.parent_id === 0 || !m.parent_id);
+
+  // ─── Render ───────────────────────────────────────────────
+  return (
+    <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden transition-colors duration-300">
+
+      {/* Overlay สำหรับมือถือ */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity"
+          onClick={() => setIsSidebarOpen(false)}
+        ></div>
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 dark:bg-gray-950 text-white flex flex-col shadow-xl transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        {/* Logo */}
+        <div className="p-6 text-2xl font-bold border-b border-gray-700 dark:border-gray-800 bg-gray-900 dark:bg-black text-blue-400 flex justify-between items-center">
+          <span>PPOS Admin</span>
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="md:hidden text-gray-400 hover:text-white"
+          >
+            <i className="fas fa-times text-xl"></i>
+          </button>
+        </div>
+
+        {/* Menu list */}
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
+          {mainMenus.map((menu) => {
+            const subMenus = menus.filter((m) => m.parent_id === menu.id);
+            const isExpanded = expandedMenu === menu.id;
+
+            // ─── เมนูที่มี sub-menu ─────────────────────────
+            if (subMenus.length > 0) {
+              return (
+                <div key={menu.id} className="space-y-1">
+                  <button
+                    onClick={() => setExpandedMenu(isExpanded ? null : menu.id)}
+                    className="w-full flex items-center justify-between py-2 px-4 hover:bg-gray-700 dark:hover:bg-gray-800 rounded-lg text-gray-300 transition-colors focus:outline-none"
+                  >
+                    <div className="flex items-center">
+                      <i className={`${menu.icon} mr-3 w-5 text-center`}></i>
+                      <span className="font-medium">{menu.menu_name}</span>
+                    </div>
+                    <svg
+                      className={`w-4 h-4 transition-transform duration-300 ${
+                        isExpanded ? 'rotate-180 text-blue-400' : ''
+                      }`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  </button>
+
+                  <div
+                    className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                      isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                    }`}
+                  >
+                    <div className="pl-6 pr-2 py-2 space-y-1 mt-1 bg-gray-900/50 dark:bg-black/30 rounded-lg">
+                      {subMenus.map((sub) => (
+                        <Link
+                          key={sub.id}
+                          to={sub.link}
+                          onClick={() => setIsSidebarOpen(false)}
+                          className={`flex items-center py-2 px-4 rounded-md transition-colors text-sm ${
+                            location.pathname === sub.link
+                              ? 'bg-blue-600 text-white'
+                              : 'text-gray-400 hover:bg-blue-600 hover:text-white'
+                          }`}
+                        >
+                          <i
+                            className={`${sub.icon || 'fas fa-angle-right'} mr-3 w-4 text-center text-xs`}
+                          ></i>
+                          {sub.menu_name}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            // ─── เมนูเดี่ยว ────────────────────────────────
+            return (
+              <Link
+                key={menu.id}
+                to={menu.link}
+                onClick={() => setIsSidebarOpen(false)}
+                className={`flex items-center py-2 px-4 rounded-lg transition-colors ${
+                  location.pathname === menu.link
+                    ? 'bg-gray-700 dark:bg-gray-800 text-white'
+                    : 'text-gray-300 hover:bg-gray-700 dark:hover:bg-gray-800'
+                }`}
+              >
+                <i className={`${menu.icon} mr-3 w-5 text-center`}></i>
+                <span className="font-medium">{menu.menu_name}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col h-full overflow-hidden relative">
+
+        {/* Header */}
+        <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-transparent dark:border-gray-700 p-4 flex justify-between items-center z-10 transition-colors duration-300">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="md:hidden text-gray-600 dark:text-gray-300 hover:text-gray-900 p-2 -ml-2"
+            >
+              <i className="fas fa-bars text-xl"></i>
+            </button>
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 hidden sm:block">
+              ระบบจัดการหลังบ้าน
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {/* Dark mode toggle */}
+            <button
+              onClick={toggleTheme}
+              className={`relative inline-flex items-center h-8 w-16 rounded-full transition-colors duration-300 focus:outline-none shadow-inner ${
+                theme === 'dark' ? 'bg-blue-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-flex items-center justify-center w-6 h-6 transform bg-white rounded-full shadow-md transition-transform duration-300 ${
+                  theme === 'dark' ? 'translate-x-9' : 'translate-x-1'
+                }`}
+              >
+                {theme === 'dark' ? (
+                  <i className="fas fa-moon text-blue-600 text-xs"></i>
+                ) : (
+                  <i className="fas fa-sun text-yellow-500 text-xs"></i>
+                )}
+              </span>
+            </button>
+
+            {/* User greeting */}
+            <span className="text-gray-600 dark:text-gray-300 hidden md:block">
+              สวัสดี,{' '}
+              <span className="font-bold text-blue-600 dark:text-blue-400">
+                {user.fullname || user.username}
+              </span>
+            </span>
+
+            {/* Logout */}
+            <button
+              onClick={handleLogout}
+              className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-4 py-2 rounded-lg shadow-sm hover:bg-red-100 dark:hover:bg-red-500/20 transition flex items-center gap-2"
+            >
+              <i className="fas fa-sign-out-alt"></i>
+              <span className="hidden md:inline">ออก</span>
+            </button>
+          </div>
+        </header>
+
+        {/* Page content */}
+        <div className="flex-1 overflow-y-auto">
+          <Outlet />
+        </div>
+      </main>
+    </div>
+  );
+}
+</file>
+
+<file path="src/config/api.js">
+// src/config/api.js
+
+// 1. อ่านค่า Base URL จาก .env (ถ้าไม่มีจะ Fallback ไปที่ localhost:5000/api)
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
+/**
+ * 2. ฟังก์ชันตัวช่วยยิง API (Fetch Wrapper)
+ * ช่วยต่อ URL อัตโนมัติ และใส่ Header Authorization: Bearer <token> ให้อัตโนมัติ
+ */
+export const apiFetch = async (endpoint, options = {}) => {
+  const token = localStorage.getItem('token');
+
+  // รวม Headers เริ่มต้นเข้ากับ Headers ที่ส่งเข้ามา
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...options.headers,
+  };
+
+  // ตัด slash ข้างหน้าออกเพื่อความถูกต้อง (เช่น /menus หรือ menus ก็ทำงานได้)
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
+  const response = await fetch(`${API_URL}${cleanEndpoint}`, {
+    ...options,
+    headers,
+  });
+
+  return response;
+};
+</file>
+
+<file path="src/pages/Branches.jsx">
+// src/pages/Branches.jsx
+// ─────────────────────────────────────────────────────────────
+// หน้าจัดการสาขา (Branches)
+// - โหลดเมนูเพื่อเช็คสิทธิ์ can_add / can_edit / can_delete
+// - CRUD สาขาผ่าน apiFetch (ไม่มี hardcode URL)
+// - Modal สำหรับเพิ่ม/แก้ไขสาขา
+// ─────────────────────────────────────────────────────────────
+
+import { useEffect, useState } from 'react';
+import Swal from 'sweetalert2';
+import apiFetch from '../services/apiFetch';
+
+export default function Branches() {
+  // ─── State: ข้อมูลหลัก ────────────────────────────────────
+  const [branches, setBranches] = useState([]);
+  const [permissions, setPermissions] = useState({
+    can_add: false,
+    can_edit: false,
+    can_delete: false,
+  });
+  const [loading, setLoading] = useState(true);
+
+  // ─── State: Modal ─────────────────────────────────────────
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [formData, setFormData] = useState({
+    branch_code: '',
+    branch_name: '',
+    contact_number: '',
+    address: '',
+    is_active: true,
+  });
+
+  // ─── Effect: โหลดข้อมูลครั้งแรก ───────────────────────────
+  useEffect(() => {
+    let isMounted = true;
+
+    (async () => {
+      try {
+        // 1. โหลดเมนูเพื่อเช็คสิทธิ์
+        const menuData = await apiFetch('/menus');
+        if (!isMounted) return;
+
+        if (menuData?.success) {
+          const branchMenu = menuData.data.find((m) => m.link === '/branches');
+          if (branchMenu) {
+            setPermissions({
+              can_add: Boolean(branchMenu.can_add),
+              can_edit: Boolean(branchMenu.can_edit),
+              can_delete: Boolean(branchMenu.can_delete),
+            });
+          }
+        }
+
+        // 2. โหลดรายการสาขา
+        await fetchBranches();
+      } catch (err) {
+        console.error('Init Branches error:', err);
+        if (isMounted) setLoading(false);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // ─── fetchBranches ────────────────────────────────────────
+  const fetchBranches = async () => {
+    try {
+      const data = await apiFetch('/branches');
+      if (data?.success) {
+        setBranches(data.data);
+      }
+    } catch (error) {
+      console.error('Fetch branches error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Handler: ลบสาขา ──────────────────────────────────────
+  const handleDelete = async (id) => {
+    const result = await Swal.fire({
+      title: 'ยืนยันการลบข้อมูล?',
+      text: 'คุณจะไม่สามารถกู้คืนข้อมูลนี้ได้!',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'ใช่, ลบเลย!',
+      cancelButtonText: 'ยกเลิก',
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      const data = await apiFetch(`/branches/${id}`, { method: 'DELETE' });
+
+      if (data?.success) {
+        Swal.fire('ลบสำเร็จ!', 'ข้อมูลสาขาถูกลบเรียบร้อยแล้ว', 'success');
+        setBranches((prev) => prev.filter((b) => b.id !== id));
+      } else {
+        Swal.fire('ลบไม่สำเร็จ!', data?.message || 'เกิดข้อผิดพลาด', 'error');
+      }
+    } catch (error) {
+      console.error('Delete branch error:', error);
+      Swal.fire('ข้อผิดพลาด!', 'เกิดข้อผิดพลาดในการลบข้อมูล', 'error');
+    }
+  };
+
+  // ─── Handler: เปิด Modal ──────────────────────────────────
+  const openModal = (branch = null) => {
+    if (branch) {
+      setEditId(branch.id);
+      setFormData({
+        branch_code: branch.branch_code || '',
+        branch_name: branch.branch_name || '',
+        contact_number: branch.contact_number || '',
+        address: branch.address || '',
+        is_active: branch.is_active ?? true,
+      });
+    } else {
+      setEditId(null);
+      setFormData({
+        branch_code: '',
+        branch_name: '',
+        contact_number: '',
+        address: '',
+        is_active: true,
+      });
+    }
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditId(null);
+  };
+
+  // ─── Handler: input change ────────────────────────────────
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
+  };
+
+  // ─── Handler: Submit (เพิ่ม/แก้ไข) ────────────────────────
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    const url = editId ? `/branches/${editId}` : '/branches';
+    const method = editId ? 'PUT' : 'POST';
+
+    try {
+      const data = await apiFetch(url, {
+        method,
+        body: JSON.stringify(formData),
+      });
+
+      if (data?.success) {
+        Swal.mixin({
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 3000,
+          timerProgressBar: true,
+        }).fire({
+          icon: 'success',
+          title: editId ? 'แก้ไขสาขาสำเร็จ' : 'เพิ่มสาขาสำเร็จ',
+        });
+
+        closeModal();
+        fetchBranches();
+      } else {
+        Swal.fire('ข้อผิดพลาด', data?.message || 'ไม่สามารถบันทึกได้', 'warning');
+      }
+    } catch (error) {
+      console.error('Submit branch error:', error);
+      Swal.fire('ระบบขัดข้อง', 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'error');
+    }
+  };
+
+  // ─── Loading state ────────────────────────────────────────
+  if (loading) {
+    return <div className="p-8 text-center text-gray-500">กำลังโหลดข้อมูล...</div>;
+  }
+
+  // ─── Render ───────────────────────────────────────────────
+  return (
+    <div className="p-4 md:p-6 max-w-7xl mx-auto">
+
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+          จัดการสาขา (Branches)
+        </h2>
+        {permissions.can_add && (
+          <button
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow transition-colors flex items-center gap-2"
+            onClick={() => openModal()}
+          >
+            <i className="fas fa-plus"></i> เพิ่มสาขา
+          </button>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-x-auto">
+        <table className="w-full text-left border-collapse min-w-max">
+          <thead className="bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-b dark:border-gray-700">
+            <tr>
+              <th className="p-4">รหัสสาขา</th>
+              <th className="p-4">ชื่อสาขา</th>
+              <th className="p-4">เบอร์ติดต่อ</th>
+              <th className="p-4">สถานะ</th>
+              <th className="p-4 text-right">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {branches.length === 0 ? (
+              <tr>
+                <td colSpan="5" className="p-4 text-center text-gray-500">
+                  ไม่มีข้อมูลสาขา
+                </td>
+              </tr>
+            ) : (
+              branches.map((branch) => (
+                <tr
+                  key={branch.id}
+                  className="hover:bg-gray-50 dark:hover:bg-gray-750 text-gray-800 dark:text-gray-200 border-b dark:border-gray-700 last:border-0"
+                >
+                  <td className="p-4 font-medium">{branch.branch_code}</td>
+                  <td className="p-4">{branch.branch_name}</td>
+                  <td className="p-4">{branch.contact_number || '-'}</td>
+                  <td className="p-4">
+                    <span
+                      className={`px-2 py-1 rounded text-xs font-semibold ${
+                        branch.is_active
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
+                          : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
+                      }`}
+                    >
+                      {branch.is_active ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
+                    </span>
+                  </td>
+                  <td className="p-4 text-right space-x-2">
+                    {permissions.can_edit && (
+                      <button
+                        onClick={() => openModal(branch)}
+                        className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 rounded-lg shadow-sm transition-colors inline-flex items-center gap-2 text-sm"
+                      >
+                        <i className="fas fa-edit"></i> แก้ไข
+                      </button>
+                    )}
+                    {permissions.can_delete && (
+                      <button
+                        onClick={() => handleDelete(branch.id)}
+                        className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg shadow-sm transition-colors inline-flex items-center gap-2 text-sm"
+                      >
+                        <i className="fas fa-trash-alt"></i> ลบ
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal เพิ่ม/แก้ไข */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
+
+            {/* Header */}
+            <div className="flex justify-between items-center p-6 border-b dark:border-gray-700">
+              <h3 className="text-xl font-bold text-gray-800 dark:text-white">
+                {editId ? 'แก้ไขสาขา' : 'เพิ่มสาขาใหม่'}
+              </h3>
+              <button
+                onClick={closeModal}
+                className="text-gray-400 hover:text-gray-200"
+              >
+                <i className="fas fa-times text-xl"></i>
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  รหัสสาขา *
+                </label>
+                <input
+                  type="text"
+                  name="branch_code"
+                  required
+                  value={formData.branch_code}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  ชื่อสาขา *
+                </label>
+                <input
+                  type="text"
+                  name="branch_name"
+                  required
+                  value={formData.branch_name}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  เบอร์ติดต่อ
+                </label>
+                <input
+                  type="text"
+                  name="contact_number"
+                  value={formData.contact_number}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  ที่อยู่
+                </label>
+                <textarea
+                  name="address"
+                  rows="2"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                ></textarea>
+              </div>
+
+              {editId && (
+                <div className="flex items-center pt-2">
+                  <input
+                    type="checkbox"
+                    id="is_active"
+                    name="is_active"
+                    checked={formData.is_active}
+                    onChange={handleInputChange}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <label
+                    htmlFor="is_active"
+                    className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    เปิดใช้งานสาขานี้
+                  </label>
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-700 rounded-lg"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow"
+                >
+                  บันทึกข้อมูล
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+</file>
+
+<file path="src/pages/Dashboard.jsx">
+// src/pages/Dashboard.jsx
+export default function Dashboard() {
+  return (
+    <div className="p-4 md:p-6">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-colors duration-300">
+        <h3 className="text-lg font-bold mb-4 text-gray-800 dark:text-gray-100">ภาพรวมระบบ</h3>
+        <p className="text-gray-600 dark:text-gray-300">
+          ยินดีต้อนรับสู่ระบบ PPOS Back-Office! เลือกเมนูทางด้านซ้ายเพื่อเริ่มต้นใช้งาน
+        </p>
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="src/pages/Login.jsx">
+// src/pages/Login.jsx
+// ─────────────────────────────────────────────────────────────
+// หน้า Login สำหรับ PPOS System
+// - ใช้ apiFetch แทน fetch ตรงๆ (ไม่มี hardcode URL)
+// - บันทึก token + user ลง localStorage
+// - Redirect ไป /dashboard เมื่อ login สำเร็จ
+// ─────────────────────────────────────────────────────────────
+
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
+import apiFetch from '../services/apiFetch';
+
+export default function Login() {
+  const navigate = useNavigate();
+
+  // ─── State ────────────────────────────────────────────────
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // ─── Effect: ถ้ามี token อยู่แล้ว → ข้ามไป dashboard ──────
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [navigate]);
+
+  // ─── Handler: Submit Login ────────────────────────────────
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      // เรียก API ผ่าน apiFetch (ไม่ต้องใส่ http://localhost:5000/api เอง)
+      const data = await apiFetch('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+      });
+
+      console.log('Login Response:', data);
+
+      // ─── สำเร็จ ─────────────────────────────────────────
+      // Backend ส่ง: { success, token, data: { id, username, fullname, ... } }
+      if (data?.success && data?.token) {
+        // 1. เก็บ token
+        localStorage.setItem('token', data.token);
+
+        // 2. เก็บข้อมูล user (ใช้ key "data" ให้ตรงกับ backend)
+        localStorage.setItem('user', JSON.stringify(data.data));
+
+        // 3. แจ้งเตือนสำเร็จ
+        Swal.fire({
+          icon: 'success',
+          title: 'เข้าสู่ระบบสำเร็จ!',
+          timer: 1000,
+          showConfirmButton: false,
+        });
+
+        // 4. Redirect ไป dashboard
+        setTimeout(() => {
+          navigate('/dashboard', { replace: true });
+        }, 1000);
+      }
+      // ─── ไม่สำเร็จ ──────────────────────────────────────
+      else {
+        Swal.fire({
+          icon: 'error',
+          title: 'เข้าสู่ระบบไม่สำเร็จ',
+          text: data?.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง',
+          confirmButtonColor: '#3b82f6',
+        });
+      }
+    } catch (error) {
+      // ─── Error: เชื่อมต่อไม่ได้ ─────────────────────────
+      console.error('Login error:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        text: 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้',
+        confirmButtonColor: '#3b82f6',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Render ───────────────────────────────────────────────
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-300">
+      <div className="w-full max-w-md p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700">
+
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
+            PPOS System
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+            กรุณาเข้าสู่ระบบเพื่อจัดการหลังบ้าน
+          </p>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleLogin} className="space-y-5">
+
+          {/* Username */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              ชื่อผู้ใช้งาน (Username)
+            </label>
+            <input
+              type="text"
+              required
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white outline-none"
+              placeholder="กรอกชื่อผู้ใช้งาน"
+            />
+          </div>
+
+          {/* Password */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              รหัสผ่าน (Password)
+            </label>
+            <input
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white outline-none"
+              placeholder="••••••••"
+            />
+          </div>
+
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 px-4 text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-md font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {loading ? (
+              <>
+                <i className="fas fa-spinner fa-spin"></i>
+                กำลังตรวจสอบสิทธิ์...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-sign-in-alt"></i>
+                เข้าสู่ระบบ
+              </>
+            )}
+          </button>
+
+        </form>
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="src/pages/SyncMaster.jsx">
+import { useState, useEffect, useRef } from 'react';
+import Swal from 'sweetalert2';
+import apiFetch from '../services/apiFetch';
+
+export default function SyncMaster() {
+  const [status, setStatus] = useState('idle');
+  const [message, setMessage] = useState('ระบบพร้อมทำงาน สามารถกดปุ่มเพื่อเริ่มอัปเดตข้อมูล');
+
+  const [branches, setBranches] = useState([]);
+  const [selectedBranch, setSelectedBranch] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [accessLevel, setAccessLevel] = useState(3);
+
+  // ─── State สำหรับ Terminal Log ───
+  const [logs, setLogs] = useState([
+    `[${new Date().toLocaleTimeString('th-TH')}] System initialized. Ready for synchronization.`
+  ]);
+  const logEndRef = useRef(null);
+
+  // ฟังก์ชันเพิ่ม Log ลง Terminal
+  const addLog = (msg) => {
+    setLogs(prev => [...prev, `[${new Date().toLocaleTimeString('th-TH')}] ${msg}`]);
+  };
+
+  // เลื่อน Terminal ลงล่างสุดอัตโนมัติเวลามี Log ใหม่
+  useEffect(() => {
+    if (logEndRef.current) {
+      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [logs]);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      const user = JSON.parse(storedUser);
+      setCurrentUser(user);
+      setIsAdmin(user.group_id === 1);
+    }
+    fetchAllowedBranches();
+  }, []);
+
+  const fetchAllowedBranches = async () => {
+    addLog('Fetching authorized branches...');
+    try {
+      const data = await apiFetch('/branches/allowed');
+      if (data?.success) {
+        setBranches(data.data);
+        setAccessLevel(data.access_level);
+        
+        if (data.access_level === 1) {
+          setSelectedBranch(0); 
+        } else if (data.data.length > 0) {
+          setSelectedBranch(data.data[0].id);
+        }
+        addLog(`Loaded ${data.data.length} branches successfully. Access Level: ${data.access_level}`);
+      }
+    } catch (error) {
+      console.error('Fetch branches error:', error);
+      addLog('❌ Error: Failed to fetch branches.');
+    }
+  };
+
+  const allowedBranches = isAdmin 
+    ? branches 
+    : branches.filter(b => b.id === currentUser?.branch_id);
+
+  const handleStartSync = async () => {
+    const branchName = Number(selectedBranch) === 0 
+      ? 'ทุกสาขาทั้งบริษัท' 
+      : branches.find(b => Number(b.id) === Number(selectedBranch))?.branch_name || 'สาขาที่เลือก';
+
+    const confirm = await Swal.fire({
+      title: 'ต้องการอัปเดตข้อมูลใช่หรือไม่?',
+      html: `ระบบจะดึงข้อมูลล่าสุดของ <b class="text-blue-600">${branchName}</b> มาไว้ในเครื่อง`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#3b82f6',
+      cancelButtonColor: '#9ca3af',
+      confirmButtonText: 'ใช่, อัปเดตเลย',
+      cancelButtonText: 'ยกเลิก',
+      reverseButtons: true
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    setStatus('syncing');
+    setMessage(`กำลังดึงข้อมูล ${branchName} กรุณารอสักครู่...`);
+    addLog('----------------------------------------');
+    addLog(`🚀 START SYNC: Target -> ${branchName}`);
+    addLog('Connecting to legacy MySQL database via dynamic pool...');
+
+    const startTime = Date.now();
+
+    try {
+      const data = await apiFetch('/master/sync', { 
+        method: 'POST',
+        body: JSON.stringify({ branch_id: Number(selectedBranch) }) 
+      });
+
+      const endTime = Date.now();
+      const syncTimeSeconds = ((endTime - startTime) / 1000).toFixed(2);
+
+      if (data?.success) {
+        setStatus('success');
+        setMessage(`อัปเดตข้อมูล ${branchName} เสร็จสมบูรณ์!`);
+        
+        addLog(`✅ SYNC SUCCESS: Transferred ${data.total_synced || 0} rows.`);
+        addLog(`⏱️ Execution Time: ${syncTimeSeconds} seconds.`);
+        
+        Swal.fire({ 
+            icon: 'success', 
+            title: 'อัปเดตสำเร็จ!', 
+            text: `ใช้เวลาไป ${syncTimeSeconds} วินาที`,
+            timer: 2500, 
+            showConfirmButton: false 
+        });
+      } else {
+        setStatus('error');
+        setMessage(`เกิดปัญหา: ${data?.message || 'ไม่สามารถดึงข้อมูลได้'}`);
+        addLog(`❌ SYNC FAILED: ${data?.message}`);
+        Swal.fire('เกิดข้อผิดพลาด', data?.message || 'การดึงข้อมูลล้มเหลว', 'warning');
+      }
+    } catch (error) {
+      console.error('Sync error:', error);
+      setStatus('error');
+      setMessage('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ โปรดตรวจสอบอินเทอร์เน็ต');
+      addLog('❌ FATAL ERROR: Server connection lost or timed out.');
+    }
+  };
+
+  const getStatusUI = () => {
+    switch (status) {
+      case 'syncing': return { icon: 'fas fa-cloud-download-alt animate-bounce text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800', textColor: 'text-blue-700 dark:text-blue-300' };
+      case 'success': return { icon: 'fas fa-check-circle text-green-500', bg: 'bg-green-50 dark:bg-green-900/20', border: 'border-green-200 dark:border-green-800', textColor: 'text-green-700 dark:text-green-300' };
+      case 'error': return { icon: 'fas fa-exclamation-triangle text-red-500', bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-200 dark:border-red-800', textColor: 'text-red-700 dark:text-red-300' };
+      default: return { icon: 'fas fa-server text-gray-400', bg: 'bg-gray-50 dark:bg-gray-800', border: 'border-gray-200 dark:border-gray-700', textColor: 'text-gray-600 dark:text-gray-400' };
+    }
+  };
+  const ui = getStatusUI();
+
+  return (
+    <div className="p-4 md:p-6 max-w-6xl mx-auto flex flex-col items-center justify-center min-h-[80vh]">
+      
+      {/* Container หลัก (แบ่ง 2 ฝั่งบนหน้าจอใหญ่) */}
+      <div className="bg-white dark:bg-gray-800 w-full rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col lg:flex-row">
+        
+        {/* ========================================================= */}
+        {/* ฝั่งซ้าย: Control Panel (แผงควบคุมหลัก) */}
+        {/* ========================================================= */}
+        <div className="w-full lg:w-5/12 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-100 dark:border-gray-700">
+          
+          {/* Header */}
+          <div className="p-6 md:p-8 text-center border-b border-gray-100 dark:border-gray-700">
+            <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+              <i className="fas fa-sync-alt text-2xl text-blue-600 dark:text-blue-400"></i>
+            </div>
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-2">อัปเดตข้อมูลระบบ (Sync)</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">อัปเดตข้อมูลจากระบบส่วนกลาง</p>
+          </div>
+
+          <div className="p-6 flex-1 bg-gray-50/50 dark:bg-gray-900/30 flex flex-col justify-center">
+            
+            {/* Dropdown เลือกสาขา */}
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                เลือกเป้าหมาย
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedBranch}
+                  onChange={(e) => setSelectedBranch(e.target.value)}
+                  disabled={status === 'syncing' || (accessLevel !== 1 && allowedBranches.length <= 1)}
+                  className="w-full appearance-none bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white py-3 px-4 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-500 cursor-pointer shadow-sm text-sm transition-colors"
+                >
+                  {accessLevel === 1 && <option value={0}>🌟 ทุกสาขาทั้งบริษัท (All Branches)</option>}
+                  {allowedBranches.map(branch => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.branch_code} - {branch.branch_name}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
+                  <i className="fas fa-chevron-down text-sm"></i>
+                </div>
+              </div>
+            </div>
+
+            {/* กล่องแสดงสถานะ */}
+            <div className={`flex flex-col items-center justify-center p-5 rounded-xl border ${ui.bg} ${ui.border} text-center transition-colors duration-300 min-h-[140px]`}>
+              <i className={`${ui.icon} text-3xl mb-3`}></i>
+              <p className={`text-sm font-medium ${ui.textColor} px-2`}>{message}</p>
+              {status === 'syncing' && (
+                <div className="w-full max-w-[200px] bg-blue-200 dark:bg-blue-900 rounded-full h-1.5 mt-4 overflow-hidden">
+                  <div className="bg-blue-600 h-1.5 rounded-full w-full animate-pulse"></div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ปุ่มกด */}
+          <div className="p-6 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
+            <button
+              onClick={handleStartSync}
+              disabled={status === 'syncing' || selectedBranch === ''}
+              className={`w-full py-3 rounded-xl text-white font-semibold shadow-md transition-all flex items-center justify-center gap-2
+                ${status === 'syncing' || selectedBranch === '' 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg hover:-translate-y-0.5'
+                }`}
+            >
+              {status === 'syncing' ? <><i className="fas fa-spinner fa-spin"></i> กำลังดำเนินการ...</> : 
+               status === 'success' ? <><i className="fas fa-redo"></i> อัปเดตข้อมูลอีกครั้ง</> : 
+               <><i className="fas fa-download"></i> เริ่มอัปเดตข้อมูล</>}
+            </button>
+          </div>
+        </div>
+
+        {/* ========================================================= */}
+        {/* ฝั่งขวา: Terminal Log (สำหรับ Admin/Dev ดูการเคลื่อนไหว) */}
+        {/* ========================================================= */}
+        <div className="w-full lg:w-7/12 bg-gray-950 p-4 lg:p-6 flex flex-col">
+          <div className="flex items-center gap-2 mb-3 px-2">
+            <div className="flex gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-red-500"></div>
+              <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+            </div>
+            <span className="text-gray-400 text-xs font-mono tracking-wider ml-2">sys_sync_terminal.log</span>
+            {/* แสดงเวลา Execution Time ท้าย Header ถ้ามี */}
+            {status === 'success' && (
+              <span className="text-green-400 text-xs font-mono ml-auto">STATUS: COMPLETED</span>
+            )}
+          </div>
+          
+          <div className="flex-1 bg-black/50 border border-gray-800 rounded-lg p-4 font-mono text-xs md:text-sm overflow-y-auto h-64 lg:h-auto custom-scrollbar shadow-inner">
+            <div className="space-y-1.5">
+              {logs.map((log, index) => {
+                // จัดสีตามประเภทข้อความ
+                let colorClass = "text-gray-300";
+                if (log.includes('✅')) colorClass = "text-green-400 font-bold";
+                else if (log.includes('❌') || log.includes('ERROR')) colorClass = "text-red-400";
+                else if (log.includes('🚀') || log.includes('⏱️')) colorClass = "text-blue-300";
+                else if (log.includes('---')) colorClass = "text-gray-500";
+                
+                return (
+                  <div key={index} className={`${colorClass} break-words`}>
+                    {log}
+                  </div>
+                );
+              })}
+              {status === 'syncing' && (
+                <div className="text-blue-400 animate-pulse mt-2 flex items-center gap-2">
+                  <i className="fas fa-terminal"></i> Processing data chunks...
+                </div>
+              )}
+              {/* Dummy div สำหรับ Scroll ลงล่างสุด */}
+              <div ref={logEndRef} />
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="src/services/apiFetch.js">
+// src/services/apiFetch.js
+// ─────────────────────────────────────────────────────────────
+// API Wrapper สำหรับทุก fetch ในโปรเจกต์ PPOS
+// - โหลด BASE_URL จาก .env (VITE_API_URL)
+// - แนบ JWT Token อัตโนมัติ
+// - จัดการ 401/403 → logout + redirect ไป /login
+// - Parse JSON ให้เลย (ไม่ต้อง .json() เอง)
+// ─────────────────────────────────────────────────────────────
+
+// ตัด "/" ตัวสุดท้ายออก (กัน http://localhost:5000/api/ → http://localhost:5000/api)
+const BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+
+export default async function apiFetch(path, options = {}) {
+  // ถ้า path ไม่ขึ้นต้นด้วย "/" ให้เติมให้ (กันพิมพ์ผิด)
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+  const token = localStorage.getItem('token');
+
+  const res = await fetch(`${BASE_URL}${cleanPath}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...options.headers,
+    },
+  });
+
+  // Token หมดอายุ / ไม่มีสิทธิ์ → เคลียร์ session แล้วกลับ login
+  if (res.status === 401 || res.status === 403) {
+    localStorage.clear();
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+    return;
+  }
+
+  return res.json();
+}
+</file>
+
+<file path="src/App.css">
+.counter {
+  font-size: 16px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  color: var(--accent);
+  background: var(--accent-bg);
+  border: 2px solid transparent;
+  transition: border-color 0.3s;
+  margin-bottom: 24px;
+
+  &:hover {
+    border-color: var(--accent-border);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+.hero {
+  position: relative;
+
+  .base,
+  .framework,
+  .vite {
+    inset-inline: 0;
+    margin: 0 auto;
+  }
+
+  .base {
+    width: 170px;
+    position: relative;
+    z-index: 0;
+  }
+
+  .framework,
+  .vite {
+    position: absolute;
+  }
+
+  .framework {
+    z-index: 1;
+    top: 34px;
+    height: 28px;
+    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
+      scale(1.4);
+  }
+
+  .vite {
+    z-index: 0;
+    top: 107px;
+    height: 26px;
+    width: auto;
+    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
+      scale(0.8);
+  }
+}
+
+#center {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+  place-content: center;
+  place-items: center;
+  flex-grow: 1;
+
+  @media (max-width: 1024px) {
+    padding: 32px 20px 24px;
+    gap: 18px;
+  }
+}
+
+#next-steps {
+  display: flex;
+  border-top: 1px solid var(--border);
+  text-align: left;
+
+  & > div {
+    flex: 1 1 0;
+    padding: 32px;
+    @media (max-width: 1024px) {
+      padding: 24px 20px;
+    }
+  }
+
+  .icon {
+    margin-bottom: 16px;
+    width: 22px;
+    height: 22px;
+  }
+
+  @media (max-width: 1024px) {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+#docs {
+  border-right: 1px solid var(--border);
+
+  @media (max-width: 1024px) {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+#next-steps ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  gap: 8px;
+  margin: 32px 0 0;
+
+  .logo {
+    height: 18px;
+  }
+
+  a {
+    color: var(--text-h);
+    font-size: 16px;
+    border-radius: 6px;
+    background: var(--social-bg);
+    display: flex;
+    padding: 6px 12px;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    transition: box-shadow 0.3s;
+
+    &:hover {
+      box-shadow: var(--shadow);
+    }
+    .button-icon {
+      height: 18px;
+      width: 18px;
+    }
+  }
+
+  @media (max-width: 1024px) {
+    margin-top: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+
+    li {
+      flex: 1 1 calc(50% - 8px);
+    }
+
+    a {
+      width: 100%;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+  }
+}
+
+#spacer {
+  height: 88px;
+  border-top: 1px solid var(--border);
+  @media (max-width: 1024px) {
+    height: 48px;
+  }
+}
+
+.ticks {
+  position: relative;
+  width: 100%;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    top: -4.5px;
+    border: 5px solid transparent;
+  }
+
+  &::before {
+    left: 0;
+    border-left-color: var(--border);
+  }
+  &::after {
+    right: 0;
+    border-right-color: var(--border);
+  }
+}
+</file>
+
+<file path="src/App.jsx">
+// src/App.jsx
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import Login from './pages/Login';
+import Layout from './components/Layout'; // นำเข้า Layout ที่เราเพิ่งสร้าง
+import Dashboard from './pages/Dashboard';
+import Branches from './pages/Branches';
+// import Products from './pages/Products'; // นำเข้าหน้า Products
+import SyncMaster from './pages/SyncMaster'; // 1. นำเข้าไฟล์ใหม่
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/login" element={<Login />} />
+        
+        {/* ครอบหน้าเว็บที่มีเมนูซ้ายด้วย Layout */}
+        <Route element={<Layout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/branches" element={<Branches />} />
+          <Route path="/sync-master" element={<SyncMaster />} /> {/* 2. เพิ่ม Route ใหม่ */}
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+</file>
+
+<file path="src/index.css">
+/* src/index.css */
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* เพิ่ม Transition ให้พื้นหลังเปลี่ยนสีแบบนุ่มนวลขึ้น */
+/*html {
+  @apply transition-colors duration-300 ease-in-out;
+  font-family: system-ui, -apple-system, "Segoe UI", "Ubuntu", "Leelawadee UI", "Noto Sans Thai", sans-serif;
+}
+*/
+@font-face {
+  font-family: 'Sarabun';
+  src: url('/fonts/Sarabun-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Sarabun';
+  src: url('/fonts/Sarabun-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Sarabun';
+  src: url('/fonts/Sarabun-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply transition-colors duration-300 ease-in-out;
+    font-family: 'Sarabun', system-ui, sans-serif;
+  }
+}
+</file>
+
+<file path="src/main.jsx">
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import App from './App.jsx'
+
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
+</file>
+
+<file path=".env.example">
+# URL สำหรับติดต่อกับ Backend
+VITE_API_URL=http://localhost:5000/api
+</file>
+
+<file path=".gitignore">
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Directory for instrumented libs generated by jscoverage/JSCover
+lib-cov
+
+# Coverage directory used by tools like istanbul
+coverage
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage (https://gruntjs.com/creating-plugins#t-storage)
+.grunt
+
+# Bower dependency directory (https://bower.io/)
+bower_components
+
+# node_modules (ห้ามอัปโหลดขึ้น GitHub เด็ดขาด)
+node_modules/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# Build output (ไฟล์สำหรับ Build ขึ้น Production ไม่ต้องอัปโหลดเพราะเดี๋ยวให้ระบบ Build ใหม่ตอน Deploy)
+dist
+dist-ssr
+
+# Output of local build processes
+.output
+.nuxt
+.next
+.svelte-kit
+.vercel
+.netlify
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Local environment files (ข้อมูลลับพวก API Keys หรือค่าคอนฟิกส่วนตัว ห้ามขึ้น GitHub)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+</file>
+
+<file path="index.html">
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PPOS System</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+</file>
+
+<file path=".oxlintrc.json">
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "oxc"],
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+  }
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "ww-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.2",
+    "sweetalert2": "^11.26.25"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "4.3.4",
+    "oxlint": "^1.75.0",
+    "tailwindcss": "^4.3.3",
+    "vite": "5.4.11"
+  }
+}
+</file>
+
+<file path="pnpm-workspace.yaml">
+allowBuilds:
+  esbuild: false
+</file>
+
+<file path="README.md">
+# React + Vite
+
+This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+
+Currently, two official plugins are available:
+
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+
+## React Compiler
+
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+
+## Expanding the Oxlint configuration
+
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+</file>
+
+<file path=".repomixignore">
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Directory for instrumented libs generated by jscoverage/JSCover
+lib-cov
+
+# Coverage directory used by tools like istanbul
+coverage
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage (https://gruntjs.com/creating-plugins#t-storage)
+.grunt
+
+# Bower dependency directory (https://bower.io/)
+bower_components
+
+# node_modules (ห้ามอัปโหลดขึ้น GitHub เด็ดขาด)
+node_modules/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# Build output (ไฟล์สำหรับ Build ขึ้น Production ไม่ต้องอัปโหลดเพราะเดี๋ยวให้ระบบ Build ใหม่ตอน Deploy)
+dist
+dist-ssr
+
+# Output of local build processes
+.output
+.nuxt
+.next
+.svelte-kit
+.vercel
+.netlify
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Local environment files (ข้อมูลลับพวก API Keys หรือค่าคอนฟิกส่วนตัว ห้ามขึ้น GitHub)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+</file>
+
+<file path="repomix-output.md">
+This file is a merged representation of a subset of the codebase, containing specifically included files, combined into a single document by Repomix.
+
+# File Summary
+
+## Purpose
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+
+## File Format
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  a. A header with the file path (## File: path/to/file)
+  b. The full contents of the file in a code block
+
+## Usage Guidelines
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+
+## Notes
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: **/*.jsx
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+
+# Directory Structure
+```
+src/
+  components/
+    BranchPriceModal.jsx
+    Layout.jsx
+  pages/
+    Branches.jsx
+    Dashboard.jsx
+    Login.jsx
+    Products.jsx
+  App.jsx
+  main.jsx
+```
+
+# Files
+
+## File: src/components/BranchPriceModal.jsx
+```javascript
+import { useState, useEffect } from 'react';
+import Swal from 'sweetalert2';
+
+export default function BranchPriceModal({ product, isOpen, onClose, onSaved }) {
+  const [branchPrices, setBranchPrices] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && product) {
+      fetchBranchPrices();
+    }
+  }, [isOpen, product]);
+
+  const fetchBranchPrices = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/products/${product.id}/branch-prices`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setBranchPrices(data.data);
+      } else {
+        Swal.fire('ข้อผิดพลาด', data.message || 'ไม่สามารถโหลดข้อมูลราคาสาขาได้', 'error');
+      }
+    } catch (err) {
+      console.error('Fetch branch prices error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (branchId, field, value) => {
+    setBranchPrices(prev =>
+      prev.map(item =>
+        item.branch_id === branchId ? { ...item, [field]: value } : item
+      )
+    );
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/products/${product.id}/branch-prices`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ prices: branchPrices })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'บันทึกราคาสาขาสำเร็จ',
+          timer: 1500,
+          showConfirmButton: false
+        });
+        if (onSaved) onSaved();
+        onClose();
+      } else {
+        Swal.fire('เกิดข้อผิดพลาด', data.message || 'ไม่สามารถบันทึกได้', 'error');
+      }
+    } catch (err) {
+      console.error('Save branch prices error:', err);
+      Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-gray-100 dark:border-gray-700 transform transition-all">
+        
+        {/* Header */}
+        <div className="p-5 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900">
+          <div>
+            <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+              <i className="fas fa-tags text-purple-600 dark:text-purple-400"></i>
+              กำหนดราคาขายตามสาขา
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              สินค้า: <span className="font-semibold text-blue-600 dark:text-blue-400">{product?.name}</span> 
+              <span className="ml-2 px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs font-mono">
+                ราคากลาง: ฿{Number(product?.price || 0).toFixed(2)}
+              </span>
+            </p>
+          </div>
+          <button 
+            onClick={onClose} 
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-white p-1 rounded-lg transition-colors"
+          >
+            <i className="fas fa-times text-xl"></i>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4 custom-scrollbar">
+          {loading ? (
+            <div className="text-center py-10 text-gray-500 dark:text-gray-400 flex flex-col items-center gap-2">
+              <i className="fas fa-circle-notch fa-spin text-2xl text-blue-500"></i>
+              <span>กำลังดึงข้อมูลสาขาตามสิทธิ์...</span>
+            </div>
+          ) : branchPrices.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              ไม่พบสาขาที่คุณมีสิทธิ์จัดการ
+            </div>
+          ) : (
+            branchPrices.map(item => (
+              <div 
+                key={item.branch_id} 
+                className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-750 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:shadow-sm"
+              >
+                {/* ชื่อสาขา */}
+                <div className="sm:w-1/3">
+                  <span className="font-bold text-gray-800 dark:text-gray-200 block text-sm flex items-center gap-2">
+                    <i className="fas fa-store text-blue-500"></i>
+                    {item.branch_name}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {item.price !== null && item.price !== '' ? 'ใช้ราคาเฉพาะสาขา' : 'ใช้ราคากลางอัตโนมัติ'}
+                  </span>
+                </div>
+
+                {/* ช่องกรอกราคา Override */}
+                <div className="sm:w-1/3">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                    ราคาขายสาขา (฿)
+                  </label>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    placeholder={`ราคากลาง (฿${product?.price})`}
+                    value={item.price ?? ''}
+                    onChange={(e) => handleInputChange(item.branch_id, 'price', e.target.value)}
+                    className="w-full px-3 py-1.5 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-sm outline-none focus:ring-2 focus:ring-purple-500 transition-colors"
+                  />
+                </div>
+
+                {/* สวิตช์เปิด/ปิดขายเฉพาะสาขา */}
+                <div className="sm:w-1/4 flex items-center sm:justify-end gap-2 pt-1 sm:pt-0">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={item.is_active}
+                      onChange={(e) => handleInputChange(item.branch_id, 'is_active', e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+                    <span className="ml-2 text-xs font-semibold text-gray-700 dark:text-gray-300">
+                      {item.is_active ? 'เปิดขาย' : 'ปิดขาย'}
+                    </span>
+                  </label>
+                </div>
+
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t dark:border-gray-700 flex justify-end gap-3 bg-gray-50 dark:bg-gray-900">
+          <button 
+            onClick={onClose} 
+            className="px-4 py-2 border dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          >
+            ยกเลิก
+          </button>
+          <button 
+            onClick={handleSave} 
+            disabled={saving || loading}
+            className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium shadow-md transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            {saving ? (
+              <>
+                <i className="fas fa-spinner fa-spin"></i> กำลังบันทึก...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-save"></i> บันทึกราคาสาขา
+              </>
+            )}
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+```
+
+## File: src/pages/Branches.jsx
+```javascript
+// src/pages/Branches.jsx
+import { useEffect, useState } from 'react';
+import Swal from 'sweetalert2';
+
+export default function Branches() {
+  const [branches, setBranches] = useState([]);
+  const [permissions, setPermissions] = useState({ can_add: false, can_edit: false, can_delete: false });
+  const [loading, setLoading] = useState(true);
+
+  // State Modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [formData, setFormData] = useState({ branch_code: '', branch_name: '', contact_number: '', address: '', is_active: true });
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    // โหลดสิทธิ์
+    fetch('http://localhost:5000/api/menus', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          const branchMenu = data.data.find(m => m.link === '/branches');
+          if (branchMenu) setPermissions({ can_add: branchMenu.can_add, can_edit: branchMenu.can_edit, can_delete: branchMenu.can_delete });
+        }
+      });
+    // โหลดสาขา
+    fetchBranches(token);
+  }, []);
+
+  const fetchBranches = async (token) => {
+    try {
+      const res = await fetch('http://localhost:5000/api/branches', { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) setBranches(data.data);
+      setLoading(false);
+    } catch (error) { console.error(error); }
+  };
+
+  const handleDelete = async (id) => {
+    const result = await Swal.fire({
+      title: 'ยืนยันการลบข้อมูล?', text: "คุณจะไม่สามารถกู้คืนข้อมูลนี้ได้!", icon: 'warning',
+      showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#6b7280',
+      confirmButtonText: 'ใช่, ลบเลย!', cancelButtonText: 'ยกเลิก'
+    });
+
+    if (!result.isConfirmed) return;
+    
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`http://localhost:5000/api/branches/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) {
+        Swal.fire('ลบสำเร็จ!', 'ข้อมูลสาขาถูกลบเรียบร้อยแล้ว', 'success');
+        setBranches(branches.filter(b => b.id !== id));
+      } else { Swal.fire('ลบไม่สำเร็จ!', data.message, 'error'); }
+    } catch (error) { Swal.fire('ข้อผิดพลาด!', 'เกิดข้อผิดพลาดในการลบข้อมูล', 'error'); }
+  };
+
+  const openModal = (branch = null) => {
+    if (branch) {
+      setEditId(branch.id);
+      setFormData({ ...branch });
+    } else {
+      setEditId(null);
+      setFormData({ branch_code: '', branch_name: '', contact_number: '', address: '', is_active: true });
+    }
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => { setIsModalOpen(false); setEditId(null); };
+
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const token = localStorage.getItem('token');
+    const url = editId ? `http://localhost:5000/api/branches/${editId}` : 'http://localhost:5000/api/branches';
+    const method = editId ? 'PUT' : 'POST';
+
+    try {
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(formData) });
+      const data = await res.json();
+
+      if (data.success) {
+        Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true })
+            .fire({ icon: 'success', title: editId ? 'แก้ไขสาขาสำเร็จ' : 'เพิ่มสาขาสำเร็จ' });
+        closeModal();
+        fetchBranches(token);
+      } else { Swal.fire('ข้อผิดพลาด', data.message, 'warning'); }
+    } catch (error) { Swal.fire('ระบบขัดข้อง', 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'error'); }
+  };
+
+  if (loading) return <div className="p-8 text-center">กำลังโหลดข้อมูล...</div>;
+
+  return (
+    <div className="p-4 md:p-6 max-w-7xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">จัดการสาขา (Branches)</h2>
+        {permissions.can_add && (
+          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow transition-colors flex items-center gap-2" onClick={() => openModal()}>
+            <i className="fas fa-plus"></i> เพิ่มสาขา
+          </button>
+        )}
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-x-auto">
+        <table className="w-full text-left border-collapse min-w-max">
+          <thead className="bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-b dark:border-gray-700">
+            <tr>
+              <th className="p-4">รหัสสาขา</th>
+              <th className="p-4">ชื่อสาขา</th>
+              <th className="p-4">เบอร์ติดต่อ</th>
+              <th className="p-4">สถานะ</th>
+              <th className="p-4 text-right">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {branches.length === 0 ? (
+              <tr><td colSpan="5" className="p-4 text-center text-gray-500">ไม่มีข้อมูลสาขา</td></tr>
+            ) : (
+              branches.map((branch) => (
+                <tr key={branch.id} className="hover:bg-gray-50 dark:hover:bg-gray-750 text-gray-800 dark:text-gray-200 border-b dark:border-gray-700 last:border-0">
+                  <td className="p-4 font-medium">{branch.branch_code}</td>
+                  <td className="p-4">{branch.branch_name}</td>
+                  <td className="p-4">{branch.contact_number || '-'}</td>
+                  <td className="p-4">
+                    <span className={`px-2 py-1 rounded text-xs font-semibold ${branch.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'}`}>
+                      {branch.is_active ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
+                    </span>
+                  </td>
+                  <td className="p-4 text-right space-x-2">
+                      {permissions.can_edit && (
+                        <button 
+                          onClick={() => openModal(branch)} 
+                          className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 rounded-lg shadow-sm transition-colors inline-flex items-center gap-2 text-sm"
+                        >
+                          <i className="fas fa-edit"></i> แก้ไข
+                        </button>
+                      )}
+                      {permissions.can_delete && (
+                        <button 
+                          onClick={() => handleDelete(branch.id)} 
+                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg shadow-sm transition-colors inline-flex items-center gap-2 text-sm"
+                        >
+                          <i className="fas fa-trash-alt"></i> ลบ
+                        </button>
+                      )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
+            <div className="flex justify-between items-center p-6 border-b dark:border-gray-700">
+              <h3 className="text-xl font-bold text-gray-800 dark:text-white">{editId ? 'แก้ไขสาขา' : 'เพิ่มสาขาใหม่'}</h3>
+              <button onClick={closeModal} className="text-gray-400 hover:text-gray-200"><i className="fas fa-times text-xl"></i></button>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">รหัสสาขา *</label><input type="text" name="branch_code" required value={formData.branch_code} onChange={handleInputChange} className="w-full px-4 py-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white outline-none" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ชื่อสาขา *</label><input type="text" name="branch_name" required value={formData.branch_name} onChange={handleInputChange} className="w-full px-4 py-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white outline-none" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">เบอร์ติดต่อ</label><input type="text" name="contact_number" value={formData.contact_number} onChange={handleInputChange} className="w-full px-4 py-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white outline-none" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ที่อยู่</label><textarea name="address" rows="2" value={formData.address} onChange={handleInputChange} className="w-full px-4 py-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white outline-none resize-none"></textarea></div>
+              {editId && (
+                <div className="flex items-center pt-2">
+                  <input type="checkbox" id="is_active" name="is_active" checked={formData.is_active} onChange={handleInputChange} className="w-4 h-4 text-blue-600 rounded" />
+                  <label htmlFor="is_active" className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">เปิดใช้งานสาขานี้</label>
+                </div>
+              )}
+              <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
+                <button type="button" onClick={closeModal} className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-700 rounded-lg">ยกเลิก</button>
+                <button type="submit" className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow">บันทึกข้อมูล</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## File: src/pages/Dashboard.jsx
+```javascript
+// src/pages/Dashboard.jsx
+export default function Dashboard() {
+  return (
+    <div className="p-4 md:p-6">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-colors duration-300">
+        <h3 className="text-lg font-bold mb-4 text-gray-800 dark:text-gray-100">ภาพรวมระบบ</h3>
+        <p className="text-gray-600 dark:text-gray-300">
+          ยินดีต้อนรับสู่ระบบ PPOS Back-Office! เลือกเมนูทางด้านซ้ายเพื่อเริ่มต้นใช้งาน
+        </p>
+      </div>
+    </div>
+  );
+}
+```
+
+## File: src/main.jsx
+```javascript
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import App from './App.jsx'
+
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
+```
+
+## File: src/components/Layout.jsx
+```javascript
+// src/components/Layout.jsx
+import { useEffect, useState } from 'react';
+import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
+
+export default function Layout() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [user, setUser] = useState(null);
+  const [menus, setMenus] = useState([]);
+  const [expandedMenu, setExpandedMenu] = useState(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(theme === 'light' ? 'dark' : 'light');
+
+  // ตรวจสอบสิทธิ์และดึงเมนู
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
+
+    // ถ้าไม่มี Token หรือข้อมูล User ไม่ถูกต้อง ให้ดีดกลับไปหน้า Login ทันที
+    if (!token || !storedUser || storedUser === 'undefined' || storedUser === 'null') {
+      localStorage.clear();
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    try {
+      setUser(JSON.parse(storedUser));
+    } catch (error) {
+      console.error('Invalid user session', error);
+      localStorage.clear();
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    // ดึงเมนูตามสิทธิ์
+    fetch('http://localhost:5000/api/menus', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setMenus(data.data);
+          const currentMenu = data.data.find(m => m.link === location.pathname);
+          if (currentMenu && currentMenu.parent_id !== 0) {
+             setExpandedMenu(currentMenu.parent_id);
+          }
+        } else {
+          // ถ้า Token หมดอายุหรือไม่ถูกต้อง
+          localStorage.clear();
+          navigate('/login', { replace: true });
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching menus:', err);
+      });
+  }, [navigate, location.pathname]);
+
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/login', { replace: true });
+  };
+
+  if (!user) {
+    return <div className="h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 dark:text-white">กำลังโหลดข้อมูล...</div>;
+  }
+
+  const mainMenus = menus.filter(m => m.parent_id === 0 || !m.parent_id);
+
+  return (
+    <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden transition-colors duration-300">
+      
+      {/* Overlay สำหรับมือถือ */}
+      {isSidebarOpen && (
+        <div className="fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity" onClick={() => setIsSidebarOpen(false)}></div>
+      )}
+
+      {/* Sidebar */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 dark:bg-gray-950 text-white flex flex-col shadow-xl transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="p-6 text-2xl font-bold border-b border-gray-700 dark:border-gray-800 bg-gray-900 dark:bg-black text-blue-400 flex justify-between items-center">
+          <span>PPOS Admin</span>
+          <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-400 hover:text-white"><i className="fas fa-times text-xl"></i></button>
+        </div>
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
+          {mainMenus.map(menu => {
+            const subMenus = menus.filter(m => m.parent_id === menu.id);
+            const isExpanded = expandedMenu === menu.id;
+
+            if (subMenus.length > 0) {
+              return (
+                <div key={menu.id} className="space-y-1">
+                  <button onClick={() => setExpandedMenu(isExpanded ? null : menu.id)} className="w-full flex items-center justify-between py-2 px-4 hover:bg-gray-700 dark:hover:bg-gray-800 rounded-lg text-gray-300 transition-colors focus:outline-none">
+                    <div className="flex items-center"><i className={`${menu.icon} mr-3 w-5 text-center`}></i><span className="font-medium">{menu.menu_name}</span></div>
+                    <svg className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-blue-400' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </button>
+                  <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
+                    <div className="pl-6 pr-2 py-2 space-y-1 mt-1 bg-gray-900/50 dark:bg-black/30 rounded-lg">
+                      {subMenus.map(sub => (
+                        <Link key={sub.id} to={sub.link} onClick={() => setIsSidebarOpen(false)} className={`flex items-center py-2 px-4 rounded-md transition-colors text-sm ${location.pathname === sub.link ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-blue-600 hover:text-white'}`}>
+                          <i className={`${sub.icon || 'fas fa-angle-right'} mr-3 w-4 text-center text-xs`}></i>{sub.menu_name}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            } else {
+              return (
+                <Link key={menu.id} to={menu.link} onClick={() => setIsSidebarOpen(false)} className={`flex items-center py-2 px-4 rounded-lg transition-colors ${location.pathname === menu.link ? 'bg-gray-700 dark:bg-gray-800 text-white' : 'text-gray-300 hover:bg-gray-700 dark:hover:bg-gray-800'}`}>
+                  <i className={`${menu.icon} mr-3 w-5 text-center`}></i><span className="font-medium">{menu.menu_name}</span>
+                </Link>
+              );
+            }
+          })}
+        </nav>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col h-full overflow-hidden relative">
+        <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-transparent dark:border-gray-700 p-4 flex justify-between items-center z-10 transition-colors duration-300">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setIsSidebarOpen(true)} className="md:hidden text-gray-600 dark:text-gray-300 hover:text-gray-900 p-2 -ml-2"><i className="fas fa-bars text-xl"></i></button>
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 hidden sm:block">ระบบจัดการหลังบ้าน</h2>
+          </div>
+          <div className="flex items-center gap-4">
+            <button onClick={toggleTheme} className={`relative inline-flex items-center h-8 w-16 rounded-full transition-colors duration-300 focus:outline-none shadow-inner ${theme === 'dark' ? 'bg-blue-600' : 'bg-gray-300'}`}>
+              <span className={`inline-flex items-center justify-center w-6 h-6 transform bg-white rounded-full shadow-md transition-transform duration-300 ${theme === 'dark' ? 'translate-x-9' : 'translate-x-1'}`}>
+                {theme === 'dark' ? <i className="fas fa-moon text-blue-600 text-xs"></i> : <i className="fas fa-sun text-yellow-500 text-xs"></i>}
+              </span>
+            </button>
+            <span className="text-gray-600 dark:text-gray-300 hidden md:block">สวัสดี, <span className="font-bold text-blue-600 dark:text-blue-400">{user.fullname}</span></span>
+            <button onClick={handleLogout} className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-4 py-2 rounded-lg shadow-sm hover:bg-red-100 dark:hover:bg-red-500/20 transition flex items-center gap-2">
+              <i className="fas fa-sign-out-alt"></i><span className="hidden md:inline">ออก</span>
+            </button>
+          </div>
+        </header>
+
+        {/* จุดแสดงเนื้อหาของแต่ละหน้า */}
+        <div className="flex-1 overflow-y-auto">
+          <Outlet />
+        </div>
+      </main>
+    </div>
+  );
+}
+```
+
+## File: src/pages/Login.jsx
+```javascript
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
+
+export default function Login() {
+  const navigate = useNavigate();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      window.location.href = '/dashboard'; // บังคับเปลี่ยนหน้าทันทีถ้ามี Token อยู่แล้ว
+    }
+  }, []);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const response = await fetch('http://localhost:5000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await response.json();
+      console.log('Login Response:', data); // ปริ้นท์เช็คโครงสร้างข้อมูลใน Console
+
+      if (response.ok && data.success) {
+        // บันทึก Token ลง LocalStorage
+        localStorage.setItem('token', data.token);
+        
+        // ป้องกันกรณี Backend ส่ง user มาเป็นรูปแบบอื่น ให้เซฟสำรองไว้
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+        } else {
+          localStorage.setItem('user', JSON.stringify({ fullname: username }));
+        }
+
+        Swal.fire({
+          icon: 'success',
+          title: 'เข้าสู่ระบบสำเร็จ!',
+          timer: 1000,
+          showConfirmButton: false,
+        });
+
+        // ใช้คำสั่งเปลี่ยนหน้าตรงๆ ของเบราว์เซอร์ ป้องกันปัญหาราวเตอร์ค้าง
+        setTimeout(() => {
+          window.location.href = '/dashboard';
+        }, 1000);
+
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'เข้าสู่ระบบไม่สำเร็จ',
+          text: data.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง',
+          confirmButtonColor: '#3b82f6',
+        });
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        text: 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้',
+        confirmButtonColor: '#3b82f6',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-300">
+      <div className="w-full max-w-md p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-800 dark:text-white">PPOS System</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">กรุณาเข้าสู่ระบบเพื่อจัดการหลังบ้าน</p>
+        </div>
+
+        <form onSubmit={handleLogin} className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ชื่อผู้ใช้งาน (Username)</label>
+            <input 
+              type="text" 
+              required
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white outline-none"
+              placeholder="กรอกชื่อผู้ใช้งาน"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">รหัสผ่าน (Password)</label>
+            <input 
+              type="password" 
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white outline-none"
+              placeholder="••••••••"
+            />
+          </div>
+
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="w-full py-3 px-4 text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-md font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {loading ? (
+              <>
+                <i className="fas fa-spinner fa-spin"></i> กำลังตรวจสอบสิทธิ์...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-sign-in-alt"></i> เข้าสู่ระบบ
+              </>
+            )}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+```
+
+## File: src/pages/Products.jsx
+```javascript
+import { useEffect, useState } from 'react';
+import Swal from 'sweetalert2';
+import BranchPriceModal from '../components/BranchPriceModal';
+
+export default function Products() {
+  const [products, setProducts] = useState([]);
+  const [permissions, setPermissions] = useState({ can_add: false, can_edit: false, can_delete: false });
+  const [loading, setLoading] = useState(true);
+
+  // State สำหรับเก็บข้อมูล Master Data (เอาไว้ใส่ Select Option)
+  const [categories, setCategories] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [units, setUnits] = useState([]);
+
+  // State สำหรับ Modal เพิ่ม/แก้ไข สินค้า
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [formData, setFormData] = useState({
+    barcode: '',
+    name: '',
+    category_id: '',
+    supplier_id: '',
+    unit_id: '',
+    price: '',
+    reorder_point: 0,
+    is_active: true
+  });
+
+  // State สำหรับ Modal กำหนดราคาสาขา
+  const [selectedProductForPrice, setSelectedProductForPrice] = useState(null);
+  const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    
+    // 1. ดึงสิทธิ์การใช้งานเมนู
+    fetch('http://localhost:5000/api/menus', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          const currentMenu = data.data.find(m => m.link === '/products');
+          
+          // เปลี่ยนจาก currentMenu.permissions เป็น currentMenu ตรงๆ
+          if (currentMenu) {
+            setPermissions({
+              can_add: currentMenu.can_add === true || currentMenu.can_add === 1,
+              can_edit: currentMenu.can_edit === true || currentMenu.can_edit === 1,
+              can_delete: currentMenu.can_delete === true || currentMenu.can_delete === 1,
+            });
+          }
+        }
+      })
+      .catch(err => console.error('Error fetching permissions:', err));
+
+    // 2. ดึง Master Data 
+    fetchMasterData(token);
+    // 3. ดึงรายการสินค้า
+    fetchProducts(token);
+  }, []);
+  const fetchMasterData = (token) => {
+    fetch('http://localhost:5000/api/master/categories', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json()).then(data => data.success && setCategories(data.data)).catch(console.error);
+
+    fetch('http://localhost:5000/api/master/suppliers', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json()).then(data => data.success && setSuppliers(data.data)).catch(console.error);
+
+    fetch('http://localhost:5000/api/master/units', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json()).then(data => data.success && setUnits(data.data)).catch(console.error);
+  };
+
+  const fetchProducts = (token = localStorage.getItem('token')) => {
+    setLoading(true);
+    fetch('http://localhost:5000/api/products', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setProducts(data.data);
+      })
+      .catch(err => console.error('Error fetching products:', err))
+      .finally(() => setLoading(false));
+  };
+
+  // เปิด Modal เพิ่ม / แก้ไข สินค้า
+  const openModal = (product = null) => {
+    if (product) {
+      setEditId(product.id);
+      setFormData({
+        barcode: product.barcode || '',
+        name: product.name || '',
+        category_id: product.category_id || '',
+        supplier_id: product.supplier_id || '',
+        unit_id: product.unit_id || '',
+        price: product.price || '',
+        reorder_point: product.reorder_point || 0,
+        is_active: product.is_active
+      });
+    } else {
+      setEditId(null);
+      setFormData({
+        barcode: '',
+        name: '',
+        category_id: '',
+        supplier_id: '',
+        unit_id: '',
+        price: '',
+        reorder_point: 0,
+        is_active: true
+      });
+    }
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  // บันทึก เพิ่ม/แก้ไข สินค้า
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const token = localStorage.getItem('token');
+    const method = editId ? 'PUT' : 'POST';
+    const url = editId ? `http://localhost:5000/api/products/${editId}` : 'http://localhost:5000/api/products';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        Swal.fire({
+          icon: 'success',
+          title: editId ? 'แก้ไขสินค้าสำเร็จ' : 'เพิ่มสินค้าสำเร็จ',
+          timer: 1500,
+          showConfirmButton: false
+        });
+        closeModal();
+        fetchProducts(token);
+      } else {
+        Swal.fire('เกิดข้อผิดพลาด', data.message || 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+    }
+  };
+
+  // ลบสินค้า
+  const handleDelete = (id) => {
+    Swal.fire({
+      title: 'ยืนยันการลบสินค้า?',
+      text: "ข้อมูลสินค้านี้จะถูกลบออกจากระบบอย่างถาวร!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'ลบข้อมูล',
+      cancelButtonText: 'ยกเลิก'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        const token = localStorage.getItem('token');
+        try {
+          const res = await fetch(`http://localhost:5000/api/products/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const data = await res.json();
+          if (data.success) {
+            Swal.fire('ลบสำเร็จ!', 'ลบสินค้าเรียบร้อยแล้ว', 'success');
+            fetchProducts(token);
+          } else {
+            Swal.fire('เกิดข้อผิดพลาด', data.message, 'error');
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    });
+  };
+
+  // เปิด Modal กำหนดราคาสาขา
+  const openBranchPriceModal = (product) => {
+    setSelectedProductForPrice(product);
+    setIsPriceModalOpen(true);
+  };
+
+  return (
+    <div className="p-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">จัดการสินค้า</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">เพิ่ม แก้ไข และกำหนดราคาสินค้าประจำสาขา</p>
+        </div>
+        {permissions.can_add && (
+          <button onClick={() => openModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-md flex items-center gap-2 text-sm font-medium transition-colors">
+            <i className="fas fa-plus"></i> เพิ่มสินค้าใหม่
+          </button>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-x-auto">
+        <table className="w-full text-left border-collapse min-w-max">
+          <thead className="bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-b dark:border-gray-700 text-sm">
+            <tr>
+              <th className="p-4">บาร์โค้ด</th>
+              <th className="p-4">ชื่อสินค้า</th>
+              <th className="p-4">หมวดหมู่</th>
+              <th className="p-4">ซัพพลายเออร์</th>
+              <th className="p-4">ราคากลาง</th>
+              <th className="p-4">หน่วยนับ</th>
+              <th className="p-4">สถานะ</th>
+              <th className="p-4 text-right">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody className="text-sm">
+            {loading ? (
+              <tr><td colSpan="8" className="p-8 text-center text-gray-500">กำลังโหลดข้อมูลสินค้า...</td></tr>
+            ) : products.length === 0 ? (
+              <tr><td colSpan="8" className="p-8 text-center text-gray-500">ไม่มีข้อมูลสินค้าในระบบ</td></tr>
+            ) : (
+              products.map((item) => (
+                <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-750 text-gray-800 dark:text-gray-200 border-b dark:border-gray-700 last:border-0 transition-colors">
+                  <td className="p-4 font-mono text-xs">{item.barcode || '-'}</td>
+                  <td className="p-4 font-medium">{item.name}</td>
+                  <td className="p-4 text-gray-600 dark:text-gray-400">{item.category_name || '-'}</td>
+                  <td className="p-4 text-gray-600 dark:text-gray-400">{item.supplier_name || '-'}</td>
+                  <td className="p-4 text-blue-600 dark:text-blue-400 font-bold">฿{Number(item.price).toFixed(2)}</td>
+                  <td className="p-4">{item.unit_name || '-'}</td>
+                  <td className="p-4">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${item.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'}`}>
+                      {item.is_active ? 'เปิดขาย' : 'ปิดขาย'}
+                    </span>
+                  </td>
+                  <td className="p-4 text-right space-x-2 whitespace-nowrap">
+                    
+                    {/* ปุ่มกำหนดราคาสาขา */}
+                    <button 
+                      onClick={() => openBranchPriceModal(item)} 
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg shadow-sm text-xs font-medium transition-colors"
+                      title="กำหนดราคาเฉพาะสาขา"
+                    >
+                      <i className="fas fa-tags mr-1"></i> ราคาสาขา
+                    </button>
+
+                    {permissions.can_edit && (
+                      <button onClick={() => openModal(item)} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 rounded-lg shadow-sm text-xs font-medium transition-colors">
+                        <i className="fas fa-edit mr-1"></i> แก้ไข
+                      </button>
+                    )}
+                    {permissions.can_delete && (
+                      <button onClick={() => handleDelete(item.id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg shadow-sm text-xs font-medium transition-colors">
+                        <i className="fas fa-trash-alt mr-1"></i> ลบ
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal เพิ่ม/แก้ไข สินค้า */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden border border-gray-200 dark:border-gray-700">
+            <div className="p-6 border-b dark:border-gray-700 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+                {editId ? 'แก้ไขข้อมูลสินค้า' : 'เพิ่มสินค้าใหม่'}
+              </h3>
+              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 dark:hover:text-white">
+                <i className="fas fa-times text-xl"></i>
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">รหัสบาร์โค้ด</label>
+                  <input type="text" name="barcode" value={formData.barcode} onChange={handleInputChange} className="w-full px-4 py-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="885XXXXX" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ชื่อสินค้า *</label>
+                  <input type="text" name="name" required value={formData.name} onChange={handleInputChange} className="w-full px-4 py-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="ชื่อสินค้า" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">หมวดหมู่</label>
+                  <select name="category_id" value={formData.category_id} onChange={handleInputChange} className="w-full px-4 py-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">-- เลือกหมวดหมู่ --</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ซัพพลายเออร์</label>
+                  <select name="supplier_id" value={formData.supplier_id} onChange={handleInputChange} className="w-full px-4 py-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">-- เลือกซัพพลายเออร์ --</option>
+                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">หน่วยนับ</label>
+                  <select name="unit_id" value={formData.unit_id} onChange={handleInputChange} className="w-full px-4 py-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">-- เลือกหน่วยนับ --</option>
+                    {units.map(u => <option key={u.id} value={u.id}>{u.unit_name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ราคากลาง (บาท) *</label>
+                  <input type="number" step="0.01" name="price" required value={formData.price} onChange={handleInputChange} className="w-full px-4 py-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00" />
+                </div>
+              </div>
+
+              {editId && (
+                <div className="flex items-center pt-2">
+                  <input type="checkbox" id="is_active_prod" name="is_active" checked={formData.is_active} onChange={handleInputChange} className="w-4 h-4 text-blue-600 rounded" />
+                  <label htmlFor="is_active_prod" className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">เปิดขายสินค้านี้</label>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
+                <button type="button" onClick={closeModal} className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-700 rounded-lg transition-colors">
+                  ยกเลิก
+                </button>
+                <button type="submit" className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-md transition-colors">
+                  บันทึกข้อมูล
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal กำหนดราคาสาขา */}
+      <BranchPriceModal 
+        product={selectedProductForPrice}
+        isOpen={isPriceModalOpen}
+        onClose={() => setIsPriceModalOpen(false)}
+        onSaved={fetchProducts}
+      />
+    </div>
+  );
+}
+```
+
+## File: src/App.jsx
+```javascript
+// src/App.jsx
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import Login from './pages/Login';
+import Layout from './components/Layout'; // นำเข้า Layout ที่เราเพิ่งสร้าง
+import Dashboard from './pages/Dashboard';
+import Branches from './pages/Branches';
+import Products from './pages/Products'; // นำเข้าหน้า Products
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/login" element={<Login />} />
+        
+        {/* ครอบหน้าเว็บที่มีเมนูซ้ายด้วย Layout */}
+        <Route element={<Layout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/branches" element={<Branches />} />
+          <Route path="/products" element={<Products />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+```
+</file>
+
+<file path="vite.config.js">
+// vite.config.js
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+
+export default defineConfig({
+  plugins: [
+    tailwindcss(),
+    react(),
+  ],
+})
+</file>
+
+</files>

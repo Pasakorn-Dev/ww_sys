@@ -45,6 +45,26 @@ const branchController = {
             }
             res.status(500).json({ success: false, message: 'ไม่สามารถลบสาขาได้' });
         }
+    },
+
+    // ดึงสาขาตามสิทธิ์ Access Level
+    getAllowedBranches: async (req, res) => {
+        try {
+            // 1. ดึงข้อมูล User จาก Token / Middleware
+            const userId = req.user.id;
+            const primaryBranchId = req.user.branch_id;
+            const accessLevel = Number(req.user.access_level || 3);
+
+            // 2. เรียกใช้งาน Model ให้ไปดึงข้อมูลมาให้
+            const branches = await BranchModel.getAllowedBranches(userId, primaryBranchId, accessLevel);
+            
+            // 3. ส่งข้อมูลกลับไปให้ Frontend
+            res.json({ success: true, access_level: accessLevel, data: branches });
+            
+        } catch (error) {
+            console.error('Error fetching allowed branches:', error);
+            res.status(500).json({ success: false, message: 'ไม่สามารถดึงข้อมูลสาขาตามสิทธิ์ได้' });
+        }
     }
 };
 

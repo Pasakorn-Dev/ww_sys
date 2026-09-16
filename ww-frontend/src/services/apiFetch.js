@@ -1,19 +1,9 @@
 // src/services/apiFetch.js
-// ─────────────────────────────────────────────────────────────
-// API Wrapper สำหรับทุก fetch ในโปรเจกต์ PPOS
-// - โหลด BASE_URL จาก .env (VITE_API_URL)
-// - แนบ JWT Token อัตโนมัติ
-// - จัดการ 401/403 → logout + redirect ไป /login
-// - Parse JSON ให้เลย (ไม่ต้อง .json() เอง)
-// ─────────────────────────────────────────────────────────────
 
-// ตัด "/" ตัวสุดท้ายออก (กัน http://localhost:5000/api/ → http://localhost:5000/api)
 const BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 export default async function apiFetch(path, options = {}) {
-  // ถ้า path ไม่ขึ้นต้นด้วย "/" ให้เติมให้ (กันพิมพ์ผิด)
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
-
   const token = localStorage.getItem('token');
 
   const res = await fetch(`${BASE_URL}${cleanPath}`, {
@@ -25,8 +15,8 @@ export default async function apiFetch(path, options = {}) {
     },
   });
 
-  // Token หมดอายุ / ไม่มีสิทธิ์ → เคลียร์ session แล้วกลับ login
-  if (res.status === 401 || res.status === 403) {
+  // 1. ถ้า Token พัง หรือ หมดอายุ (401) ค่อยเตะออก
+  if (res.status === 401) {
     localStorage.clear();
     if (window.location.pathname !== '/login') {
       window.location.href = '/login';
@@ -34,5 +24,15 @@ export default async function apiFetch(path, options = {}) {
     return;
   }
 
-  return res.json();
+  // 2. ถ้าแค่ "ไม่มีสิทธิ์" (403) ไม่ต้องเตะออก ให้ดึง json ออกมาเพื่อแจ้งเตือนเฉยๆ
+  const data = await res.json();
+  
+  if (res.status === 403) {
+      console.warn("Permission Denied:", data.message);
+      // ตัว API จะถูกส่งข้อมูลกลับไปให้ Component (เช่น หน้า SyncMaster)
+      // แจ้งเตือน Swal สีแดงๆ แทนการหลุดไปหน้า Login
+      return data; 
+  }
+
+  return data;
 }

@@ -12,13 +12,13 @@ app.use(express.json()); // ให้ Express อ่านข้อมูลแ�
 const branchRoutes = require('./routes/branchRoutes');
 const authRoutes = require('./routes/authRoutes');
 const menuRoutes = require('./routes/menuRoutes');
-const productRoutes = require('./routes/productRoutes'); // นำเข้าการจัดการเส้นทางสินค้า
+// const productRoutes = require('./routes/productRoutes'); // นำเข้าการจัดการเส้นทางสินค้า
 const masterRoutes = require('./routes/masterRoutes');
 
 app.use('/api/master', masterRoutes);
 
 app.use('/api/branches', branchRoutes); // เปิดใช้งาน API สาขา
-app.use('/api/products', productRoutes); // เปิดใช้งาน API สินค้า
+// app.use('/api/products', productRoutes); // เปิดใช้งาน API สินค้า
 
 app.use('/api/auth', authRoutes);
 app.use('/api/menus', menuRoutes); // เปิดใช้งาน API เมนู

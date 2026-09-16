@@ -35,6 +35,35 @@ const BranchModel = {
         const query = 'DELETE FROM public.branches WHERE id = $1 RETURNING id;';
         const result = await db.query(query, [id]);
         return result.rows[0];
+    },
+
+    // ฟังก์ชันใหม่: ดึงสาขาตามระดับสิทธิ์ (Access Level)
+    getAllowedBranches: async (userId, primaryBranchId, accessLevel) => {
+        let query = '';
+        let params = [];
+
+        if (accessLevel === 1) {
+            // Level 1 (Admin): เห็นครบทุกสาขา
+            query = 'SELECT * FROM public.branches WHERE is_active = true ORDER BY id ASC';
+        } else if (accessLevel === 2) {
+            // Level 2: สาขาตั้งต้น (Primary) + สาขาที่ Map สิทธิ์ไว้ใน user_branches
+            query = `
+                SELECT DISTINCT b.* 
+                FROM public.branches b
+                LEFT JOIN public.user_branches ub ON b.id = ub.branch_id AND ub.user_id = $1
+                WHERE b.is_active = true 
+                  AND (b.id = $2 OR ub.branch_id IS NOT NULL)
+                ORDER BY b.id ASC
+            `;
+            params = [userId, primaryBranchId];
+        } else {
+            // Level 3: เฉพาะสาขาตั้งต้น (Primary Branch) เท่านั้น
+            query = 'SELECT * FROM public.branches WHERE id = $1 AND is_active = true';
+            params = [primaryBranchId];
+        }
+
+        const result = await db.query(query, params);
+        return result.rows;
     }
 };
 
