@@ -1,0 +1,965 @@
+This file is a merged representation of a subset of the codebase, containing specifically included files, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: src/**/*
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+src/
+  config/
+    db.js
+  controllers/
+    authController.js
+    branchController.js
+    masterController.js
+    menuController.js
+    productController.js
+  middlewares/
+    authMiddleware.js
+    permissionMiddleware.js
+  models/
+    branchModel.js
+    menuModel.js
+    productModel.js
+    userModel.js
+  routes/
+    authRoutes.js
+    branchRoutes.js
+    masterRoutes.js
+    menuRoutes.js
+    productRoutes.js
+  server.js
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="src/config/db.js">
+const { Pool } = require('pg');
+require('dotenv').config();
+
+const pool = new Pool({
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT,
+});
+
+// ทดสอบการเชื่อมต่อ
+pool.connect((err, client, release) => {
+    if (err) {
+        console.error('เกิดข้อผิดพลาดในการเชื่อมต่อ Database:', err.stack);
+    } else {
+        console.log('เชื่อมต่อฐานข้อมูล PostgreSQL สำเร็จแล้ว!');
+    }
+    if (client) release();
+});
+
+module.exports = pool;
+</file>
+
+<file path="src/controllers/branchController.js">
+const BranchModel = require('../models/branchModel');
+
+const branchController = {
+    getBranches: async (req, res) => {
+        try {
+            const branches = await BranchModel.getAllBranches();
+            res.json({ success: true, data: branches });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ success: false, message: 'Server Error' });
+        }
+    },
+
+    addBranch: async (req, res) => {
+        try {
+            const newBranch = await BranchModel.createBranch(req.body);
+            res.status(201).json({ success: true, message: 'เพิ่มสาขาสำเร็จ', data: newBranch });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ success: false, message: 'ไม่สามารถเพิ่มสาขาได้ ข้อมูลอาจซ้ำหรือผิดพลาด' });
+        }
+    },
+
+    updateBranch: async (req, res) => {
+        try {
+            const updatedBranch = await BranchModel.updateBranch(req.params.id, req.body);
+            if (!updatedBranch) return res.status(404).json({ success: false, message: 'ไม่พบสาขานี้' });
+            res.json({ success: true, message: 'แก้ไขสาขาสำเร็จ', data: updatedBranch });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ success: false, message: 'ไม่สามารถแก้ไขสาขาได้' });
+        }
+    },
+
+    deleteBranch: async (req, res) => {
+        try {
+            const deleted = await BranchModel.deleteBranch(req.params.id);
+            if (!deleted) return res.status(404).json({ success: false, message: 'ไม่พบสาขานี้' });
+            res.json({ success: true, message: 'ลบสาขาสำเร็จ' });
+        } catch (error) {
+            console.error(error);
+            // เช็ค Error กรณีมีข้อมูลผูกอยู่ (เช่น มีพนักงานอยู่สาขานี้แล้วห้ามลบ)
+            if (error.code === '23503') {
+                return res.status(400).json({ success: false, message: 'ไม่สามารถลบได้ เนื่องจากมีการใช้งานสาขานี้อยู่' });
+            }
+            res.status(500).json({ success: false, message: 'ไม่สามารถลบสาขาได้' });
+        }
+    }
+};
+
+module.exports = branchController;
+</file>
+
+<file path="src/controllers/masterController.js">
+const pool = require('../config/db');
+
+const masterController = {
+  // ดึงหมวดหมู่ทั้งหมด
+  getCategories: async (req, res) => {
+    try {
+      const { rows } = await pool.query('SELECT id, name FROM categories WHERE is_active = true ORDER BY name ASC');
+      res.status(200).json({ success: true, data: rows });
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      res.status(500).json({ success: false, message: 'Server error' });
+    }
+  },
+
+  // ดึงซัพพลายเออร์ทั้งหมด
+  getSuppliers: async (req, res) => {
+    try {
+      const { rows } = await pool.query('SELECT id, name FROM suppliers WHERE is_active = true ORDER BY name ASC');
+      res.status(200).json({ success: true, data: rows });
+    } catch (error) {
+      console.error('Error fetching suppliers:', error);
+      res.status(500).json({ success: false, message: 'Server error' });
+    }
+  },
+
+  // ดึงหน่วยนับทั้งหมด
+  getUnits: async (req, res) => {
+    try {
+      const { rows } = await pool.query('SELECT id, unit_name FROM units WHERE is_active = true ORDER BY unit_name ASC');
+      res.status(200).json({ success: true, data: rows });
+    } catch (error) {
+      console.error('Error fetching units:', error);
+      res.status(500).json({ success: false, message: 'Server error' });
+    }
+  }
+};
+
+module.exports = masterController;
+</file>
+
+<file path="src/controllers/menuController.js">
+const MenuModel = require('../models/menuModel');
+const db = require('../config/db');
+
+const menuController = {
+    getUserMenus: async (req, res) => {
+        try {
+            // req.user.id ได้มาจาก Token ที่ถูกถอดรหัสใน Middleware
+            const userId = req.user.id;
+            
+            // ค้นหา group_id ของ User นี้
+            const userResult = await db.query('SELECT group_id FROM public.users WHERE id = $1', [userId]);
+            const groupId = userResult.rows[0]?.group_id;
+
+            if (!groupId) {
+                // ถ้าไม่มีกลุ่มเลย ให้ส่ง Array ว่างกลับไป (ไม่เห็นเมนูอะไรเลย)
+                return res.json({ success: true, data: [] }); 
+            }
+
+            // ถ้ามีกลุ่ม ให้ไปดึงเมนูตามสิทธิ์
+            const menus = await MenuModel.getMenusByGroupId(groupId);
+            res.json({ success: true, data: menus });
+
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ success: false, message: 'Server Error' });
+        }
+    }
+};
+
+module.exports = menuController;
+</file>
+
+<file path="src/middlewares/authMiddleware.js">
+// src/middlewares/authMiddleware.js
+const jwt = require('jsonwebtoken');
+require('dotenv').config();
+
+const verifyToken = (req, res, next) => {
+    // 1. ดึง Token จาก Header ในช่อง Authorization
+    const authHeader = req.headers['authorization'];
+    
+    // รูปแบบที่ส่งมาจะเป็น "Bearer <token>" เราจึงต้อง split เพื่อเอาเฉพาะตัว <token>
+    const token = authHeader && authHeader.split(' ')[1];
+
+    // 2. ถ้าไม่มี Token ส่งมา ให้ปฏิเสธการเข้าถึง
+    if (!token) {
+        return res.status(401).json({ success: false, message: 'ปฏิเสธการเข้าถึง กรุณาเข้าสู่ระบบ (No Token)' });
+    }
+
+    try {
+        // 3. ตรวจสอบความถูกต้องของ Token ด้วย JWT_SECRET
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        // 4. นำข้อมูล user ที่แกะได้จาก Token (เช่น id, username, branch_id) ไปแนบไว้กับ req
+        req.user = decoded; 
+        
+        // 5. ให้ทำงานในคำสั่งถัดไปได้ (ผ่านด่าน)
+        next();
+    } catch (error) {
+        return res.status(403).json({ success: false, message: 'Token ไม่ถูกต้องหรือหมดอายุ' });
+    }
+};
+
+module.exports = verifyToken;
+</file>
+
+<file path="src/models/branchModel.js">
+const db = require('../config/db');
+
+const BranchModel = {
+    // ดึงข้อมูลสาขาทั้งหมด
+    getAllBranches: async () => {
+        const query = 'SELECT * FROM public.branches ORDER BY id ASC';
+        const result = await db.query(query);
+        return result.rows;
+    },
+    
+    // เพิ่มสาขาใหม่
+    createBranch: async (branchData) => {
+        const { branch_code, branch_name, address, contact_number } = branchData;
+        const query = `
+            INSERT INTO public.branches (branch_code, branch_name, address, contact_number)
+            VALUES ($1, $2, $3, $4) RETURNING *;
+        `;
+        const values = [branch_code, branch_name, address, contact_number];
+        const result = await db.query(query, values);
+        return result.rows[0];
+    },
+
+    updateBranch: async (id, branchData) => {
+        const { branch_code, branch_name, address, contact_number, is_active } = branchData;
+        const query = `
+            UPDATE public.branches 
+            SET branch_code = $1, branch_name = $2, address = $3, contact_number = $4, is_active = $5, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $6 RETURNING *;
+        `;
+        const result = await db.query(query, [branch_code, branch_name, address, contact_number, is_active, id]);
+        return result.rows[0];
+    },
+
+    deleteBranch: async (id) => {
+        const query = 'DELETE FROM public.branches WHERE id = $1 RETURNING id;';
+        const result = await db.query(query, [id]);
+        return result.rows[0];
+    }
+};
+
+module.exports = BranchModel;
+</file>
+
+<file path="src/models/menuModel.js">
+const db = require('../config/db');
+
+const MenuModel = {
+    // ดึงเมนูที่ User คนนั้นมีสิทธิ์ "มองเห็น" (can_view = true)
+    getMenusByGroupId: async (groupId) => {
+        const query = `
+            SELECT m.id, m.menu_name, m.link, m.icon, m.parent_id, 
+                   gp.can_view, gp.can_add, gp.can_edit, gp.can_delete
+            FROM public.menus m
+            INNER JOIN public.group_permissions gp ON m.id = gp.menu_id
+            WHERE gp.group_id = $1 AND gp.can_view = true
+            ORDER BY m.parent_id ASC, m.sort_order ASC;
+        `;
+        const result = await db.query(query, [groupId]);
+        return result.rows;
+    }
+};
+
+module.exports = MenuModel;
+</file>
+
+<file path="src/routes/authRoutes.js">
+const express = require('express');
+const router = express.Router();
+const authController = require('../controllers/authController');
+
+router.post('/register', authController.register);
+router.post('/login', authController.login);
+
+module.exports = router;
+</file>
+
+<file path="src/routes/branchRoutes.js">
+const express = require('express');
+const router = express.Router();
+const branchController = require('../controllers/branchController');
+const verifyToken = require('../middlewares/authMiddleware'); // เพิ่มการเรียกใช้ Middleware
+const checkPermission = require('../middlewares/permissionMiddleware'); // นำเข้า Middleware
+
+// อ่านข้อมูล (ใส่แค่ verifyToken เพราะแค่ล็อกอินก็ควรดึงรายการได้ หรือจะเช็ค 'view' ก็ได้)
+router.get('/', verifyToken, branchController.getBranches);
+
+// เพิ่มข้อมูล (ต้องมีสิทธิ์ add)
+router.post('/', verifyToken, checkPermission('/branches', 'add'), branchController.addBranch);
+
+// แก้ไขข้อมูล (ต้องมีสิทธิ์ edit)
+router.put('/:id', verifyToken, checkPermission('/branches', 'edit'), branchController.updateBranch);
+
+// ลบข้อมูล (ต้องมีสิทธิ์ delete)
+router.delete('/:id', verifyToken, checkPermission('/branches', 'delete'), branchController.deleteBranch);
+
+module.exports = router;
+</file>
+
+<file path="src/routes/masterRoutes.js">
+const express = require('express');
+const router = express.Router();
+const masterController = require('../controllers/masterController');
+const verifyToken = require('../middlewares/authMiddleware');
+
+// ทุกเส้นทางต้องผ่านการตรวจสอบ Token (Security)
+router.get('/categories', verifyToken, masterController.getCategories);
+router.get('/suppliers', verifyToken, masterController.getSuppliers);
+router.get('/units', verifyToken, masterController.getUnits);
+
+module.exports = router;
+</file>
+
+<file path="src/routes/menuRoutes.js">
+const express = require('express');
+const router = express.Router();
+const menuController = require('../controllers/menuController');
+const verifyToken = require('../middlewares/authMiddleware');
+
+// ต้องมี Token (เข้าสู่ระบบแล้ว) ถึงจะดึงเมนูของตัวเองได้
+router.get('/', verifyToken, menuController.getUserMenus);
+
+module.exports = router;
+</file>
+
+<file path="src/models/userModel.js">
+const db = require('../config/db');
+
+const UserModel = {
+    // หาผู้ใช้งานจาก Username (ใช้ตอน Login)
+    findByUsername: async (username) => {
+        const query = `
+            SELECT u.*, b.branch_name
+            FROM public.users u
+            LEFT JOIN public.branches b ON u.branch_id = b.id
+            WHERE u.username = $1
+        `;
+        const result = await db.query(query, [username]);
+        return result.rows[0];
+    },
+    
+    // สร้างผู้ใช้งานใหม่ (ใช้ตอน Register / เพิ่มพนักงาน)
+    createUser: async (userData) => {
+        const { username, password, fullname, group_id, branch_id, dept_id } = userData;
+        const query = `
+            INSERT INTO public.users (username, password, fullname, group_id, branch_id, dept_id)
+            VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, username, fullname;
+        `;
+        const values = [username, password, fullname, group_id, branch_id, dept_id];
+        const result = await db.query(query, values);
+        return result.rows[0];
+    }
+};
+
+module.exports = UserModel;
+</file>
+
+<file path="src/server.js">
+const express = require('express');
+const cors = require('cors');
+require('dotenv').config();
+
+const app = express();
+
+// Middlewares
+app.use(cors()); // อนุญาตให้ Frontend เชื่อมต่อเข้ามาได้
+app.use(express.json()); // ให้ Express อ่านข้อมูลแบบ JSON ได้
+
+// Routes
+const branchRoutes = require('./routes/branchRoutes');
+const authRoutes = require('./routes/authRoutes');
+const menuRoutes = require('./routes/menuRoutes');
+const productRoutes = require('./routes/productRoutes'); // นำเข้าการจัดการเส้นทางสินค้า
+const masterRoutes = require('./routes/masterRoutes');
+
+app.use('/api/master', masterRoutes);
+
+app.use('/api/branches', branchRoutes); // เปิดใช้งาน API สาขา
+app.use('/api/products', productRoutes); // เปิดใช้งาน API สินค้า
+
+app.use('/api/auth', authRoutes);
+app.use('/api/menus', menuRoutes); // เปิดใช้งาน API เมนู
+
+
+// Test Route เพื่อตรวจสอบสถานะ
+app.get('/api/status', (req, res) => {
+    res.json({
+        success: true,
+        message: 'Backend API พร้อมทำงาน! รอรับโครงสร้าง Database จากคุณ PPOS ครับ'
+    });
+});
+
+// ตั้งค่า Port (ดึงจาก .env ถ้าไม่มีให้ใช้ 5000)
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+    console.log(`[Backend] Server is running on port ${PORT}`);
+});
+</file>
+
+<file path="src/controllers/authController.js">
+const UserModel = require('../models/userModel');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+const authController = {
+    // API สำหรับสร้างผู้ใช้งานใหม่ (Register)
+    register: async (req, res) => {
+        try {
+            const { username, password, fullname, group_id, branch_id, dept_id } = req.body;
+            
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(password, salt);
+
+            const newUser = await UserModel.createUser({
+                username, password: hashedPassword, fullname, group_id, branch_id, dept_id
+            });
+            
+            res.status(201).json({ success: true, message: 'สร้างผู้ใช้งานสำเร็จ', data: newUser });
+        } catch (error) {
+            console.error(error);
+            if (error.code === '23505') {
+                return res.status(400).json({ success: false, message: 'มีชื่อผู้ใช้งาน (Username) นี้ในระบบแล้ว' });
+            }
+            res.status(500).json({ success: false, message: 'ไม่สามารถสร้างผู้ใช้งานได้' });
+        }
+    },
+
+    // API สำหรับเข้าสู่ระบบ (Login)
+    login: async (req, res) => {
+        try {
+            const { username, password } = req.body;
+            const db = require('../config/db');
+            
+            // 1. ค้นหา User ในระบบ
+            const user = await UserModel.findByUsername(username);
+            if (!user) {
+                return res.status(401).json({ success: false, message: 'ไม่พบชื่อผู้ใช้งานนี้' });
+            }
+
+            // 2. ตรวจสอบรหัสผ่านว่าตรงกันไหม
+            const isMatch = await bcrypt.compare(password, user.password);
+            if (!isMatch) {
+                return res.status(401).json({ success: false, message: 'รหัสผ่านไม่ถูกต้อง' });
+            }
+
+            // 3. สร้าง JWT Token (ไม่ต้องดึง access_level ตอน login เพราะแยกตามเมนู)
+            const token = jwt.sign(
+                { 
+                    id: user.id, 
+                    username: user.username, 
+                    branch_id: user.branch_id,
+                    group_id: user.group_id
+                },
+                process.env.JWT_SECRET,
+                { expiresIn: '1d' } 
+            );
+
+            // Debug log
+            // console.log('=== Login Debug Info ===');
+            // console.log('Username:', user.username);
+            // console.log('Branch ID:', user.branch_id);
+            // console.log('Group ID:', user.group_id);
+            // console.log('Note: access_level จะดึงแยกตามเมนูแต่ละครั้ง');
+
+            res.json({ 
+                success: true, 
+                message: 'เข้าสู่ระบบสำเร็จ', 
+                token, 
+                data: { 
+                    id: user.id, 
+                    username: user.username, 
+                    fullname: user.fullname,
+                    branch_id: user.branch_id,
+                    branch_name: user.branch_name, // ส่งชื่อสาขากลับไปด้วย
+                    group_id: user.group_id
+                } 
+            });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ success: false, message: 'Server Error' });
+        }
+    }
+};
+
+module.exports = authController;
+</file>
+
+<file path="src/models/productModel.js">
+const pool = require('../config/db');
+
+const productModel = {
+  // ดึงสินค้าทั้งหมดพร้อมชื่อหมวดหมู่, ซัพพลายเออร์, หน่วยนับ
+  getAllProducts: async () => {
+    const query = `
+      SELECT 
+        p.*, 
+        c.name AS category_name, 
+        s.name AS supplier_name, 
+        u.unit_name AS unit_name
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN suppliers s ON p.supplier_id = s.id
+      LEFT JOIN units u ON p.unit_id = u.id
+      ORDER BY p.id DESC
+    `;
+    const { rows } = await pool.query(query);
+    return rows;
+  },
+
+  // ดึงสินค้าตาม ID
+  getProductById: async (id) => {
+    const query = 'SELECT * FROM products WHERE id = $1';
+    const { rows } = await pool.query(query, [id]);
+    return rows[0];
+  },
+
+  // เพิ่มสินค้าใหม่
+  createProduct: async (data) => {
+    const {
+      barcode, name, category_id, supplier_id, unit_id,
+      price, reorder_point, is_active
+    } = data;
+
+    const query = `
+      INSERT INTO products (
+        barcode, name, category_id, supplier_id, unit_id,
+        price, reorder_point, is_active
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `;
+    const values = [
+      barcode || null, name, category_id || null, supplier_id || null,
+      unit_id || null, price || 0, reorder_point || 0,
+      is_active !== undefined ? is_active : true
+    ];
+    const { rows } = await pool.query(query, values);
+    return rows[0];
+  },
+
+  // แก้ไขสินค้า
+  updateProduct: async (id, data) => {
+    const {
+      barcode, name, category_id, supplier_id, unit_id,
+      price, reorder_point, is_active
+    } = data;
+
+    const query = `
+      UPDATE products SET
+        barcode = $1,
+        name = $2,
+        category_id = $3,
+        supplier_id = $4,
+        unit_id = $5,
+        price = $6,
+        reorder_point = $7,
+        is_active = $8,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $9
+      RETURNING *
+    `;
+    const values = [
+      barcode || null, name, category_id || null, supplier_id || null,
+      unit_id || null, price || 0, reorder_point || 0,
+      is_active !== undefined ? is_active : true,
+      id
+    ];
+    const { rows } = await pool.query(query, values);
+    return rows[0];
+  },
+
+  // ลบสินค้า
+  deleteProduct: async (id) => {
+    const query = 'DELETE FROM products WHERE id = $1 RETURNING *';
+    const { rows } = await pool.query(query, [id]);
+    return rows[0];
+  },
+
+  // ดึงราคาสาขาของสินค้า ตามสิทธิ์ access_level ของ User (ดึงจาก group_permissions ตามเมนู)
+  getBranchPricesByProduct: async (productId, user) => {
+    const userId = user.id;
+    const branchId = user.branch_id;
+    const accessLevel = Number(user.access_level || 3); // ดึงจาก permissionMiddleware (ตามเมนู /products)
+    
+    // Debug log
+    console.log('=== getBranchPricesByProduct Debug ===');
+    console.log('Product ID:', productId, 'User ID:', userId, 'Branch ID:', branchId);
+    console.log('Access Level (จาก permission middleware):', accessLevel);
+    console.log('Access Level === 3 (Staff):', accessLevel === 3);
+
+    let query = '';
+    let params = [productId];
+
+    if (accessLevel === 1) {
+      // Level 1: Admin เห็นและตั้งราคาได้ทุกสาขา
+      query = `
+        SELECT 
+          b.id AS branch_id, 
+          b.branch_name AS branch_name, 
+          pbp.price, 
+          COALESCE(pbp.reorder_point, 0) AS reorder_point, 
+          COALESCE(pbp.is_active, true) AS is_active
+        FROM branches b
+        LEFT JOIN product_branch_prices pbp 
+               ON b.id = pbp.branch_id AND pbp.product_id = $1
+        ORDER BY b.id ASC
+      `;
+    } else {
+      // ตรวจสอบก่อนว่าผู้ใช้งานมีการแมปสาขาไว้ในตาราง user_branches หรือไม่
+      const checkRes = await pool.query(
+        'SELECT 1 FROM user_branches WHERE user_id = $1 LIMIT 1',
+        [userId]
+      );
+
+      if (checkRes.rows.length > 0) {
+        // กรณีมีการกำหนดสิทธิ์หลายสาขาในตาราง user_branches
+        params.push(userId);
+        query = `
+          SELECT 
+            b.id AS branch_id, 
+            b.branch_name AS branch_name, 
+            pbp.price, 
+            COALESCE(pbp.reorder_point, 0) AS reorder_point, 
+            COALESCE(pbp.is_active, true) AS is_active
+          FROM branches b
+          INNER JOIN user_branches ub ON b.id = ub.branch_id AND ub.user_id = $2
+          LEFT JOIN product_branch_prices pbp 
+                 ON b.id = pbp.branch_id AND pbp.product_id = $1
+          ORDER BY b.id ASC
+        `;
+      } else {
+        // กรณีไม่มีข้อมูลใน user_branches ให้ดึงเฉพาะสาขาหลักของผู้ใช้ (branch_id ในตาราง users)
+        params.push(branchId);
+        query = `
+          SELECT 
+            b.id AS branch_id, 
+            b.branch_name AS branch_name, 
+            pbp.price, 
+            COALESCE(pbp.reorder_point, 0) AS reorder_point, 
+            COALESCE(pbp.is_active, true) AS is_active
+          FROM branches b
+          LEFT JOIN product_branch_prices pbp 
+                 ON b.id = pbp.branch_id AND pbp.product_id = $1
+          WHERE b.id = $2
+          ORDER BY b.id ASC
+        `;
+      }
+    }
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
+
+  // บันทึก/อัปเดตราคาสาขา (UPSERT / DELETE ถ้าราคาเป็นค่าว่าง)
+  saveBranchPrices: async (productId, prices) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      for (const item of prices) {
+        const priceVal = item.price !== '' && item.price !== null && item.price !== undefined ? Number(item.price) : null;
+        const reorderVal = item.reorder_point !== '' && item.reorder_point !== null ? Number(item.reorder_point) : 0;
+        const isActiveVal = item.is_active !== undefined ? Boolean(item.is_active) : true;
+
+        if (priceVal !== null && !isNaN(priceVal)) {
+          const upsertQuery = `
+            INSERT INTO product_branch_prices (product_id, branch_id, price, reorder_point, is_active, updated_at)
+            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+            ON CONFLICT (product_id, branch_id) 
+            DO UPDATE SET 
+              price = EXCLUDED.price,
+              reorder_point = EXCLUDED.reorder_point,
+              is_active = EXCLUDED.is_active,
+              updated_at = CURRENT_TIMESTAMP
+          `;
+          await client.query(upsertQuery, [productId, item.branch_id, priceVal, reorderVal, isActiveVal]);
+        } else {
+          const deleteQuery = `
+            DELETE FROM product_branch_prices 
+            WHERE product_id = $1 AND branch_id = $2
+          `;
+          await client.query(deleteQuery, [productId, item.branch_id]);
+        }
+      }
+
+      await client.query('COMMIT');
+      return true;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+};
+
+module.exports = productModel;
+</file>
+
+<file path="src/routes/productRoutes.js">
+const express = require('express');
+const router = express.Router();
+const productController = require('../controllers/productController');
+const verifyToken = require('../middlewares/authMiddleware');
+const checkPermission = require('../middlewares/permissionMiddleware');
+
+router.use(verifyToken);
+
+// ตรวจสอบสิทธิ์ตามประเภท action
+router.get('/', productController.getAllProducts);
+router.post('/', checkPermission('/products', 'add'), productController.createProduct);
+router.put('/:id', checkPermission('/products', 'edit'), productController.updateProduct);
+router.delete('/:id', checkPermission('/products', 'delete'), productController.deleteProduct);
+
+// API ราคาสาขา - ตรวจสอบสิทธิ์ด้วย
+router.get('/:id/branch-prices', checkPermission('/products', 'view'), productController.getProductBranchPrices);
+router.post('/:id/branch-prices', checkPermission('/products', 'edit'), productController.saveProductBranchPrices);
+
+module.exports = router;
+</file>
+
+<file path="src/controllers/productController.js">
+const productModel = require('../models/productModel');
+
+const productController = {
+  getAllProducts: async (req, res) => {
+    try {
+      const products = await productModel.getAllProducts();
+      res.status(200).json({ success: true, data: products });
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงข้อมูลสินค้า' });
+    }
+  },
+
+  createProduct: async (req, res) => {
+    try {
+      const newProduct = await productModel.createProduct(req.body);
+      res.status(201).json({ success: true, message: 'เพิ่มสินค้าเรียบร้อยแล้ว', data: newProduct });
+    } catch (error) {
+      console.error('Error creating product:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการเพิ่มสินค้า' });
+    }
+  },
+
+  updateProduct: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updated = await productModel.updateProduct(id, req.body);
+      res.status(200).json({ success: true, message: 'อัปเดตข้อมูลสินค้าเรียบร้อยแล้ว', data: updated });
+    } catch (error) {
+      console.error('Error updating product:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการแก้ไขสินค้า' });
+    }
+  },
+
+  deleteProduct: async (req, res) => {
+    try {
+      const { id } = req.params;
+      await productModel.deleteProduct(id);
+      res.status(200).json({ success: true, message: 'ลบรายการสินค้าเรียบร้อยแล้ว' });
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการลบสินค้า' });
+    }
+  },
+
+  getProductBranchPrices: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      const accessLevel = Number(user.access_level || 3); // ดึงจาก permissionMiddleware (ตามเมนู)
+
+      const prices = await productModel.getBranchPricesByProduct(id, user);
+      res.status(200).json({ success: true, data: prices });
+    } catch (error) {
+      console.error('Error fetching branch prices:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงราคาสาขา' });
+    }
+  },
+
+  saveProductBranchPrices: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { prices } = req.body;
+      const user = req.user;
+      const userId = user.id;
+      const accessLevel = Number(user.access_level || 3); // ดึงจาก permissionMiddleware (ตามเมนู)
+      const userBranchId = user.branch_id;
+
+      if (!Array.isArray(prices)) {
+        return res.status(400).json({ success: false, message: 'รูปแบบข้อมูลราคาสาขาไม่ถูกต้อง' });
+      }
+
+      // Debug log
+      // console.log('=== saveProductBranchPrices Debug ===');
+      // console.log('Product ID:', id);
+      // console.log('Access Level from permission middleware:', accessLevel);
+      // console.log('User Branch ID:', userBranchId);
+      // console.log('Saving prices for branches:', prices.map(p => p.branch_id));
+
+      // ตรวจสอบสิทธิ์ access_level สำหรับการบันทึกราคาสาขา
+      if (accessLevel === 2 || accessLevel === 3) {
+        const db = require('../config/db');
+        // ดึงสิทธิ์สาขาที่มีการแมปในฐานข้อมูลสำหรับผู้ใช้นี้
+        const userBranchesRes = await db.query(
+          'SELECT branch_id FROM user_branches WHERE user_id = $1',
+          [userId]
+        );
+        let allowedBranchIds = userBranchesRes.rows.map(r => Number(r.branch_id));
+        
+        // หากไม่มีการแมปในตาราง user_branches ให้ยึดจากสาขาหลักของผู้ใช้ (branch_id ใน users)
+        if (allowedBranchIds.length === 0 && userBranchId) {
+          allowedBranchIds = [Number(userBranchId)];
+        }
+
+        for (const price of prices) {
+          if (!allowedBranchIds.includes(Number(price.branch_id))) {
+            return res.status(403).json({ 
+              success: false, 
+              message: `ปฏิเสธการเข้าถึง: คุณไม่มีสิทธิ์แก้ไขราคาสาขา ${price.branch_id}` 
+            });
+          }
+        }
+      }
+      // Level 1: Admin - อนุญาตให้แก้ไขทั้งหมด
+
+      await productModel.saveBranchPrices(id, prices);
+      res.status(200).json({ success: true, message: 'บันทึกราคาสาขาเรียบร้อยแล้ว' });
+    } catch (error) {
+      console.error('Error saving branch prices:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการบันทึกราคาสาขา' });
+    }
+  }
+};
+
+module.exports = productController;
+</file>
+
+<file path="src/middlewares/permissionMiddleware.js">
+// src/middlewares/permissionMiddleware.js
+const db = require('../config/db');
+
+const checkPermission = (menuLink, action) => {
+    return async (req, res, next) => {
+        try {
+            const userId = req.user.id; // ได้มาจาก verifyToken
+
+            // 1. ดึงข้อมูล User (group_id, branch_id)
+            const userRes = await db.query(`
+                SELECT group_id, branch_id FROM public.users WHERE id = $1
+            `, [userId]);
+            const userData = userRes.rows[0];
+            const groupId = userData?.group_id;
+            const branchId = userData?.branch_id;
+
+            if (!groupId) return res.status(403).json({ success: false, message: 'ไม่มีสิทธิ์เข้าถึง (No Group)' });
+
+            // 2. เช็คสิทธิ์จากตาราง group_permissions โดยอ้างอิงจาก link ของเมนู (ดึง access_level ตามเมนู)
+            const permRes = await db.query(`
+                SELECT gp.can_view, gp.can_add, gp.can_edit, gp.can_delete, gp.access_level
+                FROM public.group_permissions gp
+                JOIN public.menus m ON gp.menu_id = m.id
+                WHERE gp.group_id = $1 AND m.link = $2
+            `, [groupId, menuLink]);
+
+            const perm = permRes.rows[0];
+            if (!perm) return res.status(403).json({ success: false, message: 'คุณไม่มีสิทธิ์เข้าถึงเมนูนี้' });
+
+            // 3. ตรวจสอบตาม action ที่ส่งมา
+            let hasAccess = false;
+            if (action === 'view') hasAccess = perm.can_view;
+            if (action === 'add') hasAccess = perm.can_add;
+            if (action === 'edit') hasAccess = perm.can_edit;
+            if (action === 'delete') hasAccess = perm.can_delete;
+
+            if (!hasAccess) {
+                return res.status(403).json({ success: false, message: 'ปฏิเสธการเข้าถึง: คุณไม่มีสิทธิ์ทำรายการนี้' });
+            }
+            
+            // 4. แนบข้อมูลสิทธิ์เพิ่มเติมไว้ใน req เพื่อให้ controller ใช้ได้
+            // access_level ดึงจาก group_permissions ตามเมนู
+            const accessLevel = Number(perm.access_level || 3);
+            req.user.access_level = accessLevel;
+            req.user.group_id = groupId;
+            req.user.branch_id = branchId;
+            req.permission = perm;
+            
+            // Debug log
+            // console.log(`=== Permission Check [${menuLink}] ===`);
+            // console.log('Action:', action);
+            // console.log('Access Level from group_permissions:', accessLevel);
+            // console.log('Branch ID:', branchId);
+            
+            next(); // มีสิทธิ์ -> ให้ผ่านไปทำ API ถัดไปได้
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ success: false, message: 'Server Error (Check Permissions)' });
+        }
+    };
+};
+
+module.exports = checkPermission;
+</file>
+
+</files>

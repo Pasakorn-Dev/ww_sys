@@ -1,0 +1,44 @@
+/* src/index.css */
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* เพิ่ม Transition ให้พื้นหลังเปลี่ยนสีแบบนุ่มนวลขึ้น */
+/*html {
+  @apply transition-colors duration-300 ease-in-out;
+  font-family: system-ui, -apple-system, "Segoe UI", "Ubuntu", "Leelawadee UI", "Noto Sans Thai", sans-serif;
+}
+*/
+@font-face {
+  font-family: 'Sarabun';
+  src: url('/fonts/Sarabun-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Sarabun';
+  src: url('/fonts/Sarabun-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Sarabun';
+  src: url('/fonts/Sarabun-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply transition-colors duration-300 ease-in-out;
+    font-family: 'Sarabun', system-ui, sans-serif;
+  }
+}
