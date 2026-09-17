@@ -188,6 +188,280 @@ const masterController = {
                     console.log(`[Sync] ✔ ซิงค์บริษัทคู่ค้า ${branch.branch_name} สำเร็จ (${oldTrucks.length} รายการ)`);
                 }
 
+                // =================================================================
+                // 👷‍♂️ ส่วนที่ 3: ดึงข้อมูลตาราง พนักงาน/นายม้า (employee)
+                // =================================================================
+                console.log(`[Sync] กำลังดึงข้อมูล พนักงาน จาก MySQL Server: ${branch.branch_name}...`);
+                
+                const [oldEmployees] = await mysqlPool.query(`
+                    SELECT 
+                        id AS id_old, code, flag, name, status, title, name_en 
+                    FROM employee
+                `);
+
+                if (oldEmployees.length > 0) {
+                    const employeeValues = oldEmployees.map(row => {
+                        // เช็คสถานะ AC = Active (ทำงานอยู่), RS = Resign (ลาออก)
+                        const isActive = (row.status === 'AC');
+
+                        return [
+                            cleanInt(row.id_old),                  // old_id
+                            branch.id,                             // branch_id (อ้างอิงจากลูป)
+                            row.code || null,                      // code
+                            cleanInt(row.flag, 0),                 // flag
+                            row.name || null,                      // name
+                            row.status || null,                    // status (AC, RS)
+                            row.title || null,                     // title
+                            row.name_en || null,                   // name_en
+                            isActive                               // is_active (แปลงเป็น Boolean ให้ระบบใหม่)
+                        ];
+                    });
+
+                    // ใช้เทคนิค Chunking หั่นข้อมูลทีละ 4,000 แถวเช่นเดิม
+                    const chunkEmpSize = 4000;
+                    for (let i = 0; i < employeeValues.length; i += chunkEmpSize) {
+                        const chunk = employeeValues.slice(i, i + chunkEmpSize);
+                        
+                        const upsertEmpQuery = format(`
+                            INSERT INTO master_employees (
+                                old_id, branch_id, code, flag, name, status, title, name_en, is_active
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) 
+                            DO UPDATE SET 
+                                code = EXCLUDED.code,
+                                flag = EXCLUDED.flag,
+                                name = EXCLUDED.name,
+                                status = EXCLUDED.status,
+                                title = EXCLUDED.title,
+                                name_en = EXCLUDED.name_en,
+                                is_active = EXCLUDED.is_active,
+                                updated_at = CURRENT_TIMESTAMP;
+                        `, chunk);
+
+                        await pgClient.query(upsertEmpQuery);
+                    }
+                    console.log(`[Sync] ✔ ซิงค์ข้อมูลพนักงาน ${branch.branch_name} สำเร็จ (${oldEmployees.length} รายการ)`);
+                }
+                // =================================================================
+                // 🪵 ส่วนที่ 4: ดึงข้อมูลตาราง ประเภทไม้ท่อน (LogWoodType)
+                // =================================================================
+                console.log(`[Sync] กำลังดึงข้อมูล ประเภทไม้ท่อน จาก MySQL Server: ${branch.branch_name}...`);
+                
+                // ⚠️ หมายเหตุ: ปรับชื่อตารางใน MySQL ให้ตรงกับของจริง (ในที่นี้สมมติเป็น log_wood_type)
+                const [oldLogWoodTypes] = await mysqlPool.query(`
+                    SELECT id AS id_old, name, code, is_active FROM choice_domain WHERE choice_domain.class = 'com.ww.log.LogWoodTypeChoice'
+                `);
+
+                if (oldLogWoodTypes.length > 0) {
+                    const logWoodValues = oldLogWoodTypes.map(row => [
+                        cleanInt(row.id_old),                  // old_id
+                        branch.id,                             // branch_id (อ้างอิงจากลูปสาขา)
+                        row.name || null,                      // name (เช่น ไม้คัด, ไม้รวม)
+                        row.code || null,                      // code (เช่น RM-0200000000)
+                        cleanBool(row.is_active, true)         // is_active
+                    ]);
+
+                    const chunkLogSize = 4000;
+                    for (let i = 0; i < logWoodValues.length; i += chunkLogSize) {
+                        const chunk = logWoodValues.slice(i, i + chunkLogSize);
+                        
+                        const upsertLogQuery = format(`
+                            INSERT INTO master_log_wood_types (
+                                old_id, branch_id, name, code, is_active
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) 
+                            DO UPDATE SET 
+                                name = EXCLUDED.name,
+                                code = EXCLUDED.code,
+                                is_active = EXCLUDED.is_active,
+                                updated_at = CURRENT_TIMESTAMP;
+                        `, chunk);
+
+                        await pgClient.query(upsertLogQuery);
+                    }
+                    console.log(`[Sync] ✔ ซิงค์ข้อมูลประเภทไม้ท่อน ${branch.branch_name} สำเร็จ (${oldLogWoodTypes.length} รายการ)`);
+                }
+
+                // =================================================================
+                // 📏 ส่วนที่ 5: ดึงข้อมูลตาราง ขนาดไม้ท่อนประเมิน (LogWoodEvalSize)
+                // =================================================================
+                console.log(`[Sync] กำลังดึงข้อมูล ขนาดไม้ท่อนประเมิน จาก MySQL Server: ${branch.branch_name}...`);
+                
+                // ⚠️ หมายเหตุ: ปรับชื่อตารางใน MySQL ให้ตรงกับของจริง (ในที่นี้สมมติเป็น log_wood_eval_size)
+                const [oldLogWoodEvalSizes] = await mysqlPool.query(`
+                    SELECT id AS id_old, name, code, is_active FROM choice_domain WHERE choice_domain.class = 'com.ww.log.LogWoodEvalSize'
+                `);
+
+                if (oldLogWoodEvalSizes.length > 0) {
+                    const evalSizeValues = oldLogWoodEvalSizes.map(row => [
+                        cleanInt(row.id_old),                  // old_id
+                        branch.id,                             // branch_id (อ้างอิงจากลูปสาขา)
+                        row.name || null,                      // name (เช่น No.1, No.3B)
+                        row.code || null,                      // code (เช่น 01-010)
+                        cleanBool(row.is_active, true)         // is_active
+                    ]);
+
+                    const chunkEvalSize = 4000;
+                    for (let i = 0; i < evalSizeValues.length; i += chunkEvalSize) {
+                        const chunk = evalSizeValues.slice(i, i + chunkEvalSize);
+                        
+                        const upsertEvalSizeQuery = format(`
+                            INSERT INTO master_log_wood_eval_sizes (
+                                old_id, branch_id, name, code, is_active
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) 
+                            DO UPDATE SET 
+                                name = EXCLUDED.name,
+                                code = EXCLUDED.code,
+                                is_active = EXCLUDED.is_active,
+                                updated_at = CURRENT_TIMESTAMP;
+                        `, chunk);
+
+                        await pgClient.query(upsertEvalSizeQuery);
+                    }
+                    console.log(`[Sync] ✔ ซิงค์ข้อมูลขนาดไม้ท่อนประเมิน ${branch.branch_name} สำเร็จ (${oldLogWoodEvalSizes.length} รายการ)`);
+                }
+
+                // =================================================================
+                // 🪚 ส่วนที่ 6: ดึงข้อมูลตาราง ประเภทการเลื่อยไม้ (saw_wood_type)
+                // =================================================================
+                console.log(`[Sync] กำลังดึงข้อมูล ประเภทการเลื่อยไม้ จาก MySQL Server: ${branch.branch_name}...`);
+                
+                // ⚠️ หมายเหตุ: ปรับชื่อตารางใน MySQL ให้ตรงกับของจริง (สมมติเป็น saw_wood_type)
+                const [oldSawWoodTypes] = await mysqlPool.query(`
+                    SELECT 
+                        id AS id_old, name, ax_location, ax_warehouse, is_raw_wood, is_width_wood 
+                    FROM saw_wood_type
+                `);
+
+                if (oldSawWoodTypes.length > 0) {
+                    const sawWoodValues = oldSawWoodTypes.map(row => [
+                        cleanInt(row.id_old),                  // old_id
+                        branch.id,                             // branch_id (อ้างอิงจากลูปสาขา)
+                        row.name || null,                      // name (เช่น ปกติ, ไม้สด)
+                        row.ax_location || null,               // ax_location
+                        row.ax_warehouse || null,              // ax_warehouse
+                        cleanBool(row.is_raw_wood, false),     // is_raw_wood (แปลง 0/1 เป็น Boolean)
+                        cleanBool(row.is_width_wood, false)    // is_width_wood (แปลง 0/1 เป็น Boolean)
+                    ]);
+
+                    const chunkSawSize = 4000;
+                    for (let i = 0; i < sawWoodValues.length; i += chunkSawSize) {
+                        const chunk = sawWoodValues.slice(i, i + chunkSawSize);
+                        
+                        const upsertSawWoodQuery = format(`
+                            INSERT INTO master_saw_wood_types (
+                                old_id, branch_id, name, ax_location, ax_warehouse, is_raw_wood, is_width_wood
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) 
+                            DO UPDATE SET 
+                                name = EXCLUDED.name,
+                                ax_location = EXCLUDED.ax_location,
+                                ax_warehouse = EXCLUDED.ax_warehouse,
+                                is_raw_wood = EXCLUDED.is_raw_wood,
+                                is_width_wood = EXCLUDED.is_width_wood,
+                                updated_at = CURRENT_TIMESTAMP;
+                        `, chunk);
+
+                        await pgClient.query(upsertSawWoodQuery);
+                    }
+                    console.log(`[Sync] ✔ ซิงค์ข้อมูลประเภทการเลื่อยไม้ ${branch.branch_name} สำเร็จ (${oldSawWoodTypes.length} รายการ)`);
+                }
+
+                // =================================================================
+                // 💦 ส่วนที่ 7: ดึงข้อมูลตาราง ประเภทไม้เปียก (wet_wood_type)
+                // =================================================================
+                console.log(`[Sync] กำลังดึงข้อมูล ประเภทไม้เปียก จาก MySQL Server: ${branch.branch_name}...`);
+                
+                // ⚠️ หมายเหตุ: ตรวจสอบชื่อตารางใน MySQL ให้ตรงกับของจริง
+                const [oldWetWoodTypes] = await mysqlPool.query(`
+                    SELECT 
+                        id AS id_old, name, is_buy_wood, ax_location, ax_warehouse 
+                    FROM wet_wood_type
+                `);
+
+                if (oldWetWoodTypes.length > 0) {
+                    const wetWoodValues = oldWetWoodTypes.map(row => [
+                        cleanInt(row.id_old),                  // old_id
+                        branch.id,                             // branch_id (อ้างอิงจากลูปสาขา)
+                        row.name || null,                      // name (เช่น ปกติ, ซื้ออัดน้ำยา)
+                        cleanBool(row.is_buy_wood, false),     // is_buy_wood (แปลง 0/1 เป็น Boolean)
+                        row.ax_location || null,               // ax_location
+                        row.ax_warehouse || null               // ax_warehouse
+                    ]);
+
+                    const chunkWetSize = 4000;
+                    for (let i = 0; i < wetWoodValues.length; i += chunkWetSize) {
+                        const chunk = wetWoodValues.slice(i, i + chunkWetSize);
+                        
+                        const upsertWetWoodQuery = format(`
+                            INSERT INTO master_wet_wood_types (
+                                old_id, branch_id, name, is_buy_wood, ax_location, ax_warehouse
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) 
+                            DO UPDATE SET 
+                                name = EXCLUDED.name,
+                                is_buy_wood = EXCLUDED.is_buy_wood,
+                                ax_location = EXCLUDED.ax_location,
+                                ax_warehouse = EXCLUDED.ax_warehouse,
+                                updated_at = CURRENT_TIMESTAMP;
+                        `, chunk);
+
+                        await pgClient.query(upsertWetWoodQuery);
+                    }
+                    console.log(`[Sync] ✔ ซิงค์ข้อมูลประเภทไม้เปียก ${branch.branch_name} สำเร็จ (${oldWetWoodTypes.length} รายการ)`);
+                }
+
+                // =================================================================
+                // 🏭 ส่วนที่ 8: ดึงข้อมูลตาราง คลัง/สถานที่เก็บไม้ (wood_store)
+                // =================================================================
+                console.log(`[Sync] กำลังดึงข้อมูล คลังสถานที่เก็บไม้ จาก MySQL Server: ${branch.branch_name}...`);
+                
+                // ⚠️ ตรวจสอบชื่อตารางในระบบเก่า (สมมติเป็น wood_store)
+                const [oldWoodStores] = await mysqlPool.query(`
+                    SELECT 
+                        id AS id_old, description, allow_two_prefix, ax_location, ax_warehouse 
+                    FROM wood_store
+                `);
+
+                if (oldWoodStores.length > 0) {
+                    const woodStoreValues = oldWoodStores.map(row => [
+                        cleanInt(row.id_old),                  // old_id
+                        branch.id,                             // branch_id
+                        row.description || null,               // description
+                        cleanBool(row.allow_two_prefix, false),// allow_two_prefix
+                        row.ax_location || null,               // ax_location
+                        row.ax_warehouse || null               // ax_warehouse
+                    ]);
+
+                    const chunkStoreSize = 4000;
+                    for (let i = 0; i < woodStoreValues.length; i += chunkStoreSize) {
+                        const chunk = woodStoreValues.slice(i, i + chunkStoreSize);
+                        
+                        const upsertWoodStoreQuery = format(`
+                            INSERT INTO master_wood_stores (
+                                old_id, branch_id, description, allow_two_prefix, ax_location, ax_warehouse
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) 
+                            DO UPDATE SET 
+                                description = EXCLUDED.description,
+                                allow_two_prefix = EXCLUDED.allow_two_prefix,
+                                ax_location = EXCLUDED.ax_location,
+                                ax_warehouse = EXCLUDED.ax_warehouse,
+                                updated_at = CURRENT_TIMESTAMP;
+                        `, chunk);
+
+                        await pgClient.query(upsertWoodStoreQuery);
+                    }
+                    console.log(`[Sync] ✔ ซิงค์ข้อมูลคลังสถานที่เก็บไม้ ${branch.branch_name} สำเร็จ (${oldWoodStores.length} รายการ)`);
+                }
+
             } catch (branchError) {
                 // ถ้าสาขาไหนมีปัญหา (เช่น ดึงข้อมูลไม่ได้, เชื่อมต่อไม่ติด) ให้โชว์ Error แล้วข้ามไปสาขาถัดไป
                 console.error(`[Sync] ❌ ข้าม ${branch.branch_name} เนื่องจาก:`, branchError.message);
