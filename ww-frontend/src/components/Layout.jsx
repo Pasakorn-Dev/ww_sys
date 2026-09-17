@@ -131,7 +131,7 @@ export default function Layout() {
       >
         {/* Logo */}
         <div className="p-6 text-2xl font-bold border-b border-gray-700 dark:border-gray-800 bg-gray-900 dark:bg-black text-blue-400 flex justify-between items-center">
-          <span>PPOS Admin</span>
+          <span>WW_Report</span>
           <button
             onClick={() => setIsSidebarOpen(false)}
             className="md:hidden text-gray-400 hover:text-white"
