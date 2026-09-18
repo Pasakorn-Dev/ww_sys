@@ -92,7 +92,7 @@ const masterController = {
                 const [oldWoodSizes] = await mysqlPool.query(`
                     SELECT 
                         id AS id_old, length, thick, type_id, width, wood_code, mil, ax_code, 
-                        is_active, is_special, pallet_quantity, wage, wage_sorting_cut_wood
+                        is_active, is_special, pallet_quantity, wage, wage_sorting_cut_wood ,grade
                     FROM wood_size
                 `);
 
@@ -104,14 +104,15 @@ const masterController = {
                         cleanInt(row.thick),                   
                         cleanInt(row.type_id, null),           
                         cleanInt(row.width),                   
-                        row.wood_code || null,                 
+                        row.wood_code || null,               
                         cleanInt(row.mil),                     
                         row.ax_code === '\\N' || !row.ax_code ? null : row.ax_code, 
                         cleanBool(row.is_active, true),        
                         cleanBool(row.is_special, false),      
                         cleanInt(row.pallet_quantity),         
                         cleanFloat(row.wage),                  
-                        cleanFloat(row.wage_sorting_cut_wood)  
+                        cleanFloat(row.wage_sorting_cut_wood),
+                        row.grade || null
                     ]);
 
                     const chunkSize = 4000;
@@ -120,7 +121,7 @@ const masterController = {
                         const upsertQuery = format(`
                             INSERT INTO master_wood_sizes (
                                 old_id, branch_id, length, thick, type_id, width, wood_code, mil, 
-                                ax_code, is_active, is_special, pallet_quantity, wage, wage_sorting_cut_wood
+                                ax_code, is_active, is_special, pallet_quantity, wage, wage_sorting_cut_wood, grade
                             ) 
                             VALUES %L 
                             ON CONFLICT (branch_id, old_id) 
@@ -130,6 +131,7 @@ const masterController = {
                                 type_id = EXCLUDED.type_id,
                                 width = EXCLUDED.width,
                                 wood_code = EXCLUDED.wood_code,
+                                grade = EXCLUDED.grade,
                                 mil = EXCLUDED.mil,
                                 ax_code = EXCLUDED.ax_code,
                                 is_active = EXCLUDED.is_active,
@@ -333,7 +335,7 @@ const masterController = {
                 // ⚠️ หมายเหตุ: ปรับชื่อตารางใน MySQL ให้ตรงกับของจริง (สมมติเป็น saw_wood_type)
                 const [oldSawWoodTypes] = await mysqlPool.query(`
                     SELECT 
-                        id AS id_old, name, ax_location, ax_warehouse, is_raw_wood, is_width_wood 
+                        id AS id_old, name, ax_location, ax_warehouse, is_raw_wood, is_width_wood ,code
                     FROM saw_wood_type
                 `);
 
@@ -345,7 +347,8 @@ const masterController = {
                         row.ax_location || null,               // ax_location
                         row.ax_warehouse || null,              // ax_warehouse
                         cleanBool(row.is_raw_wood, false),     // is_raw_wood (แปลง 0/1 เป็น Boolean)
-                        cleanBool(row.is_width_wood, false)    // is_width_wood (แปลง 0/1 เป็น Boolean)
+                        cleanBool(row.is_width_wood, false),   // is_width_wood (แปลง 0/1 เป็น Boolean)
+                        row.code || null                       // code (เช่น ปกติ, ไม้สด)
                     ]);
 
                     const chunkSawSize = 4000;
@@ -354,7 +357,7 @@ const masterController = {
                         
                         const upsertSawWoodQuery = format(`
                             INSERT INTO master_saw_wood_types (
-                                old_id, branch_id, name, ax_location, ax_warehouse, is_raw_wood, is_width_wood
+                                old_id, branch_id, name, ax_location, ax_warehouse, is_raw_wood, is_width_wood ,code
                             ) 
                             VALUES %L 
                             ON CONFLICT (branch_id, old_id) 
@@ -364,6 +367,7 @@ const masterController = {
                                 ax_warehouse = EXCLUDED.ax_warehouse,
                                 is_raw_wood = EXCLUDED.is_raw_wood,
                                 is_width_wood = EXCLUDED.is_width_wood,
+                                code = EXCLUDED.code,
                                 updated_at = CURRENT_TIMESTAMP;
                         `, chunk);
 
@@ -460,6 +464,92 @@ const masterController = {
                         await pgClient.query(upsertWoodStoreQuery);
                     }
                     console.log(`[Sync] ✔ ซิงค์ข้อมูลคลังสถานที่เก็บไม้ ${branch.branch_name} สำเร็จ (${oldWoodStores.length} รายการ)`);
+                }
+
+                // =================================================================
+                // 🔄 ส่วนที่ 9: ดึงข้อมูลตาราง ประเภทธุรกรรม (transaction_type)
+                // =================================================================
+                console.log(`[Sync] กำลังดึงข้อมูล ประเภทธุรกรรม จาก MySQL Server: ${branch.branch_name}...`);
+                
+                // ⚠️ ตรวจสอบชื่อตารางในระบบเก่าให้ตรงกัน
+                const [oldTransactionTypes] = await mysqlPool.query(`
+                    SELECT 
+                        id AS id_old, code, name, name_en 
+                    FROM transaction_type
+                `);
+
+                if (oldTransactionTypes.length > 0) {
+                    const transactionTypeValues = oldTransactionTypes.map(row => [
+                        cleanInt(row.id_old),                  // old_id
+                        branch.id,                             // branch_id (อ้างอิงจากลูปสาขา)
+                        row.code || null,                      // code (เช่น F4, A, B)
+                        row.name || null,                      // name
+                        row.name_en || null                    // name_en (เช่น PLF, PLC)
+                    ]);
+
+                    const chunkTxSize = 4000;
+                    for (let i = 0; i < transactionTypeValues.length; i += chunkTxSize) {
+                        const chunk = transactionTypeValues.slice(i, i + chunkTxSize);
+                        
+                        const upsertTxQuery = format(`
+                            INSERT INTO master_transaction_types (
+                                old_id, branch_id, code, name, name_en
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) 
+                            DO UPDATE SET 
+                                code = EXCLUDED.code,
+                                name = EXCLUDED.name,
+                                name_en = EXCLUDED.name_en,
+                                updated_at = CURRENT_TIMESTAMP;
+                        `, chunk);
+
+                        await pgClient.query(upsertTxQuery);
+                    }
+                    console.log(`[Sync] ✔ ซิงค์ข้อมูลประเภทธุรกรรม ${branch.branch_name} สำเร็จ (${oldTransactionTypes.length} รายการ)`);
+                }
+
+                // =================================================================
+                // ⏱️ ส่วนที่ 10: ดึงข้อมูลตาราง ช่วงเวลาการเลื่อย (saw_time)
+                // =================================================================
+                console.log(`[Sync] กำลังดึงข้อมูล ช่วงเวลาการเลื่อย จาก MySQL Server: ${branch.branch_name}...`);
+                
+                // ⚠️ ตรวจสอบชื่อตารางในระบบเก่า (สมมติเป็น saw_time)
+                const [oldSawTimes] = await mysqlPool.query(`
+                    SELECT 
+                        id AS id_old, time_name, over_time, overtime_type 
+                    FROM saw_time
+                `);
+
+                if (oldSawTimes.length > 0) {
+                    const sawTimeValues = oldSawTimes.map(row => [
+                        cleanInt(row.id_old),                  // old_id
+                        branch.id,                             // branch_id (อ้างอิงจากลูปสาขา)
+                        row.time_name || null,                 // time_name
+                        cleanBool(row.over_time, false),       // over_time (แปลง 0/1 เป็น Boolean)
+                        cleanInt(row.overtime_type, 0)         // overtime_type (เก็บเป็นตัวเลข)
+                    ]);
+
+                    const chunkTimeSize = 4000;
+                    for (let i = 0; i < sawTimeValues.length; i += chunkTimeSize) {
+                        const chunk = sawTimeValues.slice(i, i + chunkTimeSize);
+                        
+                        const upsertSawTimeQuery = format(`
+                            INSERT INTO master_saw_times (
+                                old_id, branch_id, time_name, over_time, overtime_type
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) 
+                            DO UPDATE SET 
+                                time_name = EXCLUDED.time_name,
+                                over_time = EXCLUDED.over_time,
+                                overtime_type = EXCLUDED.overtime_type,
+                                updated_at = CURRENT_TIMESTAMP;
+                        `, chunk);
+
+                        await pgClient.query(upsertSawTimeQuery);
+                    }
+                    console.log(`[Sync] ✔ ซิงค์ข้อมูลช่วงเวลาการเลื่อย ${branch.branch_name} สำเร็จ (${oldSawTimes.length} รายการ)`);
                 }
 
             } catch (branchError) {
