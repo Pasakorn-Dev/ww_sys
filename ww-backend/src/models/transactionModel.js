@@ -107,6 +107,93 @@ const TransactionModel = {
     } finally {
       client.release();
     }
+  },
+  // ─── 4. ดึงข้อมูลนับไม้เลื่อย พร้อมตัวกรอง ───
+  getSawWoods: async (filters) => {
+    const { 
+      branch_id, start_date, end_date, 
+      transaction_type_id, log_wood_type_id, log_wood_eval_size_id, 
+      ws_customer_id, saw_time_id, saw_wood_types_code, barcode_id 
+    } = filters;
+
+    let query = `
+      SELECT 
+        t.id, 
+        t.branch_id,
+        t.produce_date, 
+        b.branch_code,
+        t.barcode_id,
+        ws.wood_code,
+        ws.grade,
+        t.amount,
+        t.volumn, 
+        t.net_price,
+        
+        tt.id as transaction_types_id,
+        tt.name as transaction_types_name,
+        
+        lwt.id as log_wood_types_id,
+        lwt.name as log_wood_types_name,
+        
+        lwes.id as log_wood_eval_sizes_id,
+        lwes.name as log_wood_eval_sizes_name,
+
+        tc.id as truck_companies_id,
+        tc.code as truck_companies_code,
+        tc.name as truck_companies_name,
+
+        st.id as saw_time_id,
+        st.time_name as saw_time_name,
+        
+        swt.id as saw_wood_types_id,
+        swt.name as saw_wood_types_name,
+        swt.code as saw_wood_types_code
+
+      FROM transaction_saw_woods t
+      LEFT JOIN master_log_wood_types lwt 
+        ON t.branch_id = lwt.branch_id AND t.log_wood_type_id = lwt.old_id
+      LEFT JOIN master_log_wood_eval_sizes lwes 
+        ON t.branch_id = lwes.branch_id AND t.log_wood_eval_size_id = lwes.old_id
+      LEFT JOIN master_truck_companies tc 
+        ON t.branch_id = tc.branch_id AND t.ws_customer_id = tc.old_id
+      LEFT JOIN master_transaction_types tt 
+        ON t.branch_id = tt.branch_id AND t.transaction_type_id = tt.old_id
+      LEFT JOIN master_saw_times st 
+        ON t.branch_id = st.branch_id AND t.saw_time_id = st.old_id
+      LEFT JOIN master_wood_sizes ws 
+        ON t.branch_id = ws.branch_id AND t.wood_size_id = ws.old_id
+      LEFT JOIN master_saw_wood_types swt 
+        ON t.branch_id = swt.branch_id AND t.saw_wood_type_id = swt.old_id
+      LEFT JOIN branches b 
+        ON t.branch_id = b.id
+      WHERE 1=1
+    `;
+
+    const params = [];
+    let paramIndex = 1;
+
+    // เงื่อนไขหลัก
+    if (branch_id) { query += ` AND t.branch_id = $${paramIndex++}`; params.push(branch_id); }
+    if (start_date && end_date) {
+      query += ` AND t.produce_date BETWEEN $${paramIndex++} AND $${paramIndex++}`;
+      params.push(start_date, end_date);
+    }
+
+    // เงื่อนไขเสริม
+    if (transaction_type_id) { query += ` AND t.transaction_type_id = $${paramIndex++}`; params.push(transaction_type_id); }
+    if (log_wood_type_id) { query += ` AND t.log_wood_type_id = $${paramIndex++}`; params.push(log_wood_type_id); }
+    if (log_wood_eval_size_id) { query += ` AND t.log_wood_eval_size_id = $${paramIndex++}`; params.push(log_wood_eval_size_id); }
+    if (ws_customer_id) { query += ` AND t.ws_customer_id = $${paramIndex++}`; params.push(ws_customer_id); }
+    if (saw_time_id) { query += ` AND t.saw_time_id = $${paramIndex++}`; params.push(saw_time_id); }
+    if (saw_wood_types_code) { query += ` AND swt.code ILIKE $${paramIndex++}`; params.push(`%${saw_wood_types_code}%`); }
+    
+    // สำหรับดึงรายละเอียดตาม Barcode
+    if (barcode_id) { query += ` AND t.barcode_id = $${paramIndex++}`; params.push(barcode_id); }
+
+    query += ` ORDER BY t.produce_date DESC, t.barcode_id ASC LIMIT 1000`; // Limit เพื่อประสิทธิภาพ
+
+    const { rows } = await pool.query(query, params);
+    return rows;
   }
 };
 

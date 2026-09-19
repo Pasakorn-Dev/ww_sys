@@ -65,6 +65,16 @@ const transactionController = {
       console.error('Transaction Sync Error:', error);
       res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการนำเข้าข้อมูล' });
     }
+  },
+
+  getSawWoods: async (req, res) => {
+    try {
+      const data = await TransactionModel.getSawWoods(req.query);
+      res.json({ success: true, data });
+    } catch (error) {
+      console.error('Fetch Saw Woods Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงข้อมูล' });
+    }
   }
 };
 

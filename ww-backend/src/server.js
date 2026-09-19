@@ -15,6 +15,8 @@ const menuRoutes = require('./routes/menuRoutes');
 // const productRoutes = require('./routes/productRoutes'); // นำเข้าการจัดการเส้นทางสินค้า
 const masterRoutes = require('./routes/masterRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
+const masterOptionsRoutes = require('./routes/masterOptionsRoutes');
+
 
 app.use('/api/master', masterRoutes);
 
@@ -25,6 +27,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/menus', menuRoutes); // เปิดใช้งาน API เมนู
 
 app.use('/api/transactions', transactionRoutes);
+
+app.use('/api/master-options', masterOptionsRoutes);
 
 // Test Route เพื่อตรวจสอบสถานะ
 app.get('/api/status', (req, res) => {

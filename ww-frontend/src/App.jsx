@@ -8,6 +8,7 @@ import Branches from './pages/Branches';
 import SyncMaster from './pages/SyncMaster'; // 1. นำเข้าไฟล์ใหม่
 import WoodPriceManager from './pages/WoodPriceManager'; // 1. นำเข้าไฟล์ใหม่
 import SyncSawWood from './pages/SyncSawWood';
+import CheckSawWood from './pages/CheckSawWood';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
           <Route path="/sync-master" element={<SyncMaster />} />
           <Route path="/wood-prices" element={<WoodPriceManager />} /> 
           <Route path="/sync-saw-woods" element={<SyncSawWood />} />
+          <Route path="/check-saw-woods" element={<CheckSawWood />} />
         </Route>
       </Routes>
     </BrowserRouter>
