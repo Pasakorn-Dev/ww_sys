@@ -9,6 +9,8 @@ import SyncMaster from './pages/SyncMaster'; // 1. นำเข้าไฟล�
 import WoodPriceManager from './pages/WoodPriceManager'; // 1. นำเข้าไฟล์ใหม่
 import SyncSawWood from './pages/SyncSawWood';
 import CheckSawWood from './pages/CheckSawWood';
+import ProductionConverReport from './pages/ProductionCoverReport';
+
 
 function App() {
   return (
@@ -25,6 +27,8 @@ function App() {
           <Route path="/wood-prices" element={<WoodPriceManager />} /> 
           <Route path="/sync-saw-woods" element={<SyncSawWood />} />
           <Route path="/check-saw-woods" element={<CheckSawWood />} />
+          <Route path="/production-cover" element={<ProductionConverReport />} />
+          
         </Route>
       </Routes>
     </BrowserRouter>
