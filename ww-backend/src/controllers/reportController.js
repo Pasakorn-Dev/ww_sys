@@ -58,18 +58,12 @@ const reportController = {
     try {
       const { start_date, end_date } = req.query;
 
-      // 1. นำ saw_name กลับเข้ามาใน SQL (GROUP BY และ PARTITION BY)
       const query = `
         WITH BaseData AS (
             SELECT 
-                tsw.saw_name,
-                mws.thick,
-                mws.length,
-                RIGHT(mws.wood_code, 7) AS wood_code,
-                
+                tsw.saw_name, mws.thick, mws.length, RIGHT(mws.wood_code, 7) AS wood_code,
                 SUM(CASE WHEN mws.is_special = false THEN tsw.volumn ELSE 0 END) AS ab_volumn,
                 SUM(CASE WHEN mws.is_special = false THEN tsw.net_price ELSE 0 END) AS ab_amount,
-                
                 SUM(CASE WHEN mws.is_special = true THEN tsw.volumn ELSE 0 END) AS spc_volumn,
                 SUM(CASE WHEN mws.is_special = true THEN tsw.net_price ELSE 0 END) AS spc_amount
             FROM transaction_saw_woods tsw
@@ -80,11 +74,9 @@ const reportController = {
         )
         SELECT 
             saw_name, thick, length, wood_code,
-            
             ab_volumn, ab_amount,
             CASE WHEN ab_volumn > 0 THEN ab_amount / ab_volumn ELSE 0 END AS ab_avg_price,
             CASE WHEN SUM(ab_volumn) OVER (PARTITION BY saw_name, thick, length) > 0 THEN (ab_volumn / SUM(ab_volumn) OVER (PARTITION BY saw_name, thick, length)) * 100 ELSE 0 END AS ab_percent_qty,
-            
             spc_volumn, spc_amount,
             CASE WHEN spc_volumn > 0 THEN spc_amount / spc_volumn ELSE 0 END AS spc_avg_price,
             CASE WHEN SUM(spc_volumn) OVER (PARTITION BY saw_name, thick, length) > 0 THEN (spc_volumn / SUM(spc_volumn) OVER (PARTITION BY saw_name, thick, length)) * 100 ELSE 0 END AS spc_percent_qty
@@ -94,26 +86,27 @@ const reportController = {
 
       const { rows } = await pool.query(query, [start_date, end_date]);
 
-      // 2. จัดกลุ่มข้อมูลแบบ 3 ชั้น (ชุดเลื่อย -> ความหนา -> ความยาว)
+      // 1. จัดกลุ่มข้อมูล และหายอดรวม
       const groupedData = rows.reduce((acc, row) => {
         const s = row.saw_name || 'ไม่ระบุชุดเลื่อย';
         const t = row.thick;
         const l = row.length;
 
-        // ชั้นที่ 1: ชุดเลื่อย
-        if (!acc[s]) acc[s] = { saw_name: s, thicks: {} };
+        if (!acc[s]) acc[s] = { 
+            saw_name: s, 
+            thicks: {}, 
+            // ยอดรวมทั้งชุดเลื่อย (เพื่อนำไปเป็นตัวหาร %ชุด)
+            total_ab_volumn: 0, total_spc_volumn: 0
+        };
 
-        // ชั้นที่ 2: ความหนา
         if (!acc[s].thicks[t]) {
           acc[s].thicks[t] = { 
             thick: t, 
             lengths: {}, 
-            total_ab_volumn: 0, 
-            total_spc_volumn: 0 
+            subTotal: { ab_volumn: 0, ab_amt: 0, spc_volumn: 0, spc_amt: 0 } 
           };
         }
 
-        // ชั้นที่ 3: ความยาว
         if (!acc[s].thicks[t].lengths[l]) {
           acc[s].thicks[t].lengths[l] = {
             length: l,
@@ -122,43 +115,54 @@ const reportController = {
           };
         }
 
-        // รายการรหัสไม้ (Detail)
         acc[s].thicks[t].lengths[l].items.push({
           wood_code: row.wood_code,
-          ab_volumn: Number(row.ab_volumn),
-          ab_pct_qty: Number(row.ab_percent_qty),
-          ab_price: Number(row.ab_avg_price),
-          ab_amt: Number(row.ab_amount),
-          spc_volumn: Number(row.spc_volumn),
-          spc_pct_qty: Number(row.spc_percent_qty),
-          spc_price: Number(row.spc_avg_price),
-          spc_amt: Number(row.spc_amount)
+          ab_volumn: Number(row.ab_volumn), ab_pct_qty: Number(row.ab_percent_qty),
+          ab_price: Number(row.ab_avg_price), ab_amt: Number(row.ab_amount),
+          spc_volumn: Number(row.spc_volumn), spc_pct_qty: Number(row.spc_percent_qty),
+          spc_price: Number(row.spc_avg_price), spc_amt: Number(row.spc_amount)
         });
 
-        // บวกยอดรวมของความยาว
+        // บวกยอดเข้าความยาว
         acc[s].thicks[t].lengths[l].subTotal.ab_volumn += Number(row.ab_volumn);
         acc[s].thicks[t].lengths[l].subTotal.ab_amt += Number(row.ab_amount);
         acc[s].thicks[t].lengths[l].subTotal.spc_volumn += Number(row.spc_volumn);
         acc[s].thicks[t].lengths[l].subTotal.spc_amt += Number(row.spc_amount);
 
-        // บวกยอดรวมของความหนา (เพื่อเอาไปหา %ยาว)
-        acc[s].thicks[t].total_ab_volumn += Number(row.ab_volumn);
-        acc[s].thicks[t].total_spc_volumn += Number(row.spc_volumn);
+        // บวกยอดเข้าความหนา
+        acc[s].thicks[t].subTotal.ab_volumn += Number(row.ab_volumn);
+        acc[s].thicks[t].subTotal.ab_amt += Number(row.ab_amount);
+        acc[s].thicks[t].subTotal.spc_volumn += Number(row.spc_volumn);
+        acc[s].thicks[t].subTotal.spc_amt += Number(row.spc_amount);
+
+        // บวกยอดเข้าชุดเลื่อยทั้งหมด
+        acc[s].total_ab_volumn += Number(row.ab_volumn);
+        acc[s].total_spc_volumn += Number(row.spc_volumn);
 
         return acc;
       }, {});
 
-      // 3. คำนวณ %ยาว และแปลง Object เป็น Array ส่งให้ React
+      // 2. คำนวณ % ต่างๆ ก่อนส่งให้ Frontend
       const finalData = Object.values(groupedData).map(sawGroup => {
+        // ยอดรวมทั้งหมด (AB + พิเศษ) ของชุดเลื่อย
+        sawGroup.total_all_volumn = sawGroup.total_ab_volumn + sawGroup.total_spc_volumn;
+
         sawGroup.thicks = Object.values(sawGroup.thicks).map(thickGroup => {
+          // คำนวณแถว 1: % ความหนา (ชุด) รวมพิเศษ (หารด้วยยอดรวมทั้งชุด)
+          thickGroup.pct_thick_all_ab = sawGroup.total_all_volumn > 0 ? (thickGroup.subTotal.ab_volumn / sawGroup.total_all_volumn) * 100 : 0;
+          thickGroup.pct_thick_all_spc = sawGroup.total_all_volumn > 0 ? (thickGroup.subTotal.spc_volumn / sawGroup.total_all_volumn) * 100 : 0;
+
+          // คำนวณแถว 2: % ความหนา (ชุด) แยก ปกติ ,พิเศษ (หารด้วยยอดรวมเฉพาะชนิดในชุด)
+          thickGroup.pct_thick_sep_ab = sawGroup.total_ab_volumn > 0 ? (thickGroup.subTotal.ab_volumn / sawGroup.total_ab_volumn) * 100 : 0;
+          thickGroup.pct_thick_sep_spc = sawGroup.total_spc_volumn > 0 ? (thickGroup.subTotal.spc_volumn / sawGroup.total_spc_volumn) * 100 : 0;
+
+          // คำนวณแถว 3: ราคาเฉลี่ย ของความหนา
+          thickGroup.avg_price_ab = thickGroup.subTotal.ab_volumn > 0 ? (thickGroup.subTotal.ab_amt / thickGroup.subTotal.ab_volumn) : 0;
+          thickGroup.avg_price_spc = thickGroup.subTotal.spc_volumn > 0 ? (thickGroup.subTotal.spc_amt / thickGroup.subTotal.spc_volumn) : 0;
+
           thickGroup.lengths = Object.values(thickGroup.lengths).map(lenGroup => {
-            // คำนวณ %ยาว (สัดส่วนของแต่ละความยาวเทียบกับความหนาทั้งหมดในชุดเลื่อยนั้น)
-            lenGroup.subTotal.ab_pct_amt = thickGroup.total_ab_volumn > 0 
-              ? (lenGroup.subTotal.ab_volumn / thickGroup.total_ab_volumn) * 100 : 0;
-            
-            lenGroup.subTotal.spc_pct_amt = thickGroup.total_spc_volumn > 0 
-              ? (lenGroup.subTotal.spc_volumn / thickGroup.total_spc_volumn) * 100 : 0;
-            
+            lenGroup.subTotal.ab_pct_amt = thickGroup.subTotal.ab_volumn > 0 ? (lenGroup.subTotal.ab_volumn / thickGroup.subTotal.ab_volumn) * 100 : 0;
+            lenGroup.subTotal.spc_pct_amt = thickGroup.subTotal.spc_volumn > 0 ? (lenGroup.subTotal.spc_volumn / thickGroup.subTotal.spc_volumn) * 100 : 0;
             return lenGroup;
           });
           return thickGroup;

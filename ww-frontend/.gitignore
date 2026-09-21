@@ -75,3 +75,6 @@ dist-ssr
 .env.development.local
 .env.test.local
 .env.production.local
+
+#repmix
+repomix-frontend-output.xml

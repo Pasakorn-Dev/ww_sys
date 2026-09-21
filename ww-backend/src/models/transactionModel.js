@@ -77,7 +77,7 @@ const TransactionModel = {
             amount, volumn, unit_price, branch_id
           ) 
           VALUES %L 
-          ON CONFLICT (wood_size_amount_map_id) 
+          ON CONFLICT (branch_id ,wood_size_amount_map_id) 
           DO UPDATE SET 
             barcode_id = EXCLUDED.barcode_id,
             produce_date = EXCLUDED.produce_date,
@@ -91,8 +91,7 @@ const TransactionModel = {
             saw_wood_type_id = EXCLUDED.saw_wood_type_id,
             amount = EXCLUDED.amount,
             volumn = EXCLUDED.volumn,
-            unit_price = EXCLUDED.unit_price,
-            branch_id = EXCLUDED.branch_id
+            unit_price = EXCLUDED.unit_price
         `, chunk);
 
         await client.query(upsertQuery);
