@@ -1,12 +1,4 @@
 // src/components/Layout.jsx
-// ─────────────────────────────────────────────────────────────
-// Layout หลักของระบบ PPOS
-// - Sidebar ที่โหลดเมนูตามสิทธิ์ (RBAC)
-// - Header + Dark mode toggle
-// - ตรวจสอบ token ก่อนเข้าใช้งานทุกครั้ง
-// - ใช้ apiFetch แทน fetch ตรงๆ (ไม่มี hardcode URL)
-// ─────────────────────────────────────────────────────────────
-
 import { useEffect, useState } from 'react';
 import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
 import apiFetch from '../services/apiFetch';
@@ -19,7 +11,11 @@ export default function Layout() {
   const [user, setUser] = useState(null);
   const [menus, setMenus] = useState([]);
   const [expandedMenu, setExpandedMenu] = useState(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
+  // State สำหรับควบคุม Sidebar
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // สำหรับ Mobile (เปิด/ปิด)
+  const [isCollapsed, setIsCollapsed] = useState(false);     // 🌟 สำหรับ Desktop (ย่อ/ขยาย)
+  
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
 
   // ─── Effect: จัดการ Dark mode ─────────────────────────────
@@ -39,14 +35,12 @@ export default function Layout() {
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
 
-    // 1. ถ้าไม่มี token/user → กลับไป login
     if (!token || !storedUser || storedUser === 'undefined' || storedUser === 'null') {
       localStorage.clear();
       navigate('/login', { replace: true });
       return;
     }
 
-    // 2. Parse user (ถ้า parse ไม่ได้ → session เสีย → login ใหม่)
     try {
       setUser(JSON.parse(storedUser));
     } catch (error) {
@@ -56,26 +50,20 @@ export default function Layout() {
       return;
     }
 
-    // 3. โหลดเมนูตามสิทธิ์
     let isMounted = true;
 
     (async () => {
       try {
         const data = await apiFetch('/menus');
-
-        // ถ้า component unmount แล้ว → ไม่ต้อง setState
         if (!isMounted) return;
 
         if (data?.success) {
           setMenus(data.data);
-
-          // Auto-expand parent menu ของหน้าที่กำลังเปิดอยู่
           const currentMenu = data.data.find((m) => m.link === location.pathname);
           if (currentMenu && currentMenu.parent_id !== 0) {
             setExpandedMenu(currentMenu.parent_id);
           }
         } else {
-          // backend ตอบ success:false → token ไม่ valid
           localStorage.clear();
           navigate('/login', { replace: true });
         }
@@ -108,7 +96,6 @@ export default function Layout() {
     );
   }
 
-  // ─── Filter เมนูหลัก (parent_id = 0 หรือ null) ────────────
   const mainMenus = menus.filter((m) => m.parent_id === 0 || !m.parent_id);
 
   // ─── Render ───────────────────────────────────────────────
@@ -123,15 +110,28 @@ export default function Layout() {
         ></div>
       )}
 
-      {/* Sidebar */}
+      {/* 🌟 Sidebar 🌟 */}
+      {/* เพิ่ม Transition width และเช็ค isCollapsed */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 dark:bg-gray-950 text-white flex flex-col shadow-xl transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 bg-gray-800 dark:bg-gray-950 text-white flex flex-col shadow-xl transform transition-all duration-300 ease-in-out md:static 
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 
+          ${isCollapsed ? 'w-20' : 'w-64'}
+        `}
       >
-        {/* Logo */}
-        <div className="p-6 text-2xl font-bold border-b border-gray-700 dark:border-gray-800 bg-gray-900 dark:bg-black text-blue-400 flex justify-between items-center">
-          <span>WW_Report</span>
+        {/* Header / Logo ของ Sidebar */}
+        <div className={`p-4 h-16 text-xl font-bold border-b border-gray-700 dark:border-gray-800 bg-gray-900 dark:bg-black text-blue-400 flex items-center transition-all ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+          {!isCollapsed && <span className="truncate">WW_Report</span>}
+          
+          {/* ปุ่มเปิด-ปิด Sidebar (เฉพาะหน้าจอคอม) */}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="hidden md:block text-gray-400 hover:text-white transition-colors"
+            title={isCollapsed ? 'ขยายเมนู' : 'ยุบเมนู'}
+          >
+            <i className={`fas fa-bars ${isCollapsed ? 'text-xl' : ''}`}></i>
+          </button>
+
+          {/* ปุ่มปิด Sidebar (เฉพาะมือถือ) */}
           <button
             onClick={() => setIsSidebarOpen(false)}
             className="md:hidden text-gray-400 hover:text-white"
@@ -141,7 +141,7 @@ export default function Layout() {
         </div>
 
         {/* Menu list */}
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 p-3 space-y-2 overflow-y-auto custom-scrollbar overflow-x-hidden">
           {mainMenus.map((menu) => {
             const subMenus = menus.filter((m) => m.parent_id === menu.id);
             const isExpanded = expandedMenu === menu.id;
@@ -151,33 +151,31 @@ export default function Layout() {
               return (
                 <div key={menu.id} className="space-y-1">
                   <button
-                    onClick={() => setExpandedMenu(isExpanded ? null : menu.id)}
-                    className="w-full flex items-center justify-between py-2 px-4 hover:bg-gray-700 dark:hover:bg-gray-800 rounded-lg text-gray-300 transition-colors focus:outline-none"
+                    onClick={() => {
+                      if (isCollapsed) setIsCollapsed(false); // ถ้าเมนูยุบอยู่ ให้ขยายออกมาก่อน
+                      setExpandedMenu(isExpanded ? null : menu.id);
+                    }}
+                    title={isCollapsed ? menu.menu_name : ''}
+                    className={`w-full flex items-center py-3 px-4 hover:bg-gray-700 dark:hover:bg-gray-800 rounded-lg text-gray-300 transition-colors focus:outline-none ${isCollapsed ? 'justify-center' : 'justify-between'}`}
                   >
                     <div className="flex items-center">
-                      <i className={`${menu.icon} mr-3 w-5 text-center`}></i>
-                      <span className="font-medium">{menu.menu_name}</span>
+                      <i className={`${menu.icon} ${isCollapsed ? 'text-xl mx-auto' : 'mr-3 w-5 text-center'}`}></i>
+                      {!isCollapsed && <span className="font-medium truncate">{menu.menu_name}</span>}
                     </div>
-                    <svg
-                      className={`w-4 h-4 transition-transform duration-300 ${
-                        isExpanded ? 'rotate-180 text-blue-400' : ''
-                      }`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
+                    {!isCollapsed && (
+                      <svg
+                        className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-blue-400' : ''}`}
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    )}
                   </button>
 
+                  {/* ซับเมนู (ซ่อนอัตโนมัติถ้ายุบ Sidebar) */}
                   <div
                     className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                      isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                      isExpanded && !isCollapsed ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
                     }`}
                   >
                     <div className="pl-6 pr-2 py-2 space-y-1 mt-1 bg-gray-900/50 dark:bg-black/30 rounded-lg">
@@ -192,10 +190,8 @@ export default function Layout() {
                               : 'text-gray-400 hover:bg-blue-600 hover:text-white'
                           }`}
                         >
-                          <i
-                            className={`${sub.icon || 'fas fa-angle-right'} mr-3 w-4 text-center text-xs`}
-                          ></i>
-                          {sub.menu_name}
+                          <i className={`${sub.icon || 'fas fa-angle-right'} mr-3 w-4 text-center text-xs`}></i>
+                          <span className="truncate">{sub.menu_name}</span>
                         </Link>
                       ))}
                     </div>
@@ -209,15 +205,18 @@ export default function Layout() {
               <Link
                 key={menu.id}
                 to={menu.link}
+                title={isCollapsed ? menu.menu_name : ''}
                 onClick={() => setIsSidebarOpen(false)}
-                className={`flex items-center py-2 px-4 rounded-lg transition-colors ${
+                className={`flex items-center py-3 px-4 rounded-lg transition-colors ${
+                  isCollapsed ? 'justify-center' : ''
+                } ${
                   location.pathname === menu.link
                     ? 'bg-gray-700 dark:bg-gray-800 text-white'
                     : 'text-gray-300 hover:bg-gray-700 dark:hover:bg-gray-800'
                 }`}
               >
-                <i className={`${menu.icon} mr-3 w-5 text-center`}></i>
-                <span className="font-medium">{menu.menu_name}</span>
+                <i className={`${menu.icon} ${isCollapsed ? 'text-xl mx-auto' : 'mr-3 w-5 text-center'}`}></i>
+                {!isCollapsed && <span className="font-medium truncate">{menu.menu_name}</span>}
               </Link>
             );
           })}
@@ -228,7 +227,7 @@ export default function Layout() {
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
 
         {/* Header */}
-        <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-transparent dark:border-gray-700 p-4 flex justify-between items-center z-10 transition-colors duration-300">
+        <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-transparent dark:border-gray-700 p-4 flex justify-between items-center z-10 transition-colors duration-300 h-16">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setIsSidebarOpen(true)}
