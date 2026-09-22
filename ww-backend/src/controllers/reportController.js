@@ -56,8 +56,15 @@ const reportController = {
 
   getAbWoodReport: async (req, res) => {
     try {
-      const { start_date, end_date } = req.query;
+      // 1. รับค่า branch_id เพิ่มเติมจาก req.query[cite: 6]
+      const { start_date, end_date, branch_id } = req.query;
 
+      // 2. ตรวจสอบพารามิเตอร์ให้ครบถ้วนก่อนดึงข้อมูล[cite: 6]
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      // 3. เพิ่มเงื่อนไข AND tsw.branch_id = $3 ลงใน WHERE clause[cite: 6]
       const query = `
         WITH BaseData AS (
             SELECT 
@@ -70,6 +77,7 @@ const reportController = {
             JOIN master_wood_sizes mws ON tsw.wood_size_id = mws.id 
             WHERE mws.grade = 'AB' 
               AND DATE(tsw.produce_date) BETWEEN $1 AND $2
+              AND tsw.branch_id = $3
             GROUP BY tsw.saw_name, mws.thick, mws.length, RIGHT(mws.wood_code, 7)
         )
         SELECT 
@@ -84,9 +92,10 @@ const reportController = {
         ORDER BY saw_name, thick, length, wood_code;
       `;
 
-      const { rows } = await pool.query(query, [start_date, end_date]);
+      // 4. ส่งค่า branch_id เป็นพารามิเตอร์ตัวที่ 3 ใน Array[cite: 6]
+      const { rows } = await pool.query(query, [start_date, end_date, branch_id]);
 
-      // 1. จัดกลุ่มข้อมูล และหายอดรวม
+      // จัดกลุ่มข้อมูล และหายอดรวม
       const groupedData = rows.reduce((acc, row) => {
         const s = row.saw_name || 'ไม่ระบุชุดเลื่อย';
         const t = row.thick;
@@ -95,7 +104,6 @@ const reportController = {
         if (!acc[s]) acc[s] = { 
             saw_name: s, 
             thicks: {}, 
-            // ยอดรวมทั้งชุดเลื่อย (เพื่อนำไปเป็นตัวหาร %ชุด)
             total_ab_volumn: 0, total_spc_volumn: 0
         };
 
@@ -142,21 +150,17 @@ const reportController = {
         return acc;
       }, {});
 
-      // 2. คำนวณ % ต่างๆ ก่อนส่งให้ Frontend
+      // คำนวณ % ต่างๆ ก่อนส่งให้ Frontend
       const finalData = Object.values(groupedData).map(sawGroup => {
-        // ยอดรวมทั้งหมด (AB + พิเศษ) ของชุดเลื่อย
         sawGroup.total_all_volumn = sawGroup.total_ab_volumn + sawGroup.total_spc_volumn;
 
         sawGroup.thicks = Object.values(sawGroup.thicks).map(thickGroup => {
-          // คำนวณแถว 1: % ความหนา (ชุด) รวมพิเศษ (หารด้วยยอดรวมทั้งชุด)
           thickGroup.pct_thick_all_ab = sawGroup.total_all_volumn > 0 ? (thickGroup.subTotal.ab_volumn / sawGroup.total_all_volumn) * 100 : 0;
           thickGroup.pct_thick_all_spc = sawGroup.total_all_volumn > 0 ? (thickGroup.subTotal.spc_volumn / sawGroup.total_all_volumn) * 100 : 0;
 
-          // คำนวณแถว 2: % ความหนา (ชุด) แยก ปกติ ,พิเศษ (หารด้วยยอดรวมเฉพาะชนิดในชุด)
           thickGroup.pct_thick_sep_ab = sawGroup.total_ab_volumn > 0 ? (thickGroup.subTotal.ab_volumn / sawGroup.total_ab_volumn) * 100 : 0;
           thickGroup.pct_thick_sep_spc = sawGroup.total_spc_volumn > 0 ? (thickGroup.subTotal.spc_volumn / sawGroup.total_spc_volumn) * 100 : 0;
 
-          // คำนวณแถว 3: ราคาเฉลี่ย ของความหนา
           thickGroup.avg_price_ab = thickGroup.subTotal.ab_volumn > 0 ? (thickGroup.subTotal.ab_amt / thickGroup.subTotal.ab_volumn) : 0;
           thickGroup.avg_price_spc = thickGroup.subTotal.spc_volumn > 0 ? (thickGroup.subTotal.spc_amt / thickGroup.subTotal.spc_volumn) : 0;
 
