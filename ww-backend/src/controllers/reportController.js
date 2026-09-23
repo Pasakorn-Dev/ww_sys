@@ -16,7 +16,9 @@ const fetchWoodTypeAbData = async (start_date, end_date, branch_id) => {
             SUM(CASE WHEN mws.is_special = true THEN tsw.volumn ELSE 0 END) AS spc_volumn,
             SUM(CASE WHEN mws.is_special = true THEN tsw.net_price ELSE 0 END) AS spc_amount
         FROM transaction_saw_woods tsw
-        JOIN master_wood_sizes mws ON tsw.wood_size_id = mws.id 
+        JOIN master_wood_sizes mws 
+          on mws.old_id = tsw.wood_size_id 
+	        and tsw.branch_id = mws.branch_id
         WHERE mws.grade = 'AB' 
           AND DATE(tsw.produce_date) BETWEEN $1 AND $2
           AND tsw.branch_id = $3
@@ -146,7 +148,7 @@ const reportController = {
       res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงาน' });
     }
   },
-
+  /*
   getAbWoodReport: async (req, res) => {
     try {
       // 1. รับค่า branch_id เพิ่มเติมจาก req.query[cite: 6]
@@ -274,7 +276,7 @@ const reportController = {
       res.status(500).json({ success: false, message: 'Server Error' });
     }
   },
-
+  */
   // ฟังก์ชัน API เดิมของ JSON 
   getAbWoodReport: async (req, res) => {
     try {
