@@ -107,6 +107,33 @@ const TransactionModel = {
       client.release();
     }
   },
+
+  // ─── 4. ลบข้อมูลที่ไม่มีในระบบเก่า (ถูกลบทิ้งไปแล้ว) ───
+  cleanupDeletedTransactions: async (branchId, startDate, endDate, activeIds) => {
+    let query;
+    let params;
+
+    // ถ้ายังมีข้อมูลหลงเหลืออยู่ในระบบเก่า ให้ลบเฉพาะตัวที่ ID ไม่อยู่ใน List นี้
+    if (activeIds && activeIds.length > 0) {
+      query = `
+        DELETE FROM transaction_saw_woods
+        WHERE branch_id = $1
+          AND produce_date BETWEEN $2 AND $3
+          AND wood_size_amount_map_id != ALL($4::bigint[])
+      `;
+      params = [branchId, startDate, endDate, activeIds];
+    } else {
+      // ถ้าไม่มีข้อมูลในระบบเก่าเลย (ถูกลบเกลี้ยง) ให้ลบ Transaction ของช่วงเวลานั้นออกทั้งหมด
+      query = `
+        DELETE FROM transaction_saw_woods
+        WHERE branch_id = $1
+          AND produce_date BETWEEN $2 AND $3
+      `;
+      params = [branchId, startDate, endDate];
+    }
+
+    await pool.query(query, params);
+  },
   // ─── 4. ดึงข้อมูลนับไม้เลื่อย พร้อมตัวกรอง ───
   getSawWoods: async (filters) => {
     const { 

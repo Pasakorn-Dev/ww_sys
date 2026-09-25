@@ -20,6 +20,12 @@ const transactionController = {
       // 3. เรียก Model ดึงข้อมูลการนับไม้เลื่อยจาก MySQL เก่า
       const oldData = await TransactionModel.getOldTransactions(mysqlPool, start_date, end_date);
 
+      // 🌟 3.1 สกัดเฉพาะ ID ที่ยังมีอยู่จริงในระบบเก่า (ใช้ Set เพื่อตัด ID ที่ซ้ำกันออก)
+      const activeIds = [...new Set(oldData.map(row => row.wood_size_amount_map_id))];
+
+      // 🌟 3.2 สั่งเคลียร์ข้อมูลใน PostgreSQL ที่ถูกลบออกไปแล้วใน MySQL 
+      await TransactionModel.cleanupDeletedTransactions(branch_id, start_date, end_date, activeIds);
+
       if (oldData.length === 0) {
         return res.json({ success: true, message: 'ไม่พบข้อมูลในระบบเก่าสำหรับช่วงเวลานี้', total_synced: 0 });
       }

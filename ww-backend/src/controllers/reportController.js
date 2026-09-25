@@ -148,6 +148,61 @@ const reportController = {
       res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงาน' });
     }
   },
+  // 💡 เพิ่มฟังก์ชันรูปแบบที่ 2 (จัดกลุ่มตามชุดเลื่อย)
+  getProductionCoverFormat2: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code } = req.query;
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      // เรียกใช้ Model ตัวใหม่
+      const rows = await ReportModel.getProductionCoverReportFormat2({ branch_id, start_date, end_date, store_code });
+
+      const groupedData = {};
+      let branchName = '';
+      
+      rows.forEach(row => {
+        if (!branchName) branchName = row.branch_name;
+        
+        const typeName = row.is_special ? 'พิเศษ' : 'ปกติ';
+        const sawName = row.saw_name || 'ไม่ระบุชุดเลื่อย';
+        
+        // จัดกลุ่มโดยเอา "ชุดเลื่อย" ขึ้นต้น ตามด้วยชนิดไม้
+        const groupKey = `ชุดเลื่อย: ${sawName} (ไม้ ${row.grade || 'ไม่ระบุเกรด'} ${typeName})`;
+
+        if (!groupedData[groupKey]) {
+          groupedData[groupKey] = {
+            groupName: groupKey,
+            items: [],
+            sumAmount: 0,
+            sumVolumn: 0
+          };
+        }
+
+        groupedData[groupKey].items.push(row);
+        groupedData[groupKey].sumAmount += Number(row.total_amount);
+        groupedData[groupKey].sumVolumn += Number(row.total_volumn);
+      });
+
+      res.json({
+        success: true,
+        data: {
+          header: {
+            branch_name: branchName,
+            start_date,
+            end_date,
+            store_code: store_code || 'รวมทุกสโตร์'
+          },
+          groups: Object.values(groupedData)
+        }
+      });
+    } catch (error) {
+      console.error('Report Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานรูปแบบที่ 2' });
+    }
+  },
   /*
   getAbWoodReport: async (req, res) => {
     try {
@@ -290,7 +345,7 @@ const reportController = {
       res.status(500).json({ success: false, message: 'Server Error' });
     }
   },
-
+  
   // --- 2. ฟังก์ชัน สร้างไฟล์ Excel (Blob) ---
   exportAbWoodReportExcel: async (req, res) => {
     try {
