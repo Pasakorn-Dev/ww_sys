@@ -2,6 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
 
+// 💡 1. นำเข้าไลบรารีปฏิทินและภาษาไทย
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { th } from 'date-fns/locale';
+import { format, parseISO } from 'date-fns';
+
 export default function SyncSawWood() {
   const [status, setStatus] = useState('idle');
   const [branches, setBranches] = useState([]);
@@ -45,6 +51,15 @@ export default function SyncSawWood() {
     }
   };
 
+  // 💡 2. ฟังก์ชันจัดการเมื่อเลือกวันที่จากปฏิทิน
+  const handleDateChange = (date, type) => {
+    if (date) {
+      const formattedDate = format(date, 'yyyy-MM-dd');
+      if (type === 'start') setStartDate(formattedDate);
+      if (type === 'end') setEndDate(formattedDate);
+    }
+  };
+
   const handleStartSync = async () => {
     if (!startDate || !endDate) {
       return Swal.fire('แจ้งเตือน', 'กรุณาเลือกช่วงวันที่ให้ครบถ้วน', 'warning');
@@ -60,7 +75,7 @@ export default function SyncSawWood() {
 
     const confirm = await Swal.fire({
       title: 'ยืนยันการนำเข้าข้อมูล?',
-      html: `ดึงข้อมูลไม้เลื่อยของ <b>${branchName}</b><br/>ตั้งแต่วันที่ <b>${startDate}</b> ถึง <b>${endDate}</b>`,
+      html: `ดึงข้อมูลไม้เลื่อยของ <b>${branchName}</b><br/>ตั้งแต่วันที่ <b>${new Date(startDate).toLocaleDateString('th-TH')}</b> ถึง <b>${new Date(endDate).toLocaleDateString('th-TH')}</b>`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'ใช่, เริ่มดึงข้อมูล',
@@ -137,24 +152,33 @@ export default function SyncSawWood() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
+              {/* 💡 3. เปลี่ยนช่องวันที่เริ่มต้นเป็น DatePicker */}
+              <div className="flex flex-col">
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">ตั้งแต่วันที่</label>
-                <input 
-                  type="date" 
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                <DatePicker 
+                  selected={startDate ? parseISO(startDate) : null}
+                  onChange={(date) => handleDateChange(date, 'start')}
+                  dateFormat="dd/MM/yyyy"
+                  locale={th}
                   disabled={status === 'syncing'}
+                  placeholderText="วว/ดด/ปปปป"
                   className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
+                  wrapperClassName="w-full"
                 />
               </div>
-              <div>
+
+              {/* 💡 3. เปลี่ยนช่องวันที่สิ้นสุดเป็น DatePicker */}
+              <div className="flex flex-col">
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">ถึงวันที่</label>
-                <input 
-                  type="date" 
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                <DatePicker 
+                  selected={endDate ? parseISO(endDate) : null}
+                  onChange={(date) => handleDateChange(date, 'end')}
+                  dateFormat="dd/MM/yyyy"
+                  locale={th}
                   disabled={status === 'syncing'}
+                  placeholderText="วว/ดด/ปปปป"
                   className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
+                  wrapperClassName="w-full"
                 />
               </div>
             </div>

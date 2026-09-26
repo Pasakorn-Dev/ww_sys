@@ -3,12 +3,18 @@ import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
 import useMasterOptions from '../hooks/useMasterOptions';
 
+// 💡 1. นำเข้าไลบรารีปฏิทินและภาษาไทย
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { th } from 'date-fns/locale';
+import { format, parseISO } from 'date-fns';
+
 export default function CheckSawWood() {
   const [branches, setBranches] = useState([]);
   const [data, setData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // State สำหรับ Filters[cite: 10]
+  // State สำหรับ Filters
   const [filters, setFilters] = useState({
     branch_id: '',
     start_date: new Date().toISOString().split('T')[0],
@@ -47,6 +53,13 @@ export default function CheckSawWood() {
     setFilters({ ...filters, [e.target.name]: e.target.value });
   };
 
+  // 💡 2. เพิ่มฟังก์ชันจัดการเมื่อเลือกวันที่จากปฏิทิน
+  const handleDateChange = (date, name) => {
+    if (date) {
+      setFilters({ ...filters, [name]: format(date, 'yyyy-MM-dd') });
+    }
+  };
+
   const handleSearch = async () => {
     if (!filters.branch_id || !filters.start_date || !filters.end_date) {
       return Swal.fire('แจ้งเตือน', 'กรุณาเลือกสาขาและช่วงวันที่ให้ครบถ้วน', 'warning');
@@ -68,7 +81,7 @@ export default function CheckSawWood() {
     }
   };
 
-  // ─── ฟังก์ชันดูรายละเอียดตาม Barcode[cite: 10] ───
+  // ─── ฟังก์ชันดูรายละเอียดตาม Barcode ───
   const viewDetails = async (barcode_id) => {
     Swal.fire({
       title: 'กำลังโหลดข้อมูล...',
@@ -127,7 +140,7 @@ export default function CheckSawWood() {
   };
 
   // ─── จัดกลุ่มข้อมูลในตารางหลักตาม Barcode (ให้ดูง่ายขึ้น) ───
-  // หากต้องการแสดงรายบรรทัดตาม[cite: 10] สามารถลบ reduce นี้ออกและใช้ data.map ได้เลย
+  // หากต้องการแสดงรายบรรทัดตาม สามารถลบ reduce นี้ออกและใช้ data.map ได้เลย
   // ในที่นี้จะจำลองให้เห็นทีละรายการ
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto flex flex-col min-h-[80vh]">
@@ -146,14 +159,35 @@ export default function CheckSawWood() {
               {branches.map(b => <option key={b.id} value={b.id}>{b.branch_code} - {b.branch_name}</option>)}
             </select>
           </div>
-          <div>
+          
+          {/* 💡 3. เปลี่ยนช่องวันที่เริ่มต้นเป็น DatePicker */}
+          <div className="flex flex-col">
             <label className="block text-xs font-semibold text-gray-600 mb-1">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
-            <input type="date" name="start_date" value={filters.start_date} onChange={handleFilterChange} className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none" />
+            <DatePicker
+              selected={filters.start_date ? parseISO(filters.start_date) : null}
+              onChange={(date) => handleDateChange(date, 'start_date')}
+              dateFormat="dd/MM/yyyy"
+              locale={th}
+              className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none focus:border-blue-500"
+              placeholderText="วว/ดด/ปปปป"
+              wrapperClassName="w-full"
+            />
           </div>
-          <div>
+          
+          {/* 💡 3. เปลี่ยนช่องวันที่สิ้นสุดเป็น DatePicker */}
+          <div className="flex flex-col">
             <label className="block text-xs font-semibold text-gray-600 mb-1">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
-            <input type="date" name="end_date" value={filters.end_date} onChange={handleFilterChange} className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none" />
+            <DatePicker
+              selected={filters.end_date ? parseISO(filters.end_date) : null}
+              onChange={(date) => handleDateChange(date, 'end_date')}
+              dateFormat="dd/MM/yyyy"
+              locale={th}
+              className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none focus:border-blue-500"
+              placeholderText="วว/ดด/ปปปป"
+              wrapperClassName="w-full"
+            />
           </div>
+          
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">รหัสประเภทไม้เลื่อย (Saw Wood Type Code)</label>
             <input type="text" name="saw_wood_types_code" value={filters.saw_wood_types_code} onChange={handleFilterChange} placeholder="ระบุโค้ด (ถ้ามี)" className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none" />
@@ -203,7 +237,7 @@ export default function CheckSawWood() {
         </div>
       </div>
 
-      {/* ตารางแสดงผล[cite: 10] */}
+      {/* ตารางแสดงผล */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col">
         <div className="overflow-x-auto flex-1">
           <table className="w-full text-sm text-left whitespace-nowrap">

@@ -205,7 +205,7 @@ export default function WoodPriceManager() {
         </div>
 
         {/* สาขา & Filter */}
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-end">
           <div className="md:col-span-2">
             <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">สาขาที่จัดการ</label>
             <select
@@ -219,7 +219,10 @@ export default function WoodPriceManager() {
               ))}
             </select>
           </div>
-          
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">มิล</label>
+            <input type="text" name="mil" value={filters.mil} onChange={handleFilterChange} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm rounded-lg p-2.5" placeholder="มิล..." />
+          </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">หนา</label>
             <input type="text" name="thick" value={filters.thick} onChange={handleFilterChange} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm rounded-lg p-2.5" placeholder="หนา..." />
@@ -232,7 +235,6 @@ export default function WoodPriceManager() {
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">ยาว</label>
             <input type="text" name="length" value={filters.length} onChange={handleFilterChange} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm rounded-lg p-2.5" placeholder="ยาว..." />
           </div>
-          
           <button onClick={fetchProducts} disabled={selectedBranch === '' || selectedBranch === 0} className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
             <i className="fas fa-search mr-2"></i> ค้นหา
           </button>
