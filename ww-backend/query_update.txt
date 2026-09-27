@@ -1,0 +1,5 @@
+INSERT INTO public.menus(
+	id, menu_name, link, icon, sort_order, parent_id)
+	VALUES (14, 'รายงานราคาเฉลี่ย', '/average-price', 'fas fa-chart-line', 3, 11);
+
+
