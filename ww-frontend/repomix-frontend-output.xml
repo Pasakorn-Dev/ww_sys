@@ -77,12 +77,12 @@ src/
   main.jsx
 .env.example
 .gitignore
-index.html
 .oxlintrc.json
+.repomixignore
+index.html
 package.json
 pnpm-workspace.yaml
 README.md
-.repomixignore
 repomix-output.md
 vite.config.js
 </directory_structure>
@@ -377,14 +377,6 @@ export default function BranchPriceModal({ product, isOpen, onClose, onSaved }) 
 
 <file path="src/components/Layout.jsx">
 // src/components/Layout.jsx
-// ─────────────────────────────────────────────────────────────
-// Layout หลักของระบบ PPOS
-// - Sidebar ที่โหลดเมนูตามสิทธิ์ (RBAC)
-// - Header + Dark mode toggle
-// - ตรวจสอบ token ก่อนเข้าใช้งานทุกครั้ง
-// - ใช้ apiFetch แทน fetch ตรงๆ (ไม่มี hardcode URL)
-// ─────────────────────────────────────────────────────────────
-
 import { useEffect, useState } from 'react';
 import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
 import apiFetch from '../services/apiFetch';
@@ -397,7 +389,11 @@ export default function Layout() {
   const [user, setUser] = useState(null);
   const [menus, setMenus] = useState([]);
   const [expandedMenu, setExpandedMenu] = useState(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
+  // State สำหรับควบคุม Sidebar
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // สำหรับ Mobile (เปิด/ปิด)
+  const [isCollapsed, setIsCollapsed] = useState(false);     // 🌟 สำหรับ Desktop (ย่อ/ขยาย)
+  
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
 
   // ─── Effect: จัดการ Dark mode ─────────────────────────────
@@ -417,14 +413,12 @@ export default function Layout() {
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
 
-    // 1. ถ้าไม่มี token/user → กลับไป login
     if (!token || !storedUser || storedUser === 'undefined' || storedUser === 'null') {
       localStorage.clear();
       navigate('/login', { replace: true });
       return;
     }
 
-    // 2. Parse user (ถ้า parse ไม่ได้ → session เสีย → login ใหม่)
     try {
       setUser(JSON.parse(storedUser));
     } catch (error) {
@@ -434,26 +428,20 @@ export default function Layout() {
       return;
     }
 
-    // 3. โหลดเมนูตามสิทธิ์
     let isMounted = true;
 
     (async () => {
       try {
         const data = await apiFetch('/menus');
-
-        // ถ้า component unmount แล้ว → ไม่ต้อง setState
         if (!isMounted) return;
 
         if (data?.success) {
           setMenus(data.data);
-
-          // Auto-expand parent menu ของหน้าที่กำลังเปิดอยู่
           const currentMenu = data.data.find((m) => m.link === location.pathname);
           if (currentMenu && currentMenu.parent_id !== 0) {
             setExpandedMenu(currentMenu.parent_id);
           }
         } else {
-          // backend ตอบ success:false → token ไม่ valid
           localStorage.clear();
           navigate('/login', { replace: true });
         }
@@ -486,7 +474,6 @@ export default function Layout() {
     );
   }
 
-  // ─── Filter เมนูหลัก (parent_id = 0 หรือ null) ────────────
   const mainMenus = menus.filter((m) => m.parent_id === 0 || !m.parent_id);
 
   // ─── Render ───────────────────────────────────────────────
@@ -501,15 +488,28 @@ export default function Layout() {
         ></div>
       )}
 
-      {/* Sidebar */}
+      {/* 🌟 Sidebar 🌟 */}
+      {/* เพิ่ม Transition width และเช็ค isCollapsed */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 dark:bg-gray-950 text-white flex flex-col shadow-xl transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 bg-gray-800 dark:bg-gray-950 text-white flex flex-col shadow-xl transform transition-all duration-300 ease-in-out md:static 
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 
+          ${isCollapsed ? 'w-20' : 'w-64'}
+        `}
       >
-        {/* Logo */}
-        <div className="p-6 text-2xl font-bold border-b border-gray-700 dark:border-gray-800 bg-gray-900 dark:bg-black text-blue-400 flex justify-between items-center">
-          <span>WW_Report</span>
+        {/* Header / Logo ของ Sidebar */}
+        <div className={`p-4 h-16 text-xl font-bold border-b border-gray-700 dark:border-gray-800 bg-gray-900 dark:bg-black text-blue-400 flex items-center transition-all ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+          {!isCollapsed && <span className="truncate">WW_Report</span>}
+          
+          {/* ปุ่มเปิด-ปิด Sidebar (เฉพาะหน้าจอคอม) */}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="hidden md:block text-gray-400 hover:text-white transition-colors"
+            title={isCollapsed ? 'ขยายเมนู' : 'ยุบเมนู'}
+          >
+            <i className={`fas fa-bars ${isCollapsed ? 'text-xl' : ''}`}></i>
+          </button>
+
+          {/* ปุ่มปิด Sidebar (เฉพาะมือถือ) */}
           <button
             onClick={() => setIsSidebarOpen(false)}
             className="md:hidden text-gray-400 hover:text-white"
@@ -519,7 +519,7 @@ export default function Layout() {
         </div>
 
         {/* Menu list */}
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 p-3 space-y-2 overflow-y-auto custom-scrollbar overflow-x-hidden">
           {mainMenus.map((menu) => {
             const subMenus = menus.filter((m) => m.parent_id === menu.id);
             const isExpanded = expandedMenu === menu.id;
@@ -529,33 +529,31 @@ export default function Layout() {
               return (
                 <div key={menu.id} className="space-y-1">
                   <button
-                    onClick={() => setExpandedMenu(isExpanded ? null : menu.id)}
-                    className="w-full flex items-center justify-between py-2 px-4 hover:bg-gray-700 dark:hover:bg-gray-800 rounded-lg text-gray-300 transition-colors focus:outline-none"
+                    onClick={() => {
+                      if (isCollapsed) setIsCollapsed(false); // ถ้าเมนูยุบอยู่ ให้ขยายออกมาก่อน
+                      setExpandedMenu(isExpanded ? null : menu.id);
+                    }}
+                    title={isCollapsed ? menu.menu_name : ''}
+                    className={`w-full flex items-center py-3 px-4 hover:bg-gray-700 dark:hover:bg-gray-800 rounded-lg text-gray-300 transition-colors focus:outline-none ${isCollapsed ? 'justify-center' : 'justify-between'}`}
                   >
                     <div className="flex items-center">
-                      <i className={`${menu.icon} mr-3 w-5 text-center`}></i>
-                      <span className="font-medium">{menu.menu_name}</span>
+                      <i className={`${menu.icon} ${isCollapsed ? 'text-xl mx-auto' : 'mr-3 w-5 text-center'}`}></i>
+                      {!isCollapsed && <span className="font-medium truncate">{menu.menu_name}</span>}
                     </div>
-                    <svg
-                      className={`w-4 h-4 transition-transform duration-300 ${
-                        isExpanded ? 'rotate-180 text-blue-400' : ''
-                      }`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
+                    {!isCollapsed && (
+                      <svg
+                        className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-blue-400' : ''}`}
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    )}
                   </button>
 
+                  {/* ซับเมนู (ซ่อนอัตโนมัติถ้ายุบ Sidebar) */}
                   <div
                     className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                      isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                      isExpanded && !isCollapsed ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
                     }`}
                   >
                     <div className="pl-6 pr-2 py-2 space-y-1 mt-1 bg-gray-900/50 dark:bg-black/30 rounded-lg">
@@ -570,10 +568,8 @@ export default function Layout() {
                               : 'text-gray-400 hover:bg-blue-600 hover:text-white'
                           }`}
                         >
-                          <i
-                            className={`${sub.icon || 'fas fa-angle-right'} mr-3 w-4 text-center text-xs`}
-                          ></i>
-                          {sub.menu_name}
+                          <i className={`${sub.icon || 'fas fa-angle-right'} mr-3 w-4 text-center text-xs`}></i>
+                          <span className="truncate">{sub.menu_name}</span>
                         </Link>
                       ))}
                     </div>
@@ -587,15 +583,18 @@ export default function Layout() {
               <Link
                 key={menu.id}
                 to={menu.link}
+                title={isCollapsed ? menu.menu_name : ''}
                 onClick={() => setIsSidebarOpen(false)}
-                className={`flex items-center py-2 px-4 rounded-lg transition-colors ${
+                className={`flex items-center py-3 px-4 rounded-lg transition-colors ${
+                  isCollapsed ? 'justify-center' : ''
+                } ${
                   location.pathname === menu.link
                     ? 'bg-gray-700 dark:bg-gray-800 text-white'
                     : 'text-gray-300 hover:bg-gray-700 dark:hover:bg-gray-800'
                 }`}
               >
-                <i className={`${menu.icon} mr-3 w-5 text-center`}></i>
-                <span className="font-medium">{menu.menu_name}</span>
+                <i className={`${menu.icon} ${isCollapsed ? 'text-xl mx-auto' : 'mr-3 w-5 text-center'}`}></i>
+                {!isCollapsed && <span className="font-medium truncate">{menu.menu_name}</span>}
               </Link>
             );
           })}
@@ -606,7 +605,7 @@ export default function Layout() {
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
 
         {/* Header */}
-        <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-transparent dark:border-gray-700 p-4 flex justify-between items-center z-10 transition-colors duration-300">
+        <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-transparent dark:border-gray-700 p-4 flex justify-between items-center z-10 transition-colors duration-300 h-16">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setIsSidebarOpen(true)}
@@ -1145,12 +1144,18 @@ import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
 import useMasterOptions from '../hooks/useMasterOptions';
 
+// 💡 1. นำเข้าไลบรารีปฏิทินและภาษาไทย
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { th } from 'date-fns/locale';
+import { format, parseISO } from 'date-fns';
+
 export default function CheckSawWood() {
   const [branches, setBranches] = useState([]);
   const [data, setData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // State สำหรับ Filters[cite: 10]
+  // State สำหรับ Filters
   const [filters, setFilters] = useState({
     branch_id: '',
     start_date: new Date().toISOString().split('T')[0],
@@ -1189,6 +1194,13 @@ export default function CheckSawWood() {
     setFilters({ ...filters, [e.target.name]: e.target.value });
   };
 
+  // 💡 2. เพิ่มฟังก์ชันจัดการเมื่อเลือกวันที่จากปฏิทิน
+  const handleDateChange = (date, name) => {
+    if (date) {
+      setFilters({ ...filters, [name]: format(date, 'yyyy-MM-dd') });
+    }
+  };
+
   const handleSearch = async () => {
     if (!filters.branch_id || !filters.start_date || !filters.end_date) {
       return Swal.fire('แจ้งเตือน', 'กรุณาเลือกสาขาและช่วงวันที่ให้ครบถ้วน', 'warning');
@@ -1210,7 +1222,7 @@ export default function CheckSawWood() {
     }
   };
 
-  // ─── ฟังก์ชันดูรายละเอียดตาม Barcode[cite: 10] ───
+  // ─── ฟังก์ชันดูรายละเอียดตาม Barcode ───
   const viewDetails = async (barcode_id) => {
     Swal.fire({
       title: 'กำลังโหลดข้อมูล...',
@@ -1269,7 +1281,7 @@ export default function CheckSawWood() {
   };
 
   // ─── จัดกลุ่มข้อมูลในตารางหลักตาม Barcode (ให้ดูง่ายขึ้น) ───
-  // หากต้องการแสดงรายบรรทัดตาม[cite: 10] สามารถลบ reduce นี้ออกและใช้ data.map ได้เลย
+  // หากต้องการแสดงรายบรรทัดตาม สามารถลบ reduce นี้ออกและใช้ data.map ได้เลย
   // ในที่นี้จะจำลองให้เห็นทีละรายการ
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto flex flex-col min-h-[80vh]">
@@ -1288,14 +1300,35 @@ export default function CheckSawWood() {
               {branches.map(b => <option key={b.id} value={b.id}>{b.branch_code} - {b.branch_name}</option>)}
             </select>
           </div>
-          <div>
+          
+          {/* 💡 3. เปลี่ยนช่องวันที่เริ่มต้นเป็น DatePicker */}
+          <div className="flex flex-col">
             <label className="block text-xs font-semibold text-gray-600 mb-1">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
-            <input type="date" name="start_date" value={filters.start_date} onChange={handleFilterChange} className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none" />
+            <DatePicker
+              selected={filters.start_date ? parseISO(filters.start_date) : null}
+              onChange={(date) => handleDateChange(date, 'start_date')}
+              dateFormat="dd/MM/yyyy"
+              locale={th}
+              className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none focus:border-blue-500"
+              placeholderText="วว/ดด/ปปปป"
+              wrapperClassName="w-full"
+            />
           </div>
-          <div>
+          
+          {/* 💡 3. เปลี่ยนช่องวันที่สิ้นสุดเป็น DatePicker */}
+          <div className="flex flex-col">
             <label className="block text-xs font-semibold text-gray-600 mb-1">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
-            <input type="date" name="end_date" value={filters.end_date} onChange={handleFilterChange} className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none" />
+            <DatePicker
+              selected={filters.end_date ? parseISO(filters.end_date) : null}
+              onChange={(date) => handleDateChange(date, 'end_date')}
+              dateFormat="dd/MM/yyyy"
+              locale={th}
+              className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none focus:border-blue-500"
+              placeholderText="วว/ดด/ปปปป"
+              wrapperClassName="w-full"
+            />
           </div>
+          
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">รหัสประเภทไม้เลื่อย (Saw Wood Type Code)</label>
             <input type="text" name="saw_wood_types_code" value={filters.saw_wood_types_code} onChange={handleFilterChange} placeholder="ระบุโค้ด (ถ้ามี)" className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none" />
@@ -1345,7 +1378,7 @@ export default function CheckSawWood() {
         </div>
       </div>
 
-      {/* ตารางแสดงผล[cite: 10] */}
+      {/* ตารางแสดงผล */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col">
         <div className="overflow-x-auto flex-1">
           <table className="w-full text-sm text-left whitespace-nowrap">
@@ -1404,7 +1437,7 @@ export default function Dashboard() {
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-colors duration-300">
         <h3 className="text-lg font-bold mb-4 text-gray-800 dark:text-gray-100">ภาพรวมระบบ</h3>
         <p className="text-gray-600 dark:text-gray-300">
-          ยินดีต้อนรับสู่ระบบ PPOS Back-Office! เลือกเมนูทางด้านซ้ายเพื่อเริ่มต้นใช้งาน
+          ยินดีต้อนรับสู่ระบบ WW_Report Back-Office! เลือกเมนูทางด้านซ้ายเพื่อเริ่มต้นใช้งาน
         </p>
       </div>
     </div>
@@ -1509,7 +1542,7 @@ export default function Login() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
-            PPOS System
+            WW_Report System
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
             กรุณาเข้าสู่ระบบเพื่อจัดการหลังบ้าน
@@ -1586,7 +1619,6 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-// 💡 1. นำเข้าไลบรารีปฏิทินและภาษาไทย
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { th } from 'date-fns/locale'; 
@@ -1597,7 +1629,8 @@ export default function ProductionCoverReport() {
     branch_id: '',
     start_date: new Date().toISOString().split('T')[0],
     end_date: new Date().toISOString().split('T')[0],
-    store_code: ''
+    store_code: '',
+    report_format: '1' // 💡 เพิ่มบรรทัดนี้: ค่าเริ่มต้นเป็นรูปแบบที่ 1
   });
 
   const [branches, setBranches] = useState([]);
@@ -1605,6 +1638,10 @@ export default function ProductionCoverReport() {
   const [isLoading, setIsLoading] = useState(false);
   const { options } = useMasterOptions(filters.branch_id);
   const printRef = useRef();
+
+  // สถานะสำหรับการจัดการหน้า
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 35; // 💡 ปรับให้เป็น 35 บรรทัดต่อหน้า (ความสูงเทียบเท่า A4 1 แผ่น)
 
   useEffect(() => {
     const fetchBranches = async () => {
@@ -1626,7 +1663,6 @@ export default function ProductionCoverReport() {
 
   const handleFilterChange = (e) => setFilters({ ...filters, [e.target.name]: e.target.value });
 
-  // 💡 2. เพิ่มฟังก์ชันจัดการเมื่อเลือกวันที่จากปฏิทิน
   const handleDateChange = (date, name) => {
     if (date) {
       setFilters({ ...filters, [name]: format(date, 'yyyy-MM-dd') });
@@ -1640,14 +1676,27 @@ export default function ProductionCoverReport() {
     
     setIsLoading(true);
     try {
-      const queryParams = new URLSearchParams(filters).toString();
-      const res = await apiFetch(`/reports/production-cover?${queryParams}`);
+      // 💡 เลือก Endpoint ตามรูปแบบที่ผู้ใช้เลือก
+      const endpoint = filters.report_format === '2' 
+        ? '/reports/production-cover-format2' 
+        : '/reports/production-cover';
+
+      // 💡 คัดเฉพาะพารามิเตอร์ที่ Backend ต้องการส่งไป
+      const queryParams = new URLSearchParams({
+        branch_id: filters.branch_id,
+        start_date: filters.start_date,
+        end_date: filters.end_date,
+        store_code: filters.store_code
+      }).toString();
+
+      const res = await apiFetch(`${endpoint}?${queryParams}`);
       if (res?.success) {
         if (res.data.groups.length === 0) {
           Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลในช่วงเวลาที่เลือก', 'info');
           setReportData(null);
         } else {
           setReportData(res.data);
+          setCurrentPage(1);
         }
       }
     } catch (error) {
@@ -1702,7 +1751,6 @@ export default function ProductionCoverReport() {
     XLSX.writeFile(wb, `ใบปะหน้าไม้ผลิต_${filters.start_date}.xlsx`);
   };
 
-  // ─── 1. ฟังก์ชันตัวช่วยสำหรับสร้าง PDF (เรียกใช้ซ้ำได้) ───
   const generatePDFDoc = async () => {
     if (!reportData) return null;
     
@@ -1815,17 +1863,14 @@ export default function ProductionCoverReport() {
     }
   };
 
-  // ─── 2. ปุ่มดูตัวอย่าง (เปิดแท็บใหม่) ───
   const handlePreviewPDF = async () => {
     const pdf = await generatePDFDoc();
     if (pdf) {
-      // สร้าง URL จากไฟล์ PDF และเปิดในแท็บใหม่
       const pdfBlobUrl = pdf.output('bloburl');
       window.open(pdfBlobUrl, '_blank');
     }
   };
 
-  // ─── 3. ปุ่มดาวน์โหลดทันที ───
   const handleDownloadPDF = async () => {
     const pdf = await generatePDFDoc();
     if (pdf) {
@@ -1833,9 +1878,48 @@ export default function ProductionCoverReport() {
     }
   };
 
+  // 💡 แปลงข้อมูลทั้งหมดให้อยู่ในรูปแบบ "แถว (Rows)" เพื่อใช้นับจำนวนบรรทัดให้แม่นยำเทียบเท่า A4
+  const allRows = [];
+  if (reportData) {
+    reportData.groups.forEach((group, gIdx) => {
+      // 1. หัวตารางกลุ่ม
+      allRows.push({ type: 'header', groupName: group.groupName, key: `header-${gIdx}` });
+      
+      // 2. ข้อมูลแต่ละรายการ
+      group.items.forEach((item, iIdx) => {
+        allRows.push({ type: 'item', data: item, key: `item-${gIdx}-${iIdx}` });
+      });
+      
+      // 3. สรุปรวมกลุ่ม
+      allRows.push({ 
+        type: 'footer', 
+        groupName: group.groupName, 
+        sumAmount: group.sumAmount, 
+        sumVolumn: group.sumVolumn, 
+        key: `footer-${gIdx}` 
+      });
+      
+      // 4. ช่องว่างคั่นบรรทัด
+      allRows.push({ type: 'spacer', key: `spacer-${gIdx}` });
+    });
+
+    // 5. บรรทัดยอดรวมทั้งหมด (Grand Total)
+    allRows.push({ 
+      type: 'grand-total', 
+      sumAmount: reportData.groups.reduce((sum, g) => sum + g.sumAmount, 0),
+      sumVolumn: reportData.groups.reduce((sum, g) => sum + g.sumVolumn, 0),
+      key: 'grand-total'
+    });
+  }
+
+  // คำนวณหาหน้าปัจจุบันจากจำนวน "บรรทัด"
+  const totalPages = Math.ceil(allRows.length / itemsPerPage) || 1;
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentRows = allRows.slice(indexOfFirstItem, indexOfLastItem);
+
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto min-h-screen">
-      {/* ส่วนค้นหา */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6 print:hidden">
         <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
           <i className="fas fa-file-alt text-blue-600"></i> เงื่อนไขรายงานใบปะหน้าไม้ผลิต
@@ -1850,7 +1934,6 @@ export default function ProductionCoverReport() {
               ))}
             </select>
           </div>
-          {/* 💡 3. เปลี่ยนช่องวันที่เริ่มต้นเป็น DatePicker */}
           <div className="flex flex-col">
             <label className="block text-xs font-semibold mb-1">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
             <DatePicker
@@ -1862,8 +1945,6 @@ export default function ProductionCoverReport() {
               placeholderText="วว/ดด/ปปปป"
             />
           </div>
-          
-          {/* 💡 3. เปลี่ยนช่องวันที่สิ้นสุดเป็น DatePicker */}
           <div className="flex flex-col">
             <label className="block text-xs font-semibold mb-1">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
             <DatePicker
@@ -1882,9 +1963,16 @@ export default function ProductionCoverReport() {
               {options?.sawWoodTypes?.map(item => <option key={item.id} value={item.code}>{item.code} - {item.name}</option>)}
             </select>
           </div>
+          {/* 💡 เพิ่มช่องเลือกรูปแบบรายงาน */}
+          <div>
+            <label className="block text-xs font-semibold mb-1">รูปแบบรายงาน</label>
+            <select name="report_format" value={filters.report_format} onChange={handleFilterChange} className="w-full border rounded-lg p-2 text-sm outline-none focus:border-blue-500 font-semibold text-blue-700 bg-blue-50">
+              <option value="1">แบบที่ 1 (ปกติ)</option>
+              <option value="2">แบบที่ 2 (แยกชุดเลื่อย)</option>
+            </select>
+          </div>
         </div>
 
-        {/* กลุ่มปุ่มคำสั่ง */}
         <div className="mt-6 flex flex-wrap justify-between items-center gap-4">
           <button onClick={handleSearch} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold shadow">
             {isLoading ? <><i className="fas fa-spinner fa-spin mr-2"></i>กำลังโหลด...</> : <><i className="fas fa-search mr-2"></i>ดึงรายงาน</>}
@@ -1906,72 +1994,110 @@ export default function ProductionCoverReport() {
         </div>
       </div>
 
-      {/* ส่วนแสดงรายงานบนหน้าเว็บ (HTML Preview) */}
       {reportData && (
-        <div className="bg-white p-10 rounded-lg shadow-lg border border-gray-200 overflow-x-auto" ref={printRef}>
+        <div className="bg-white p-10 rounded-lg shadow-lg border border-gray-200 overflow-x-auto print:shadow-none print:border-none print:p-0 min-h-[1050px] relative flex flex-col justify-between" ref={printRef}>
           
-          <div className="text-center mb-8">
-            <h1 className="text-xl font-bold">{reportData.header.branch_name}</h1>
-            <h2 className="text-lg font-semibold mt-1">รายงานไม้ผลิต ใบปะหน้า</h2>
-            <p className="text-sm mt-1">ตั้งแต่วันที่ {new Date(reportData.header.start_date).toLocaleDateString('th-TH')} ถึง {new Date(reportData.header.end_date).toLocaleDateString('th-TH')}</p>
-            <p className="text-sm mt-1">รหัสสโตร์ : {reportData.header.store_code || 'รวมทุกสโตร์'}</p>
+          <div>
+            <div className="text-center mb-8">
+              <h1 className="text-xl font-bold">{reportData.header.branch_name}</h1>
+              <h2 className="text-lg font-semibold mt-1">รายงานไม้ผลิต ใบปะหน้า</h2>
+              <p className="text-sm mt-1">ตั้งแต่วันที่ {new Date(reportData.header.start_date).toLocaleDateString('th-TH')} ถึง {new Date(reportData.header.end_date).toLocaleDateString('th-TH')}</p>
+              <p className="text-sm mt-1">รหัสสโตร์ : {reportData.header.store_code || 'รวมทุกสโตร์'}</p>
+            </div>
+
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-y-2 border-gray-800">
+                  <th className="py-2 text-left w-1/3">ขนาดไม้</th>
+                  <th className="py-2 text-right w-1/3">จำนวนท่อน</th>
+                  <th className="py-2 text-right w-1/3">ปริมาตร(ลบฟ)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentRows.map((row) => {
+                  if (row.type === 'header') {
+                    return (
+                      <tr key={row.key}>
+                        <td colSpan="3" className="py-2 font-bold text-gray-800">{row.groupName}</td>
+                      </tr>
+                    );
+                  }
+                  if (row.type === 'item') {
+                    return (
+                      <tr key={row.key}>
+                        <td className="py-1 pl-4">{row.data.wood_code}</td>
+                        <td className="py-1 text-right">{row.data.total_amount.toLocaleString()}</td>
+                        <td className="py-1 text-right">{Number(row.data.total_volumn).toFixed(4)}</td>
+                      </tr>
+                    );
+                  }
+                  if (row.type === 'footer') {
+                    return (
+                      <tr key={row.key} className="border-t border-dotted border-gray-400 font-semibold text-gray-700">
+                        <td className="py-2">รวม {row.groupName}</td>
+                        <td className="py-2 text-right">{row.sumAmount.toLocaleString()}</td>
+                        <td className="py-2 text-right">{row.sumVolumn.toFixed(4)}</td>
+                      </tr>
+                    );
+                  }
+                  if (row.type === 'spacer') {
+                    return <tr key={row.key}><td colSpan="3" className="py-2"></td></tr>;
+                  }
+                  if (row.type === 'grand-total') {
+                    return (
+                      <tr key={row.key} className="border-y-2 border-gray-800 font-bold text-base bg-gray-50">
+                        <td className="py-3 pl-2">รวมทั้งหมด</td>
+                        <td className="py-3 text-right">{row.sumAmount.toLocaleString()}</td>
+                        <td className="py-3 text-right pr-2">{row.sumVolumn.toFixed(4)}</td>
+                      </tr>
+                    );
+                  }
+                  return null;
+                })}
+              </tbody>
+            </table>
           </div>
 
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-y-2 border-gray-800">
-                <th className="py-2 text-left w-1/3">ขนาดไม้</th>
-                <th className="py-2 text-right w-1/3">จำนวนท่อน</th>
-                <th className="py-2 text-right w-1/3">ปริมาตร(ลบฟ)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reportData.groups.map((group, gIdx) => (
-                <React.Fragment key={gIdx}>
-                  <tr>
-                    <td colSpan="3" className="py-2 font-bold text-gray-800">{group.groupName}</td>
-                  </tr>
-                  
-                  {group.items.map((item, iIdx) => (
-                    <tr key={iIdx}>
-                      <td className="py-1 pl-4">{item.wood_code}</td>
-                      <td className="py-1 text-right">{item.total_amount.toLocaleString()}</td>
-                      <td className="py-1 text-right">{Number(item.total_volumn).toFixed(4)}</td>
-                    </tr>
-                  ))}
-                  
-                  <tr className="border-t border-dotted border-gray-400 font-semibold text-gray-700">
-                    <td className="py-2">รวม {group.groupName}</td>
-                    <td className="py-2 text-right">{group.sumAmount.toLocaleString()}</td>
-                    <td className="py-2 text-right">{group.sumVolumn.toFixed(4)}</td>
-                  </tr>
-                  <tr><td colSpan="3" className="py-2"></td></tr> 
-                </React.Fragment>
-              ))}
-
-              <tr className="border-y-2 border-gray-800 font-bold text-base">
-                <td className="py-3">รวมทั้งหมด</td>
-                <td className="py-3 text-right">
-                  {reportData.groups.reduce((sum, g) => sum + g.sumAmount, 0).toLocaleString()}
-                </td>
-                <td className="py-3 text-right">
-                  {reportData.groups.reduce((sum, g) => sum + g.sumVolumn, 0).toFixed(4)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div className="mt-16 grid grid-cols-2 gap-8 text-center text-sm">
-            <div>
-              <p>....................................................................</p>
-              <p className="mt-2">ผู้รายงาน</p>
+          {/* 💡 ลายเซ็นต์จะโผล่เฉพาะหน้าสุดท้ายเท่านั้น */}
+          {currentPage === totalPages && (
+            <div className="mt-12 grid grid-cols-2 gap-8 text-center text-sm print:mt-16 pb-8">
+              <div>
+                <p>....................................................................</p>
+                <p className="mt-2">ผู้รายงาน</p>
+              </div>
+              <div>
+                <p>....................................................................</p>
+                <p className="mt-2">ผู้จัดการโรงงาน</p>
+              </div>
             </div>
-            <div>
-              <p>....................................................................</p>
-              <p className="mt-2">ผู้จัดการโรงงาน</p>
+          )}
+
+          {/* ปุ่มควบคุมหน้าเว็บ (ซ่อนเมื่อ Print) */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between py-3 border-t border-gray-200 mt-6 print:hidden">
+              <div className="flex flex-wrap justify-between items-center w-full gap-4">
+                <div className="flex gap-2">
+                  <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className={`px-3 py-2 text-sm font-medium rounded-md ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}>« หน้าแรก</button>
+                  <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className={`px-3 py-2 text-sm font-medium rounded-md ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}>‹ ก่อนหน้า</button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700">หน้า</span>
+                  <select value={currentPage} onChange={(e) => setCurrentPage(Number(e.target.value))} className="border border-gray-300 rounded-md py-1 px-2 text-sm outline-none focus:border-blue-500 font-semibold text-blue-700">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                      <option key={page} value={page}>{page}</option>
+                    ))}
+                  </select>
+                  <span className="text-sm text-gray-700">จาก {totalPages}</span>
+                </div>
+
+                <div className="flex gap-2">
+                  <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className={`px-3 py-2 text-sm font-medium rounded-md ${currentPage === totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}>ถัดไป ›</button>
+                  <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className={`px-3 py-2 text-sm font-medium rounded-md ${currentPage === totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}>หน้าสุดท้าย »</button>
+                </div>
+              </div>
             </div>
-          </div>
-          
+          )}
         </div>
       )}
     </div>
@@ -2253,6 +2379,12 @@ import { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
 
+// 💡 1. นำเข้าไลบรารีปฏิทินและภาษาไทย
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { th } from 'date-fns/locale';
+import { format, parseISO } from 'date-fns';
+
 export default function SyncSawWood() {
   const [status, setStatus] = useState('idle');
   const [branches, setBranches] = useState([]);
@@ -2296,6 +2428,15 @@ export default function SyncSawWood() {
     }
   };
 
+  // 💡 2. ฟังก์ชันจัดการเมื่อเลือกวันที่จากปฏิทิน
+  const handleDateChange = (date, type) => {
+    if (date) {
+      const formattedDate = format(date, 'yyyy-MM-dd');
+      if (type === 'start') setStartDate(formattedDate);
+      if (type === 'end') setEndDate(formattedDate);
+    }
+  };
+
   const handleStartSync = async () => {
     if (!startDate || !endDate) {
       return Swal.fire('แจ้งเตือน', 'กรุณาเลือกช่วงวันที่ให้ครบถ้วน', 'warning');
@@ -2311,7 +2452,7 @@ export default function SyncSawWood() {
 
     const confirm = await Swal.fire({
       title: 'ยืนยันการนำเข้าข้อมูล?',
-      html: `ดึงข้อมูลไม้เลื่อยของ <b>${branchName}</b><br/>ตั้งแต่วันที่ <b>${startDate}</b> ถึง <b>${endDate}</b>`,
+      html: `ดึงข้อมูลไม้เลื่อยของ <b>${branchName}</b><br/>ตั้งแต่วันที่ <b>${new Date(startDate).toLocaleDateString('th-TH')}</b> ถึง <b>${new Date(endDate).toLocaleDateString('th-TH')}</b>`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'ใช่, เริ่มดึงข้อมูล',
@@ -2388,24 +2529,33 @@ export default function SyncSawWood() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
+              {/* 💡 3. เปลี่ยนช่องวันที่เริ่มต้นเป็น DatePicker */}
+              <div className="flex flex-col">
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">ตั้งแต่วันที่</label>
-                <input 
-                  type="date" 
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                <DatePicker 
+                  selected={startDate ? parseISO(startDate) : null}
+                  onChange={(date) => handleDateChange(date, 'start')}
+                  dateFormat="dd/MM/yyyy"
+                  locale={th}
                   disabled={status === 'syncing'}
+                  placeholderText="วว/ดด/ปปปป"
                   className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
+                  wrapperClassName="w-full"
                 />
               </div>
-              <div>
+
+              {/* 💡 3. เปลี่ยนช่องวันที่สิ้นสุดเป็น DatePicker */}
+              <div className="flex flex-col">
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">ถึงวันที่</label>
-                <input 
-                  type="date" 
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                <DatePicker 
+                  selected={endDate ? parseISO(endDate) : null}
+                  onChange={(date) => handleDateChange(date, 'end')}
+                  dateFormat="dd/MM/yyyy"
+                  locale={th}
                   disabled={status === 'syncing'}
+                  placeholderText="วว/ดด/ปปปป"
                   className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
+                  wrapperClassName="w-full"
                 />
               </div>
             </div>
@@ -2667,7 +2817,7 @@ export default function WoodPriceManager() {
         </div>
 
         {/* สาขา & Filter */}
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-end">
           <div className="md:col-span-2">
             <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">สาขาที่จัดการ</label>
             <select
@@ -2681,7 +2831,10 @@ export default function WoodPriceManager() {
               ))}
             </select>
           </div>
-          
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">มิล</label>
+            <input type="text" name="mil" value={filters.mil} onChange={handleFilterChange} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm rounded-lg p-2.5" placeholder="มิล..." />
+          </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">หนา</label>
             <input type="text" name="thick" value={filters.thick} onChange={handleFilterChange} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm rounded-lg p-2.5" placeholder="หนา..." />
@@ -2694,7 +2847,6 @@ export default function WoodPriceManager() {
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">ยาว</label>
             <input type="text" name="length" value={filters.length} onChange={handleFilterChange} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm rounded-lg p-2.5" placeholder="ยาว..." />
           </div>
-          
           <button onClick={fetchProducts} disabled={selectedBranch === '' || selectedBranch === 0} className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
             <i className="fas fa-search mr-2"></i> ค้นหา
           </button>
@@ -2777,7 +2929,7 @@ export default function WoodPriceManager() {
 </file>
 
 <file path="src/pages/WoodTypeReport.jsx">
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
 import DatePicker from 'react-datepicker';
@@ -2785,42 +2937,384 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { th } from 'date-fns/locale';
 import { format, parseISO } from 'date-fns';
 
+// ─── Component ย่อยสำหรับแสดงตารางและยอดรวม ───
+const ReportTable = React.memo(({ data, grandTotal, showGrandTotal }) => {
+  return (
+    <table className="w-full text-xs border-collapse border border-gray-400 whitespace-nowrap mt-4">
+      <thead>
+        <tr className="bg-[#9fc5e8] text-black font-semibold">
+          <th className="border border-gray-400 p-2 text-center" colSpan="2">ขนาดไม้</th>
+          <th className="border border-gray-400 p-2 text-right">AB</th>
+          <th className="border border-gray-400 p-2 text-right">% กว้าง</th>
+          <th className="border border-gray-400 p-2 text-right">% ยาว</th>
+          <th className="border border-gray-400 p-2 text-right">ราคาเฉลี่ย</th>
+          <th className="border border-gray-400 p-2 text-right">จำนวนเงิน</th>
+          <th className="border border-gray-400 p-2 text-right">AB พิเศษ</th>
+          <th className="border border-gray-400 p-2 text-right">% กว้าง</th>
+          <th className="border border-gray-400 p-2 text-right">% ยาว</th>
+          <th className="border border-gray-400 p-2 text-right">ราคาเฉลี่ย</th>
+          <th className="border border-gray-400 p-2 text-right">จำนวนเงิน</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.map((sawGroup, sawIdx) => (
+          <React.Fragment key={sawIdx}>
+            {/* แถวแสดงชื่อชุดเลื่อย */}
+            <tr className="bg-[#4472c4] text-white font-bold border-t-4 border-[#1f3864]">
+              <td className="border border-gray-500 p-2 pl-3 text-left text-[13px]" colSpan="2">{sawGroup.saw_name}</td>
+              <td className="border border-gray-500 p-2 pl-3 text-left text-[13px]" colSpan="10">ชุดที่ {sawIdx + 1}</td>
+            </tr>
+
+            {sawGroup.thicks.map((thickGroup, thickIdx) => (
+              <React.Fragment key={`${sawIdx}-${thickIdx}`}>
+                {/* แถวแสดงความหนา */}
+                <tr className="bg-[#e6f2ff] font-bold">
+                  <td className="border border-gray-400 p-1 pl-3 text-blue-900">ความหนา</td>
+                  <td className="border border-gray-400 p-1 pl-2 text-blue-900" colSpan="11">{thickGroup.thick}</td>
+                </tr>
+
+                {thickGroup.lengths.map((lenGroup, lenIdx) => (
+                  <React.Fragment key={`${sawIdx}-${thickIdx}-${lenIdx}`}>
+                    {/* รายละเอียดรหัสไม้ */}
+                    {lenGroup.items.map((item, itemIdx) => (
+                      <tr key={itemIdx} className="bg-white hover:bg-gray-100 transition-colors">
+                        <td className="border border-gray-400 p-1 pl-3 font-medium" colSpan="2">
+                          <span className="text-red-600 font-bold">{item.wood_code.substring(0, 2)}</span>
+                          <span className="text-gray-700">{item.wood_code.substring(2)}</span>
+                        </td>
+                        <td className="border border-gray-400 p-1 text-right">{item.ab_volumn.toFixed(4)}</td>
+                        <td className="border border-gray-400 p-1 text-right text-gray-600">{item.ab_pct_qty.toFixed(2)}%</td>
+                        <td className="border border-gray-400 p-1 text-right bg-[#f2f2f2]"></td>
+                        <td className="border border-gray-400 p-1 text-right">{item.ab_price > 0 ? item.ab_price.toFixed(2) : ''}</td>
+                        <td className="border border-gray-400 p-1 text-right">{item.ab_amt.toFixed(2)}</td>
+                        <td className="border border-gray-400 p-1 text-right">{item.spc_volumn.toFixed(4)}</td>
+                        <td className="border border-gray-400 p-1 text-right text-gray-600">{item.spc_volumn > 0 ? item.spc_pct_qty.toFixed(2) + '%' : ''}</td>
+                        <td className="border border-gray-400 p-1 text-right bg-[#f2f2f2]"></td>
+                        <td className="border border-gray-400 p-1 text-right">{item.spc_price > 0 ? item.spc_price.toFixed(2) : ''}</td>
+                        <td className="border border-gray-400 p-1 text-right">{item.spc_amt.toFixed(2)}</td>
+                      </tr>
+                    ))}
+
+                    {/* สรุปรวมยาว */}
+                    <tr className="bg-[#fff2cc] font-bold text-gray-800">
+                      <td className="border border-gray-400 p-1 pl-3" colSpan="2">รวมยาว {lenGroup.length}</td>
+                      <td className="border border-gray-400 p-1 text-right">{lenGroup.subTotal.ab_volumn.toFixed(4)}</td>
+                      <td className="border border-gray-400 p-1 text-right text-gray-600">{lenGroup.subTotal.ab_volumn > 0 ? '100.00%' : ''}</td>
+                      <td className="border border-gray-400 p-1 text-right text-blue-700">{lenGroup.subTotal.ab_volumn > 0 ? lenGroup.subTotal.ab_pct_amt.toFixed(2) + '%' : ''}</td>
+                      <td className="border border-gray-400 p-1 text-right bg-[#f2f2f2]"></td>
+                      <td className="border border-gray-400 p-1 text-right">{lenGroup.subTotal.ab_amt.toFixed(2)}</td>
+                      <td className="border border-gray-400 p-1 text-right">{lenGroup.subTotal.spc_volumn.toFixed(4)}</td>
+                      <td className="border border-gray-400 p-1 text-right text-gray-600">{lenGroup.subTotal.spc_volumn > 0 ? '100.00%' : ''}</td>
+                      <td className="border border-gray-400 p-1 text-right text-blue-700">{lenGroup.subTotal.spc_volumn > 0 ? lenGroup.subTotal.spc_pct_amt.toFixed(2) + '%' : ''}</td>
+                      <td className="border border-gray-400 p-1 text-right bg-[#f2f2f2]"></td>
+                      <td className="border border-gray-400 p-1 text-right">{lenGroup.subTotal.spc_amt.toFixed(2)}</td>
+                    </tr>
+                  </React.Fragment>
+                ))}
+
+                {/* สรุปรวมหนา */}
+                <tr className="bg-[#c6e0b4] font-bold text-gray-800 border-t-2 border-gray-500">
+                  <td className="border border-gray-400 p-1 pl-3" colSpan="2">รวมหนา <span className="text-red-600">{thickGroup.thick}</span></td>
+                  <td className="border border-gray-400 p-1 text-right text-green-900">{thickGroup.subTotal.ab_volumn.toFixed(4)}</td>
+                  <td className="border border-gray-400 p-1 text-right bg-[#f2f2f2]"></td>
+                  <td className="border border-gray-400 p-1 text-right text-gray-600">{thickGroup.subTotal.ab_volumn > 0 ? '100.00%' : ''}</td>
+                  <td className="border border-gray-400 p-1 text-right bg-[#f2f2f2]"></td>
+                  <td className="border border-gray-400 p-1 text-right text-green-900">{thickGroup.subTotal.ab_amt.toFixed(2)}</td>
+                  <td className="border border-gray-400 p-1 text-right text-green-900">{thickGroup.subTotal.spc_volumn.toFixed(4)}</td>
+                  <td className="border border-gray-400 p-1 text-right bg-[#f2f2f2]"></td>
+                  <td className="border border-gray-400 p-1 text-right text-gray-600">{thickGroup.subTotal.spc_volumn > 0 ? '100.00%' : ''}</td>
+                  <td className="border border-gray-400 p-1 text-right bg-[#f2f2f2]"></td>
+                  <td className="border border-gray-400 p-1 text-right text-green-900">{thickGroup.subTotal.spc_amt.toFixed(2)}</td>
+                </tr>
+
+                {/* สัดส่วนและราคาเฉลี่ยต่อความหนา */}
+                <tr className="bg-white font-medium">
+                  <td className="border border-gray-400 p-1 pl-3" colSpan="2">% ความหนา (ชุด) รวมพิเศษ</td>
+                  <td className="border border-gray-400 p-1 bg-[#f2f2f2]"></td>
+                  <td className="border border-gray-400 p-1 text-right bg-[#ffe699] font-bold text-orange-900">{thickGroup.subTotal.ab_volumn > 0 ? thickGroup.pct_thick_all_ab.toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="4"></td>
+                  <td className="border border-gray-400 p-1 text-right bg-[#ffe699] font-bold text-orange-900">{thickGroup.subTotal.spc_volumn > 0 ? thickGroup.pct_thick_all_spc.toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="3"></td>
+                </tr>
+                <tr className="bg-white font-medium">
+                  <td className="border border-gray-400 p-1 pl-3" colSpan="2">% ความหนา (ชุด) แยก ปกติ ,พิเศษ</td>
+                  <td className="border border-gray-400 p-1 bg-[#f2f2f2]"></td>
+                  <td className="border border-gray-400 p-1 text-right bg-[#f8cbad] font-bold text-orange-900">{thickGroup.subTotal.ab_volumn > 0 ? thickGroup.pct_thick_sep_ab.toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="4"></td>
+                  <td className="border border-gray-400 p-1 text-right bg-[#f8cbad] font-bold text-orange-900">{thickGroup.subTotal.spc_volumn > 0 ? thickGroup.pct_thick_sep_spc.toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="3"></td>
+                </tr>
+                <tr className="bg-white font-medium border-b-4 border-gray-400">
+                  <td className="border border-gray-400 p-1 pl-3" colSpan="2">ราคาเฉลี่ย</td>
+                  <td className="border border-gray-400 p-1 bg-[#f2f2f2]"></td>
+                  <td className="border border-gray-400 p-1 text-right bg-[#ff0000] font-bold text-white">{thickGroup.subTotal.ab_volumn > 0 ? thickGroup.avg_price_ab.toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="4"></td>
+                  <td className="border border-gray-400 p-1 text-right bg-[#ff0000] font-bold text-white">{thickGroup.subTotal.spc_volumn > 0 ? thickGroup.avg_price_spc.toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="3"></td>
+                </tr>
+              </React.Fragment>
+            ))}
+          </React.Fragment>
+        ))}
+
+        {/* 🌟 แสดงแถวสรุปยอดรวมทั้งหมด (Grand Total) เฉพาะเมื่ออยู่หน้าสุดท้าย 🌟 */}
+        {showGrandTotal && grandTotal && (
+          <React.Fragment>
+            <tr className="bg-[#a9d08e] font-bold text-gray-900 border-t-4 border-gray-700">
+              <td className="border border-gray-500 p-2 pl-3 text-left text-[13px]" colSpan="2">รวมทั้งหมดทั้งรายงาน</td>
+              <td className="border border-gray-500 p-2 text-right">{grandTotal.ab_volumn.toFixed(4)}</td>
+              <td className="border border-gray-500 p-2 text-right bg-[#f2f2f2]"></td>
+              <td className="border border-gray-500 p-2 text-right text-gray-700">{grandTotal.ab_volumn > 0 ? '100.00%' : ''}</td>
+              <td className="border border-gray-500 p-2 text-right bg-[#f2f2f2]"></td>
+              <td className="border border-gray-500 p-2 text-right">{grandTotal.ab_amt.toFixed(2)}</td>
+              
+              <td className="border border-gray-500 p-2 text-right">{grandTotal.spc_volumn.toFixed(4)}</td>
+              <td className="border border-gray-500 p-2 text-right bg-[#f2f2f2]"></td>
+              <td className="border border-gray-500 p-2 text-right text-gray-700">{grandTotal.spc_volumn > 0 ? '100.00%' : ''}</td>
+              <td className="border border-gray-500 p-2 text-right bg-[#f2f2f2]"></td>
+              <td className="border border-gray-500 p-2 text-right">{grandTotal.spc_amt.toFixed(2)}</td>
+            </tr>
+
+            <tr className="bg-white font-medium">
+              <td className="border border-gray-400 p-1 pl-3" colSpan="2">% รวมทั้งหมด รวมพิเศษ</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]"></td>
+              <td className="border border-gray-400 p-1 text-right bg-[#ffe699] font-bold text-orange-900">{grandTotal.ab_volumn > 0 ? grandTotal.pct_all_ab.toFixed(2) + '%' : ''}</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="4"></td>
+              <td className="border border-gray-400 p-1 text-right bg-[#ffe699] font-bold text-orange-900">{grandTotal.spc_volumn > 0 ? grandTotal.pct_all_spc.toFixed(2) + '%' : ''}</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="3"></td>
+            </tr>
+
+            <tr className="bg-white font-medium">
+              <td className="border border-gray-400 p-1 pl-3" colSpan="2">% รวมทั้งหมด แยก ปกติ ,พิเศษ</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]"></td>
+              <td className="border border-gray-400 p-1 text-right bg-[#f8cbad] font-bold text-orange-900">{grandTotal.ab_volumn > 0 ? grandTotal.pct_sep_ab.toFixed(2) + '%' : ''}</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="4"></td>
+              <td className="border border-gray-400 p-1 text-right bg-[#f8cbad] font-bold text-orange-900">{grandTotal.spc_volumn > 0 ? grandTotal.pct_sep_spc.toFixed(2) + '%' : ''}</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="3"></td>
+            </tr>
+
+            <tr className="bg-white font-medium border-b-4 border-gray-700">
+              <td className="border border-gray-400 p-1 pl-3" colSpan="2">ราคาเฉลี่ยรวมทั้งหมด</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]"></td>
+              <td className="border border-gray-400 p-1 text-right bg-[#ff0000] font-bold text-white">{grandTotal.ab_volumn > 0 ? grandTotal.avg_price_ab.toFixed(2) : ''}</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="4"></td>
+              <td className="border border-gray-400 p-1 text-right bg-[#ff0000] font-bold text-white">{grandTotal.spc_volumn > 0 ? grandTotal.avg_price_spc.toFixed(2) : ''}</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="3"></td>
+            </tr>
+          </React.Fragment>
+        )}
+      </tbody>
+    </table>
+  );
+});
+
 export default function WoodTypeReport() {
   const [filters, setFilters] = useState({
-    start_date: '2026-08-05', end_date: '2026-08-05',
-    branch: 'สาขากันตัง', condition: 'เกรดไม้: AB ป/อ:สด : ปกติ'
+    start_date: new Date().toISOString().split('T')[0],
+    end_date: new Date().toISOString().split('T')[0],
+    branch_id: '',
+    branch_name: '',
+    condition: 'เกรดไม้: AB ป/อ:สด : ปกติ'
   });
-  const [reportData, setReportData] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
 
-  const handleDateChange = (date, name) => { if (date) setFilters({ ...filters, [name]: format(date, 'yyyy-MM-dd') }); };
+  const [reportData, setReportData] = useState([]);
+  const [grandTotalData, setGrandTotalData] = useState(null); // เก็บค่า Grand Total จาก Backend
+  const [branches, setBranches] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // State สำหรับปุ่มส่งออกเอกสาร
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+
+  // การจัดการหน้า (Pagination)
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 2; // จำนวนชุดเลื่อยต่อหน้า
+
+  useEffect(() => {
+    const fetchBranches = async () => {
+      try {
+        const res = await apiFetch('/branches/allowed');
+
+        if (res?.success && res.data.length > 0) {
+          setBranches(res.data);
+          setFilters(prev => ({
+            ...prev,
+            branch_id: res.data[0].id,
+            branch_name: res.data[0].branch_name
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching branches:', error);
+        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถดึงข้อมูลสาขาได้', 'error');
+      }
+    };
+
+    fetchBranches();
+  }, []);
+
+  const handleDateChange = (date, name) => {
+    if (date) setFilters({ ...filters, [name]: format(date, 'yyyy-MM-dd') });
+  };
+
+  const handleBranchChange = (e) => {
+    const selectedIndex = e.target.options.selectedIndex;
+    const branchName = e.target.options[selectedIndex].text;
+    setFilters({ ...filters, branch_id: e.target.value, branch_name: branchName });
+  };
+
   const handleSearch = async () => {
+    if (!filters.branch_id) {
+      return Swal.fire('แจ้งเตือน', 'กรุณาเลือกสาขาก่อนค้นหา', 'warning');
+    }
+
     setIsLoading(true);
     try {
-      const q = new URLSearchParams({ start_date: filters.start_date, end_date: filters.end_date }).toString();
+      const q = new URLSearchParams({
+        start_date: filters.start_date,
+        end_date: filters.end_date,
+        branch_id: filters.branch_id
+      }).toString();
+
       const res = await apiFetch(`/reports/wood-type-ab?${q}`);
-      if (res?.success) setReportData(res.data);
-    } catch (error) { Swal.fire('Error', 'ดึงข้อมูลล้มเหลว', 'error'); } 
-    finally { setIsLoading(false); }
+      if (res?.success) {
+        setReportData(res.data);
+        setGrandTotalData(res.grandTotal); // เซ็ตค่า Grand Total ที่รับมา
+        setCurrentPage(1); 
+        if (res.data.length === 0) {
+          Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลของสาขาและวันที่เลือก', 'info');
+        }
+      }
+    } catch (error) {
+      Swal.fire('Error', 'ดึงข้อมูลล้มเหลว', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  // ฟังก์ชันแสดงตัวอย่าง PDF แบบ Blob
+  const handleExportPDF = async () => {
+    setIsExportingPDF(true);
+    try {
+      const q = new URLSearchParams({
+        start_date: filters.start_date,
+        end_date: filters.end_date,
+        branch_id: filters.branch_id
+      }).toString();
+
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      const res = await fetch(`${apiUrl}/reports/wood-type-ab/pdf?${q}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error('Failed to generate PDF');
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank'); // เปิด PDF ในแท็บใหม่
+    } catch (error) {
+      console.error(error);
+      Swal.fire('ข้อผิดพลาด', 'ไม่สามารถสร้างไฟล์ PDF ได้', 'error');
+    } finally {
+      setIsExportingPDF(false);
+    }
+  };
+
+  // ฟังก์ชันดาวน์โหลด Excel แบบ Blob
+  const handleExportExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      const q = new URLSearchParams({
+        start_date: filters.start_date,
+        end_date: filters.end_date,
+        branch_id: filters.branch_id
+      }).toString();
+
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      const res = await fetch(`${apiUrl}/reports/wood-type-ab/excel?${q}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error('Failed to generate Excel');
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Wood_Type_AB_Report_${filters.start_date}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (error) {
+      console.error(error);
+      Swal.fire('ข้อผิดพลาด', 'ไม่สามารถสร้างไฟล์ Excel ได้', 'error');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  // คำนวณช่วงข้อมูลสำหรับการแบ่งหน้า
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentData = reportData.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(reportData.length / itemsPerPage);
 
   return (
     <div className="p-4 md:p-6 mx-auto min-h-screen bg-gray-50">
-      
+
       {/* โซนค้นหา */}
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6 print:hidden">
         <h2 className="text-xl font-bold text-gray-800 mb-4">ค้นหารายงานการเบิกจ่ายแยกตาม ประเภทไม้</h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1">วันที่เริ่มต้น</label>
-            <DatePicker selected={filters.start_date ? parseISO(filters.start_date) : null} onChange={(date) => handleDateChange(date, 'start_date')} dateFormat="dd/MM/yyyy" locale={th} className="w-full border rounded-md p-2 text-sm" />
+            <label className="text-xs font-semibold mb-1 text-gray-700">สาขา</label>
+            <select
+              value={filters.branch_id}
+              onChange={handleBranchChange}
+              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-white"
+            >
+              {branches.length > 0 ? (
+                branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.branch_name}
+                  </option>
+                ))
+              ) : (
+                <option value="">กำลังโหลด...</option>
+              )}
+            </select>
           </div>
+
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1">วันที่สิ้นสุด</label>
-            <DatePicker selected={filters.end_date ? parseISO(filters.end_date) : null} onChange={(date) => handleDateChange(date, 'end_date')} dateFormat="dd/MM/yyyy" locale={th} className="w-full border rounded-md p-2 text-sm" />
+            <label className="text-xs font-semibold mb-1 text-gray-700">วันที่เริ่มต้น</label>
+            <DatePicker
+              selected={filters.start_date ? parseISO(filters.start_date) : null}
+              onChange={(date) => handleDateChange(date, 'start_date')}
+              dateFormat="dd/MM/yyyy"
+              locale={th}
+              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500"
+              wrapperClassName="w-full"
+            />
           </div>
-          <div className="flex items-end gap-2">
-            <button onClick={handleSearch} disabled={isLoading} className="bg-blue-600 text-white px-6 py-2 rounded-md text-sm font-semibold hover:bg-blue-700">
+
+          <div className="flex flex-col">
+            <label className="text-xs font-semibold mb-1 text-gray-700">วันที่สิ้นสุด</label>
+            <DatePicker
+              selected={filters.end_date ? parseISO(filters.end_date) : null}
+              onChange={(date) => handleDateChange(date, 'end_date')}
+              dateFormat="dd/MM/yyyy"
+              locale={th}
+              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500"
+              wrapperClassName="w-full"
+            />
+          </div>
+
+          <div className="flex items-end gap-2 md:col-span-2">
+            <button onClick={handleSearch} disabled={isLoading} className="bg-blue-600 text-white px-8 py-2 rounded-md text-sm font-semibold hover:bg-blue-700 shadow-sm transition-all flex items-center justify-center min-w-[120px]">
               {isLoading ? 'กำลังโหลด...' : 'ดึงข้อมูล'}
             </button>
           </div>
@@ -2831,100 +3325,98 @@ export default function WoodTypeReport() {
       {reportData.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto pb-6">
           
-          <div className="text-center mb-6 pt-6">
-            <h1 className="text-lg font-bold">บริษัท วู้ดเวิร์ค จำกัด ({filters.branch})</h1>
-            <h2 className="text-md font-semibold">รายงานการเบิกจ่ายแยกตาม ประเภทไม้</h2>
-            <p className="text-sm">ตั้งแต่วันที่ {format(parseISO(filters.start_date), 'dd/MM/yyyy')} ถึงวันที่ {format(parseISO(filters.end_date), 'dd/MM/yyyy')}</p>
-            <p className="text-sm text-gray-600">{filters.condition}</p>
+          {/* แถบเครื่องมือดาวน์โหลด PDF/Excel */}
+          <div className="flex justify-end gap-3 px-6 pt-6 print:hidden">
+            <button 
+              onClick={handleExportPDF} 
+              disabled={isExportingPDF} 
+              className={`px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2 transition-all ${isExportingPDF ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-red-500 hover:bg-red-600 text-white'}`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+              {isExportingPDF ? 'กำลังสร้าง PDF...' : 'แสดงตัวอย่าง PDF'}
+            </button>
+            <button 
+              onClick={handleExportExcel} 
+              disabled={isExportingExcel} 
+              className={`px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2 transition-all ${isExportingExcel ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+              {isExportingExcel ? 'กำลังสร้าง Excel...' : 'ดาวน์โหลด Excel'}
+            </button>
           </div>
 
-          <table className="w-full text-xs border-collapse border border-gray-400 whitespace-nowrap">
-            <thead>
-              {/* ปรับหัวตารางให้เป็นแถวเดียวและใช้ชื่อคอลัมน์ตามรูปภาพต้นฉบับ */}
-              <tr className="bg-[#9fc5e8] text-black font-semibold">
-                <th className="border border-gray-400 p-2 text-center" colSpan="2">ขนาดไม้</th>
-                <th className="border border-gray-400 p-2 text-right">AB</th>
-                <th className="border border-gray-400 p-2 text-right">%กว้าง</th>
-                <th className="border border-gray-400 p-2 text-right">%ยาว</th>
-                <th className="border border-gray-400 p-2 text-right">ราคา</th>
-                <th className="border border-gray-400 p-2 text-right">จำนวนเงิน</th>
-                <th className="border border-gray-400 p-2 text-right">ABพิเศษ</th>
-                <th className="border border-gray-400 p-2 text-right">%กว้าง</th>
-                <th className="border border-gray-400 p-2 text-right">%ยาว</th>
-                <th className="border border-gray-400 p-2 text-right">ราคา</th>
-                <th className="border border-gray-400 p-2 text-right">จำนวนเงิน</th>
-              </tr>
-            </thead>
-            <tbody>
-              
-              {/* ลูป 1: ชุดเลื่อย */}
-              {reportData.map((sawGroup, sawIdx) => (
-                <React.Fragment key={sawIdx}>
-                  
-                  {/* แถบคาด ชุดเลื่อย */}
-                  <tr className="bg-white font-bold border-t-2 border-black">
-                    <td className="border border-gray-400 p-1 pl-2 text-left" colSpan="2">{sawGroup.saw_name}</td>
-                    <td className="border border-gray-400 p-1 pl-2 text-left" colSpan="10">ชุดที่ {sawIdx + 1}</td>
-                  </tr>
+          <div className="text-center mb-6 pt-2">
+            <h1 className="text-lg font-bold text-gray-800">บริษัท วู้ดเวิร์ค จำกัด ({filters.branch_name})</h1>
+            <h2 className="text-md font-semibold text-gray-700 mt-1">รายงานการเบิกจ่ายแยกตาม ประเภทไม้</h2>
+            <p className="text-sm text-gray-600 mt-2">ตั้งแต่วันที่ {format(parseISO(filters.start_date), 'dd/MM/yyyy')} ถึงวันที่ {format(parseISO(filters.end_date), 'dd/MM/yyyy')}</p>
+            <p className="text-sm text-gray-500 mt-1">{filters.condition}</p>
+          </div>
 
-                  {/* ลูป 2: ความหนา */}
-                  {sawGroup.thicks.map((thickGroup, thickIdx) => (
-                    <React.Fragment key={`${sawIdx}-${thickIdx}`}>
-                      <tr className="bg-[#e6f2ff] font-bold">
-                        <td className="border border-gray-400 p-1 pl-2">ความหนา</td>
-                        <td className="border border-gray-400 p-1 pl-2" colSpan="11">{thickGroup.thick}</td>
-                      </tr>
+          {/* 🌟 แสดงตารางพร้อมส่งข้อมูล Grand Total ไป และจะแสดงเมื่อถึงหน้าสุดท้าย 🌟 */}
+          <ReportTable 
+            data={currentData} 
+            grandTotal={grandTotalData} 
+            showGrandTotal={currentPage === totalPages || totalPages === 0} 
+          />
 
-                      {/* ลูป 3: ความยาว */}
-                      {thickGroup.lengths.map((lenGroup, lenIdx) => (
-                        <React.Fragment key={`${sawIdx}-${thickIdx}-${lenIdx}`}>
-                          
-                          {/* รายละเอียดรหัสไม้ */}
-                          {lenGroup.items.map((item, itemIdx) => (
-                            <tr key={itemIdx} className="bg-white hover:bg-gray-50">
-                              <td className="border border-gray-400 p-1 pl-2 font-medium" colSpan="2">
-                                <span className="text-red-500">{item.wood_code.substring(0, 2)}</span>
-                                {item.wood_code.substring(2)}
-                              </td>
-                              
-                              <td className="border border-gray-400 p-1 text-right">{item.ab_volumn.toFixed(4)}</td>
-                              <td className="border border-gray-400 p-1 text-right">{item.ab_pct_qty.toFixed(2)}%</td>
-                              <td className="border border-gray-400 p-1 text-right bg-[#e6e6e6]"></td>
-                              <td className="border border-gray-400 p-1 text-right">{item.ab_price.toFixed(2)}</td>
-                              <td className="border border-gray-400 p-1 text-right">{item.ab_amt.toFixed(2)}</td>
+          {/* โซนควบคุมการเปลี่ยนหน้า */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6 mt-4 print:hidden">
+              <div className="flex flex-wrap justify-between items-center w-full gap-4">
+                
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className={`px-3 py-2 text-sm font-medium rounded-md ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    « หน้าแรก
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className={`px-3 py-2 text-sm font-medium rounded-md ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    ‹ ก่อนหน้า
+                  </button>
+                </div>
 
-                              <td className="border border-gray-400 p-1 text-right">{item.spc_volumn.toFixed(4)}</td>
-                              <td className="border border-gray-400 p-1 text-right">{item.spc_pct_qty.toFixed(2)}%</td>
-                              <td className="border border-gray-400 p-1 text-right bg-[#e6e6e6]"></td>
-                              <td className="border border-gray-400 p-1 text-right">{item.spc_price.toFixed(2)}</td>
-                              <td className="border border-gray-400 p-1 text-right">{item.spc_amt.toFixed(2)}</td>
-                            </tr>
-                          ))}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700">หน้า</span>
+                  <select
+                    value={currentPage}
+                    onChange={(e) => setCurrentPage(Number(e.target.value))}
+                    className="border border-gray-300 rounded-md py-1 px-2 text-sm outline-none focus:border-blue-500 font-semibold text-blue-700"
+                  >
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                      <option key={page} value={page}>
+                        {page}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-sm text-gray-700">จาก {totalPages}</span>
+                </div>
 
-                          {/* สรุป "รวมยาว" */}
-                          <tr className="bg-[#fff2cc] font-bold">
-                            <td className="border border-gray-400 p-1 pl-2" colSpan="2">รวมยาว {lenGroup.length}</td>
-                            
-                            <td className="border border-gray-400 p-1 text-right">{lenGroup.subTotal.ab_volumn.toFixed(4)}</td>
-                            <td className="border border-gray-400 p-1 text-right bg-[#e6e6e6]"></td>
-                            <td className="border border-gray-400 p-1 text-right">{lenGroup.subTotal.ab_pct_amt.toFixed(2)}%</td>
-                            <td className="border border-gray-400 p-1 text-right bg-[#e6e6e6]"></td>
-                            <td className="border border-gray-400 p-1 text-right">{lenGroup.subTotal.ab_amt.toFixed(2)}</td>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className={`px-3 py-2 text-sm font-medium rounded-md ${currentPage === totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    ถัดไป ›
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className={`px-3 py-2 text-sm font-medium rounded-md ${currentPage === totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    หน้าสุดท้าย »
+                  </button>
+                </div>
 
-                            <td className="border border-gray-400 p-1 text-right">{lenGroup.subTotal.spc_volumn.toFixed(4)}</td>
-                            <td className="border border-gray-400 p-1 text-right bg-[#e6e6e6]"></td>
-                            <td className="border border-gray-400 p-1 text-right">{lenGroup.subTotal.spc_pct_amt.toFixed(2)}%</td>
-                            <td className="border border-gray-400 p-1 text-right bg-[#e6e6e6]"></td>
-                            <td className="border border-gray-400 p-1 text-right">{lenGroup.subTotal.spc_amt.toFixed(2)}</td>
-                          </tr>
-                        </React.Fragment>
-                      ))}
-                    </React.Fragment>
-                  ))}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -3345,24 +3837,9 @@ dist-ssr
 .env.development.local
 .env.test.local
 .env.production.local
-</file>
 
-<file path="index.html">
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PPOS System</title>
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
+#repmix
+repomix-frontend-output.xml
 </file>
 
 <file path=".oxlintrc.json">
@@ -3374,68 +3851,6 @@ dist-ssr
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
   }
 }
-</file>
-
-<file path="package.json">
-{
-  "name": "ww-frontend",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "oxlint",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "date-fns": "^4.4.0",
-    "html-to-image": "^1.11.13",
-    "html2canvas": "^1.4.1",
-    "html2pdf.js": "^0.14.0",
-    "jspdf": "^4.2.1",
-    "jspdf-autotable": "^5.0.8",
-    "react": "^19.2.8",
-    "react-datepicker": "^9.1.0",
-    "react-dom": "^19.2.8",
-    "react-router-dom": "^7.18.2",
-    "sweetalert2": "^11.26.25",
-    "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
-    "@tailwindcss/vite": "^4.3.3",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "4.3.4",
-    "oxlint": "^1.75.0",
-    "tailwindcss": "^4.3.3",
-    "vite": "5.4.11"
-  }
-}
-</file>
-
-<file path="pnpm-workspace.yaml">
-allowBuilds:
-  esbuild: false
-</file>
-
-<file path="README.md">
-# React + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
 </file>
 
 <file path=".repomixignore">
@@ -3516,6 +3931,86 @@ dist-ssr
 .env.development.local
 .env.test.local
 .env.production.local
+</file>
+
+<file path="index.html">
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WW_Report System</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+</file>
+
+<file path="package.json">
+{
+  "name": "ww-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "date-fns": "^4.4.0",
+    "html-to-image": "^1.11.13",
+    "html2canvas": "^1.4.1",
+    "html2pdf.js": "^0.14.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
+    "react": "^19.2.8",
+    "react-datepicker": "^9.1.0",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.2",
+    "sweetalert2": "^11.26.25",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "4.3.4",
+    "oxlint": "^1.75.0",
+    "tailwindcss": "^4.3.3",
+    "vite": "5.4.11"
+  }
+}
+</file>
+
+<file path="pnpm-workspace.yaml">
+allowBuilds:
+  esbuild: false
+</file>
+
+<file path="README.md">
+# React + Vite
+
+This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+
+Currently, two official plugins are available:
+
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+
+## React Compiler
+
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+
+## Expanding the Oxlint configuration
+
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
 </file>
 
 <file path="repomix-output.md">

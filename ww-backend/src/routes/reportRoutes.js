@@ -12,4 +12,9 @@ router.get('/production-cover-format2', verifyToken, reportController.getProduct
 router.get('/wood-type-ab/pdf', verifyToken, reportController.exportAbWoodReportPDF);
 router.get('/wood-type-ab/excel', verifyToken, reportController.exportAbWoodReportExcel);
 
+router.get('/average-price', verifyToken, reportController.getAveragePriceReport);
+// === เพิ่ม 2 บรรทัดนี้ สำหรับ PDF และ Excel ===
+router.get('/average-price/pdf', verifyToken, reportController.exportAveragePriceReportPDF);
+router.get('/average-price/excel', verifyToken, reportController.exportAveragePriceReportExcel);
+
 module.exports = router;

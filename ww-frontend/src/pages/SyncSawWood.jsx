@@ -39,14 +39,27 @@ export default function SyncSawWood() {
   }, []);
 
   const fetchAllowedBranches = async () => {
+    addLog('Fetching authorized branches...');
     try {
-      const data = await apiFetch('/branches/allowed');
+      // 💡 1. ดึง Path ของหน้าปัจจุบัน (เช่น '/sync-master')
+      const currentPath = window.location.pathname;
+      
+      // 💡 2. แนบไปกับ API
+      const data = await apiFetch(`/branches/allowed?menu=${currentPath}`);
+      
       if (data?.success) {
         setBranches(data.data);
-        if (data.access_level === 1) setSelectedBranch(0); 
-        else if (data.data.length > 0) setSelectedBranch(data.data[0].id);
+        setAccessLevel(data.access_level);
+        
+        if (data.access_level === 1) {
+          setSelectedBranch(0); 
+        } else if (data.data.length > 0) {
+          setSelectedBranch(data.data[0].id);
+        }
+        addLog(`Loaded ${data.data.length} branches successfully. Access Level: ${data.access_level}`);
       }
     } catch (error) {
+      console.error('Fetch branches error:', error);
       addLog('❌ Error: Failed to fetch branches.');
     }
   };

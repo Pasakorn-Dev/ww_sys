@@ -5,7 +5,6 @@ const ExcelJS = require('exceljs'); // <- ต้องมีบรรทัด�
 const fs = require('fs');      
 const path = require('path');  
 
-// --- 1. สร้างฟังก์ชันกลาง สำหรับดึงและคำนวณข้อมูล (ลดโค้ดซ้ำ) ---
 const fetchWoodTypeAbData = async (start_date, end_date, branch_id) => {
   const query = `
     WITH BaseData AS (
@@ -18,7 +17,7 @@ const fetchWoodTypeAbData = async (start_date, end_date, branch_id) => {
         FROM transaction_saw_woods tsw
         JOIN master_wood_sizes mws 
           on mws.old_id = tsw.wood_size_id 
-	        and tsw.branch_id = mws.branch_id
+          and tsw.branch_id = mws.branch_id
         WHERE mws.grade = 'AB' 
           AND DATE(tsw.produce_date) BETWEEN $1 AND $2
           AND tsw.branch_id = $3
@@ -38,9 +37,39 @@ const fetchWoodTypeAbData = async (start_date, end_date, branch_id) => {
 
   const { rows } = await pool.query(query, [start_date, end_date, branch_id]);
 
-  // ลอจิกการ Reduce จัดกลุ่มข้อมูลเหมือนเดิมทุกประการ...
+  // --- 1. คำนวณยอดรวมทั้งหมดทั้งรายงาน (Grand Total) ---
+  let gt_ab_volumn = 0, gt_ab_amount = 0, gt_spc_volumn = 0, gt_spc_amount = 0;
+  
+  rows.forEach(row => {
+    gt_ab_volumn += Number(row.ab_volumn || 0);
+    gt_ab_amount += Number(row.ab_amount || 0);
+    gt_spc_volumn += Number(row.spc_volumn || 0);
+    gt_spc_amount += Number(row.spc_amount || 0);
+  });
+
+  const gt_all_volumn = gt_ab_volumn + gt_spc_volumn;
+
+  const grandTotal = {
+    ab_volumn: gt_ab_volumn,
+    ab_amt: gt_ab_amount,
+    spc_volumn: gt_spc_volumn,
+    spc_amt: gt_spc_amount,
+    
+    // % ความหนา รวมพิเศษ (เทียบปริมาตรรวมทั้งรายงาน)
+    pct_all_ab: gt_all_volumn > 0 ? (gt_ab_volumn / gt_all_volumn) * 100 : 0,
+    pct_all_spc: gt_all_volumn > 0 ? (gt_spc_volumn / gt_all_volumn) * 100 : 0,
+
+    // % ความหนา แยกปกติ,พิเศษ (จะเต็ม 100% เสมอเพราะเทียบกับตัวเอง)
+    pct_sep_ab: gt_ab_volumn > 0 ? 100 : 0, 
+    pct_sep_spc: gt_spc_volumn > 0 ? 100 : 0,
+
+    // ราคาเฉลี่ยรวมทั้งรายงาน
+    avg_price_ab: gt_ab_volumn > 0 ? (gt_ab_amount / gt_ab_volumn) : 0,
+    avg_price_spc: gt_spc_volumn > 0 ? (gt_spc_amount / gt_spc_volumn) : 0,
+  };
+
+  // --- 2. จัดกลุ่มข้อมูล (Grouping) ---
   const groupedData = rows.reduce((acc, row) => {
-    /* ... (วางโค้ดลอจิก reduce การจัดกลุ่ม ชุดเลื่อย > ความหนา > ความยาว > รายละเอียด ที่เราเขียนไว้ก่อนหน้านี้ลงตรงนี้) ... */
     const s = row.saw_name || 'ไม่ระบุชุดเลื่อย';
     const t = row.thick;
     const l = row.length;
@@ -93,7 +122,8 @@ const fetchWoodTypeAbData = async (start_date, end_date, branch_id) => {
     return sawGroup;
   });
 
-  return finalData;
+  // ส่งกลับทั้งข้อมูลตารางและผลรวม
+  return { finalData, grandTotal };
 };
 
 const reportController = {
@@ -338,8 +368,15 @@ const reportController = {
       const { start_date, end_date, branch_id } = req.query;
       if (!branch_id || !start_date || !end_date) return res.status(400).json({ success: false, message: 'Missing parameters' });
       
-      const finalData = await fetchWoodTypeAbData(start_date, end_date, branch_id);
-      res.status(200).json({ success: true, data: finalData });
+      // รับค่าทั้ง data และ grandTotal
+      const result = await fetchWoodTypeAbData(start_date, end_date, branch_id);
+      
+      // แนบ grandTotal ไปใน JSON Response ด้วย
+      res.status(200).json({ 
+        success: true, 
+        data: result.finalData, 
+        grandTotal: result.grandTotal 
+      });
     } catch (error) {
       console.error(error);
       res.status(500).json({ success: false, message: 'Server Error' });
@@ -350,7 +387,9 @@ const reportController = {
   exportAbWoodReportExcel: async (req, res) => {
     try {
       const { start_date, end_date, branch_id } = req.query;
-      const data = await fetchWoodTypeAbData(start_date, end_date, branch_id);
+      
+      // 💡 แก้ไข: รับค่า finalData มาใส่ในตัวแปร data และรับ grandTotal มาด้วย
+      const { finalData: data, grandTotal } = await fetchWoodTypeAbData(start_date, end_date, branch_id);
 
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Wood Type Report');
@@ -378,7 +417,7 @@ const reportController = {
         cell.alignment = { horizontal: 'center' };
       });
 
-      // วนลูปวาดข้อมูลทีละบรรทัด (จำลองโครงสร้างที่ทำใน React)
+      // วนลูปวาดข้อมูลทีละบรรทัด 
       data.forEach((saw, sIdx) => {
         const sawRow = worksheet.addRow([saw.saw_name, `ชุดที่ ${sIdx + 1}`]);
         sawRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
@@ -393,22 +432,43 @@ const reportController = {
             len.items.forEach(item => {
                worksheet.addRow([
                  item.wood_code.substring(0, 2), item.wood_code.substring(2),
-                 item.ab_volumn, item.ab_pct_qty + '%', '', item.ab_price, item.ab_amt,
-                 item.spc_volumn, item.spc_volumn > 0 ? item.spc_pct_qty + '%' : '', '', item.spc_price, item.spc_amt
+                 Number(item.ab_volumn).toFixed(4), item.ab_pct_qty + '%', '', item.ab_price > 0 ? Number(item.ab_price).toFixed(2) : '', Number(item.ab_amt).toFixed(2),
+                 Number(item.spc_volumn).toFixed(4), item.spc_volumn > 0 ? item.spc_pct_qty + '%' : '', '', item.spc_price > 0 ? Number(item.spc_price).toFixed(2) : '', Number(item.spc_amt).toFixed(2)
                ]);
             });
             // บรรทัด รวมยาว
-            const lenRow = worksheet.addRow([`รวมยาว ${len.length}`, '', len.subTotal.ab_volumn, '100%', len.subTotal.ab_pct_amt + '%', '', len.subTotal.ab_amt, len.subTotal.spc_volumn, '100%', len.subTotal.spc_pct_amt + '%', '', len.subTotal.spc_amt]);
+            const lenRow = worksheet.addRow([`รวมยาว ${len.length}`, '', Number(len.subTotal.ab_volumn).toFixed(4), '100.00%', len.subTotal.ab_pct_amt.toFixed(2) + '%', '', Number(len.subTotal.ab_amt).toFixed(2), Number(len.subTotal.spc_volumn).toFixed(4), len.subTotal.spc_volumn > 0 ? '100.00%' : '', len.subTotal.spc_volumn > 0 ? len.subTotal.spc_pct_amt.toFixed(2) + '%' : '', '', Number(len.subTotal.spc_amt).toFixed(2)]);
             lenRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } };
             lenRow.font = { bold: true };
           });
 
           // บรรทัด รวมหนา
-          const thickSubRow = worksheet.addRow(['รวมหนา', thick.thick, thick.subTotal.ab_volumn, '', '100%', '', thick.subTotal.ab_amt, thick.subTotal.spc_volumn, '', '100%', '', thick.subTotal.spc_amt]);
+          const thickSubRow = worksheet.addRow(['รวมหนา', thick.thick, Number(thick.subTotal.ab_volumn).toFixed(4), '', '100.00%', '', Number(thick.subTotal.ab_amt).toFixed(2), Number(thick.subTotal.spc_volumn).toFixed(4), '', thick.subTotal.spc_volumn > 0 ? '100.00%' : '', '', Number(thick.subTotal.spc_amt).toFixed(2)]);
           thickSubRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6E0B4' } };
           thickSubRow.font = { bold: true };
         });
       });
+
+      // 💡 วาดบรรทัดสรุปรวมทั้งหมด (Grand Total) ลงใน Excel
+      if (grandTotal) {
+        worksheet.addRow([]); // บรรทัดว่างคั่น
+        
+        const gtRow1 = worksheet.addRow(['รวมทั้งหมดทั้งรายงาน', '', Number(grandTotal.ab_volumn).toFixed(4), '', '100.00%', '', Number(grandTotal.ab_amt).toFixed(2), Number(grandTotal.spc_volumn).toFixed(4), '', grandTotal.spc_volumn > 0 ? '100.00%' : '', '', Number(grandTotal.spc_amt).toFixed(2)]);
+        gtRow1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFA9D08E' } };
+        gtRow1.font = { bold: true };
+
+        const gtRow2 = worksheet.addRow(['% รวมทั้งหมด รวมพิเศษ', '', '', grandTotal.ab_volumn > 0 ? grandTotal.pct_all_ab.toFixed(2) + '%' : '', '', '', '', '', '', grandTotal.spc_volumn > 0 ? grandTotal.pct_all_spc.toFixed(2) + '%' : '', '', '']);
+        gtRow2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE699' } }; 
+        gtRow2.font = { bold: true, color: { argb: 'FF804000' } };
+
+        const gtRow3 = worksheet.addRow(['% รวมทั้งหมด แยก ปกติ ,พิเศษ', '', '', grandTotal.ab_volumn > 0 ? grandTotal.pct_sep_ab.toFixed(2) + '%' : '', '', '', '', '', '', grandTotal.spc_volumn > 0 ? grandTotal.pct_sep_spc.toFixed(2) + '%' : '', '', '']);
+        gtRow3.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8CBAD' } };
+        gtRow3.font = { bold: true, color: { argb: 'FF804000' } };
+
+        const gtRow4 = worksheet.addRow(['ราคาเฉลี่ยรวมทั้งหมด', '', '', grandTotal.ab_volumn > 0 ? grandTotal.avg_price_ab.toFixed(2) : '', '', '', '', '', '', grandTotal.spc_volumn > 0 ? grandTotal.avg_price_spc.toFixed(2) : '', '', '']);
+        gtRow4.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } }; 
+        gtRow4.font = { bold: true, color: { argb: 'FFFFFFFF' } }; 
+      }
 
       // ส่งกลับเป็นไฟล์ Binary (Blob)
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -426,49 +486,44 @@ const reportController = {
   exportAbWoodReportPDF: async (req, res) => {
     try {
       const { start_date, end_date, branch_id } = req.query;
-      const data = await fetchWoodTypeAbData(start_date, end_date, branch_id);
-      // 1. กำหนดที่อยู่ของไฟล์ฟอนต์ (อ้างอิงจากตำแหน่งไฟล์ reportController.js)
-      // โค้ดนี้จะถอยกลับไป 1 โฟลเดอร์ (../) แล้วเข้าไปที่ assets/fonts
-      const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
       
-      // 2. อ่านไฟล์ฟอนต์และแปลงเป็น Base64
+      // 💡 แก้ไข: รับค่า finalData และ grandTotal
+      const { finalData: data, grandTotal } = await fetchWoodTypeAbData(start_date, end_date, branch_id);
+
+      const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
       let fontBase64 = '';
       if (fs.existsSync(fontPath)) {
         fontBase64 = fs.readFileSync(fontPath).toString('base64');
       } else {
         console.warn('⚠️ ไม่พบไฟล์ฟอนต์ที่:', fontPath);
       }
-      // วนลูปสร้างแถวข้อมูลตาราง
+
       let tableRows = '';
       data.forEach((saw, sIdx) => {
-        // แถวชุดเลื่อย
         tableRows += `<tr class="saw"><td colspan="2" class="left pl">${saw.saw_name}</td><td colspan="10" class="left pl">ชุดที่ ${sIdx + 1}</td></tr>`;
 
         saw.thicks.forEach(thick => {
-          // แถวความหนา
           tableRows += `<tr class="thick"><td class="left pl text-blue">ความหนา</td><td colspan="11" class="left pl text-blue">${thick.thick}</td></tr>`;
 
           thick.lengths.forEach(len => {
-            // แถวรายการรหัสไม้
             len.items.forEach(item => {
               tableRows += `
                 <tr>
                   <td colspan="2" class="left pl"><span class="text-red bold">${item.wood_code.substring(0, 2)}</span>${item.wood_code.substring(2)}</td>
-                  <td>${item.ab_volumn.toFixed(4)}</td>
-                  <td>${item.ab_pct_qty.toFixed(2)}%</td>
+                  <td>${Number(item.ab_volumn).toFixed(4)}</td>
+                  <td>${Number(item.ab_pct_qty).toFixed(2)}%</td>
                   <td class="bg-gray"></td>
-                  <td>${item.ab_price > 0 ? item.ab_price.toFixed(2) : ''}</td>
-                  <td>${item.ab_amt.toFixed(2)}</td>
-                  <td>${item.spc_volumn.toFixed(4)}</td>
-                  <td>${item.spc_volumn > 0 ? item.spc_pct_qty.toFixed(2) + '%' : ''}</td>
+                  <td>${item.ab_price > 0 ? Number(item.ab_price).toFixed(2) : ''}</td>
+                  <td>${Number(item.ab_amt).toFixed(2)}</td>
+                  <td>${Number(item.spc_volumn).toFixed(4)}</td>
+                  <td>${item.spc_volumn > 0 ? Number(item.spc_pct_qty).toFixed(2) + '%' : ''}</td>
                   <td class="bg-gray"></td>
-                  <td>${item.spc_price > 0 ? item.spc_price.toFixed(2) : ''}</td>
-                  <td>${item.spc_amt.toFixed(2)}</td>
+                  <td>${item.spc_price > 0 ? Number(item.spc_price).toFixed(2) : ''}</td>
+                  <td>${Number(item.spc_amt).toFixed(2)}</td>
                 </tr>
               `;
             });
 
-            // แถวรวมยาว
             tableRows += `
               <tr class="sum-len">
                 <td colspan="2" class="left pl">รวมยาว ${len.length}</td>
@@ -486,7 +541,6 @@ const reportController = {
             `;
           });
 
-          // แถวรวมหนา
           tableRows += `
             <tr class="sum-thick">
               <td colspan="2" class="left pl">รวมหนา <span class="text-red">${thick.thick}</span></td>
@@ -503,7 +557,6 @@ const reportController = {
             </tr>
           `;
 
-          // แถวเปอเซ็นต์ & ราคาเฉลี่ย
           tableRows += `
             <tr>
               <td colspan="2" class="left pl">% ความหนา (ชุด) รวมพิเศษ</td>
@@ -533,19 +586,60 @@ const reportController = {
         });
       });
 
-      // นำแถวข้อมูลไปใส่ในโครง HTML
+      // 💡 วาดบรรทัดสรุปรวมทั้งหมด (Grand Total) ลงใน PDF
+      if (grandTotal) {
+        tableRows += `
+          <tr style="background-color: #a9d08e; font-weight: bold; border-top: 2px solid #555;">
+            <td colspan="2" class="left pl">รวมทั้งหมดทั้งรายงาน</td>
+            <td style="color: #000;">${grandTotal.ab_volumn.toFixed(4)}</td>
+            <td class="bg-gray"></td>
+            <td style="color: #444;">${grandTotal.ab_volumn > 0 ? '100.00%' : ''}</td>
+            <td class="bg-gray"></td>
+            <td style="color: #000;">${grandTotal.ab_amt.toFixed(2)}</td>
+            <td style="color: #000;">${grandTotal.spc_volumn.toFixed(4)}</td>
+            <td class="bg-gray"></td>
+            <td style="color: #444;">${grandTotal.spc_volumn > 0 ? '100.00%' : ''}</td>
+            <td class="bg-gray"></td>
+            <td style="color: #000;">${grandTotal.spc_amt.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td colspan="2" class="left pl">% รวมทั้งหมด รวมพิเศษ</td>
+            <td class="bg-gray"></td>
+            <td class="bg-yellow">${grandTotal.ab_volumn > 0 ? grandTotal.pct_all_ab.toFixed(2) + '%' : ''}</td>
+            <td class="bg-gray" colspan="4"></td>
+            <td class="bg-yellow">${grandTotal.spc_volumn > 0 ? grandTotal.pct_all_spc.toFixed(2) + '%' : ''}</td>
+            <td class="bg-gray" colspan="3"></td>
+          </tr>
+          <tr>
+            <td colspan="2" class="left pl">% รวมทั้งหมด แยก ปกติ ,พิเศษ</td>
+            <td class="bg-gray"></td>
+            <td class="bg-orange">${grandTotal.ab_volumn > 0 ? grandTotal.pct_sep_ab.toFixed(2) + '%' : ''}</td>
+            <td class="bg-gray" colspan="4"></td>
+            <td class="bg-orange">${grandTotal.spc_volumn > 0 ? grandTotal.pct_sep_spc.toFixed(2) + '%' : ''}</td>
+            <td class="bg-gray" colspan="3"></td>
+          </tr>
+          <tr>
+            <td colspan="2" class="left pl border-bottom">ราคาเฉลี่ยรวมทั้งหมด</td>
+            <td class="bg-gray"></td>
+            <td class="bg-red">${grandTotal.ab_volumn > 0 ? grandTotal.avg_price_ab.toFixed(2) : ''}</td>
+            <td class="bg-gray" colspan="4"></td>
+            <td class="bg-red">${grandTotal.spc_volumn > 0 ? grandTotal.avg_price_spc.toFixed(2) : ''}</td>
+            <td class="bg-gray" colspan="3"></td>
+          </tr>
+        `;
+      }
+
       const htmlContent = `
         <html>
           <head>
             <style>
               @font-face {
                 font-family: 'THSarabun';
-                /* นำตัวแปร fontBase64 มาต่อ String ตรงนี้ */
                 src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype');
                 font-weight: normal;
                 font-style: normal;
               }
-              body { font-family: 'THSarabun', sans-serif; font-size: 10px; margin: 0; padding: 20px; }
+              body { font-family: 'THSarabun', sans-serif; font-size: 13px; margin: 0; padding: 20px; }
               table { width: 100%; border-collapse: collapse; table-layout: fixed; }
               th, td { border: 1px solid #777; padding: 4px; text-align: right; }
               th { background-color: #9fc5e8; font-weight: bold; text-align: center; }
@@ -566,9 +660,9 @@ const reportController = {
               .bg-red { background-color: #ff0000; font-weight: bold; color: white; }
               .border-bottom { border-bottom: 2px solid #555; }
               .title-box { text-align: center; margin-bottom: 15px; }
-              h1 { font-size: 16px; margin: 0 0 5px 0; }
-              h2 { font-size: 14px; margin: 0 0 5px 0; font-weight: normal; }
-              p { margin: 0; font-size: 12px; color: #444; }
+              h1 { font-size: 20px; margin: 0 0 5px 0; font-weight: bold; }
+              h2 { font-size: 16px; margin: 0 0 5px 0; font-weight: bold; }
+              p { margin: 0; font-size: 14px; color: #444; }
             </style>
           </head>
           <body>
@@ -606,6 +700,453 @@ const reportController = {
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="report.pdf"');
+      res.send(pdfBuffer);
+
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error generating PDF' });
+    }
+  },
+
+  // เพิ่มเข้าไปใน reportController
+  getAveragePriceReport: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code } = req.query;
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      // เรียกข้อมูลจาก Model
+      const rows = await ReportModel.getAveragePriceReport({ branch_id, start_date, end_date, store_code });
+
+      // คำนวณ Grand Total แบบดิบ (ยอดเงินรวม / ปริมาตรรวม ของทั้งบริษัท) เพื่อความแม่นยำ
+      let gt = {
+        price_normal_ab: 0, vol_normal_ab: 0,
+        price_special_ab: 0, vol_special_ab: 0,
+        price_ab: 0, vol_ab: 0,
+        
+        price_normal_c: 0, vol_normal_c: 0,
+        price_special_c: 0, vol_special_c: 0,
+        price_c: 0, vol_c: 0,
+        
+        price_normal_p: 0, vol_normal_p: 0,
+        price_special_p: 0, vol_special_p: 0,
+        price_p: 0, vol_p: 0,
+        
+        price_normal_pp: 0, vol_normal_pp: 0,
+        price_special_pp: 0, vol_special_pp: 0,
+        price_pp: 0, vol_pp: 0,
+
+        total_price: 0, total_volumn: 0
+      };
+
+      rows.forEach(row => {
+        gt.price_normal_ab += Number(row.price_normal_ab || 0);
+        gt.vol_normal_ab += Number(row.vol_normal_ab || 0);
+        gt.price_special_ab += Number(row.price_special_ab || 0);
+        gt.vol_special_ab += Number(row.vol_special_ab || 0);
+        gt.price_ab += Number(row.price_ab || 0);
+        gt.vol_ab += Number(row.vol_ab || 0);
+
+        gt.price_normal_c += Number(row.price_normal_c || 0);
+        gt.vol_normal_c += Number(row.vol_normal_c || 0);
+        gt.price_special_c += Number(row.price_special_c || 0);
+        gt.vol_special_c += Number(row.vol_special_c || 0);
+        gt.price_c += Number(row.price_c || 0);
+        gt.vol_c += Number(row.vol_c || 0);
+
+        gt.price_normal_p += Number(row.price_normal_p || 0);
+        gt.vol_normal_p += Number(row.vol_normal_p || 0);
+        gt.price_special_p += Number(row.price_special_p || 0);
+        gt.vol_special_p += Number(row.vol_special_p || 0);
+        gt.price_p += Number(row.price_p || 0);
+        gt.vol_p += Number(row.vol_p || 0);
+
+        gt.price_normal_pp += Number(row.price_normal_pp || 0);
+        gt.vol_normal_pp += Number(row.vol_normal_pp || 0);
+        gt.price_special_pp += Number(row.price_special_pp || 0);
+        gt.vol_special_pp += Number(row.vol_special_pp || 0);
+        gt.price_pp += Number(row.price_pp || 0);
+        gt.vol_pp += Number(row.vol_pp || 0);
+
+        gt.total_price += Number(row.total_price || 0);
+        gt.total_volumn += Number(row.total_volumn || 0);
+      });
+
+      // นำผลรวมที่ได้มาหารกันเพื่อให้ได้ราคาเฉลี่ยรวมที่ถูกต้อง
+      const grandTotal = {
+        normal_ab: gt.vol_normal_ab > 0 ? gt.price_normal_ab / gt.vol_normal_ab : 0,
+        special_ab: gt.vol_special_ab > 0 ? gt.price_special_ab / gt.vol_special_ab : 0,
+        avg_ab: gt.vol_ab > 0 ? gt.price_ab / gt.vol_ab : 0,
+
+        normal_c: gt.vol_normal_c > 0 ? gt.price_normal_c / gt.vol_normal_c : 0,
+        special_c: gt.vol_special_c > 0 ? gt.price_special_c / gt.vol_special_c : 0,
+        avg_c: gt.vol_c > 0 ? gt.price_c / gt.vol_c : 0,
+
+        normal_p: gt.vol_normal_p > 0 ? gt.price_normal_p / gt.vol_normal_p : 0,
+        special_p: gt.vol_special_p > 0 ? gt.price_special_p / gt.vol_special_p : 0,
+        avg_p: gt.vol_p > 0 ? gt.price_p / gt.vol_p : 0,
+
+        normal_pp: gt.vol_normal_pp > 0 ? gt.price_normal_pp / gt.vol_normal_pp : 0,
+        special_pp: gt.vol_special_pp > 0 ? gt.price_special_pp / gt.vol_special_pp : 0,
+        avg_pp: gt.vol_pp > 0 ? gt.price_pp / gt.vol_pp : 0,
+
+        avg_total: gt.total_volumn > 0 ? gt.total_price / gt.total_volumn : 0
+      };
+
+      res.json({
+        success: true,
+        data: rows,
+        grandTotal
+      });
+    } catch (error) {
+      console.error('Report Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานสรุปราคาเฉลี่ย' });
+    }
+  },
+
+  // --- 4. ฟังก์ชัน สร้างไฟล์ Excel สำหรับรายงานราคาเฉลี่ย ---
+  exportAveragePriceReportExcel: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code } = req.query;
+      
+      const rows = await ReportModel.getAveragePriceReport({ branch_id, start_date, end_date, store_code });
+
+      // คำนวณ Grand Total 
+      let gt = {
+        price_normal_ab: 0, vol_normal_ab: 0, price_special_ab: 0, vol_special_ab: 0, price_ab: 0, vol_ab: 0,
+        price_normal_c: 0, vol_normal_c: 0, price_special_c: 0, vol_special_c: 0, price_c: 0, vol_c: 0,
+        price_normal_p: 0, vol_normal_p: 0, price_special_p: 0, vol_special_p: 0, price_p: 0, vol_p: 0,
+        price_normal_pp: 0, vol_normal_pp: 0, price_special_pp: 0, vol_special_pp: 0, price_pp: 0, vol_pp: 0,
+        total_price: 0, total_volumn: 0
+      };
+
+      rows.forEach(row => {
+        gt.price_normal_ab += Number(row.price_normal_ab || 0); gt.vol_normal_ab += Number(row.vol_normal_ab || 0);
+        gt.price_special_ab += Number(row.price_special_ab || 0); gt.vol_special_ab += Number(row.vol_special_ab || 0);
+        gt.price_ab += Number(row.price_ab || 0); gt.vol_ab += Number(row.vol_ab || 0);
+        
+        gt.price_normal_c += Number(row.price_normal_c || 0); gt.vol_normal_c += Number(row.vol_normal_c || 0);
+        gt.price_special_c += Number(row.price_special_c || 0); gt.vol_special_c += Number(row.vol_special_c || 0);
+        gt.price_c += Number(row.price_c || 0); gt.vol_c += Number(row.vol_c || 0);
+        
+        gt.price_normal_p += Number(row.price_normal_p || 0); gt.vol_normal_p += Number(row.vol_normal_p || 0);
+        gt.price_special_p += Number(row.price_special_p || 0); gt.vol_special_p += Number(row.vol_special_p || 0);
+        gt.price_p += Number(row.price_p || 0); gt.vol_p += Number(row.vol_p || 0);
+        
+        gt.price_normal_pp += Number(row.price_normal_pp || 0); gt.vol_normal_pp += Number(row.vol_normal_pp || 0);
+        gt.price_special_pp += Number(row.price_special_pp || 0); gt.vol_special_pp += Number(row.vol_special_pp || 0);
+        gt.price_pp += Number(row.price_pp || 0); gt.vol_pp += Number(row.vol_pp || 0);
+        
+        gt.total_price += Number(row.total_price || 0); gt.total_volumn += Number(row.total_volumn || 0);
+      });
+
+      const grandTotal = {
+        normal_ab: gt.vol_normal_ab > 0 ? gt.price_normal_ab / gt.vol_normal_ab : 0,
+        special_ab: gt.vol_special_ab > 0 ? gt.price_special_ab / gt.vol_special_ab : 0,
+        avg_ab: gt.vol_ab > 0 ? gt.price_ab / gt.vol_ab : 0,
+        normal_c: gt.vol_normal_c > 0 ? gt.price_normal_c / gt.vol_normal_c : 0,
+        special_c: gt.vol_special_c > 0 ? gt.price_special_c / gt.vol_special_c : 0,
+        avg_c: gt.vol_c > 0 ? gt.price_c / gt.vol_c : 0,
+        normal_p: gt.vol_normal_p > 0 ? gt.price_normal_p / gt.vol_normal_p : 0,
+        special_p: gt.vol_special_p > 0 ? gt.price_special_p / gt.vol_special_p : 0,
+        avg_p: gt.vol_p > 0 ? gt.price_p / gt.vol_p : 0,
+        normal_pp: gt.vol_normal_pp > 0 ? gt.price_normal_pp / gt.vol_normal_pp : 0,
+        special_pp: gt.vol_special_pp > 0 ? gt.price_special_pp / gt.vol_special_pp : 0,
+        avg_pp: gt.vol_pp > 0 ? gt.price_pp / gt.vol_pp : 0,
+        avg_total: gt.total_volumn > 0 ? gt.total_price / gt.total_volumn : 0
+      };
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Average Price Report');
+
+      // กำหนด Header แบบ 2 ชั้น
+      worksheet.mergeCells('A1:A2');
+      worksheet.getCell('A1').value = 'แผนก';
+      worksheet.getCell('A1').alignment = { vertical: 'middle', horizontal: 'center' };
+      worksheet.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
+      worksheet.getCell('A1').font = { bold: true };
+
+      worksheet.mergeCells('B1:N1');
+      worksheet.getCell('B1').value = 'เฉลี่ยราคา';
+      worksheet.getCell('B1').alignment = { horizontal: 'center' };
+      worksheet.getCell('B1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
+      worksheet.getCell('B1').font = { bold: true };
+
+      const headers = ['AB ปกติ', 'AB พิเศษ', 'AB', 'C ปกติ', 'C พิเศษ', 'C', 'P ปกติ', 'P พิเศษ', 'P', 'PP ปกติ', 'PP พิเศษ', 'PP', 'รวม'];
+      headers.forEach((header, index) => {
+        const colLetter = String.fromCharCode(66 + index); // ตัวอักษรเริ่มจาก B
+        const cell = worksheet.getCell(`${colLetter}2`);
+        cell.value = header;
+        cell.alignment = { horizontal: 'center' };
+        
+        // ลงสี Background
+        if (['AB', 'C', 'P', 'PP'].includes(header)) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F2FF' } }; 
+          cell.font = { bold: true };
+        } else if (header === 'รวม') {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } }; 
+          cell.font = { bold: true };
+        } else {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+        }
+      });
+      
+      worksheet.getColumn('A').width = 18;
+      for (let i = 2; i <= 14; i++) worksheet.getColumn(i).width = 11;
+
+      // วนลูปข้อมูลใส่ตาราง
+      rows.forEach(row => {
+        const addedRow = worksheet.addRow([
+          row.saw_name || 'ไม่ระบุ',
+          Number(row.normal_ab) > 0 ? Number(row.normal_ab) : null,
+          Number(row.special_ab) > 0 ? Number(row.special_ab) : null,
+          Number(row.avg_ab) > 0 ? Number(row.avg_ab) : null,
+          Number(row.normal_c) > 0 ? Number(row.normal_c) : null,
+          Number(row.special_c) > 0 ? Number(row.special_c) : null,
+          Number(row.avg_c) > 0 ? Number(row.avg_c) : null,
+          Number(row.normal_p) > 0 ? Number(row.normal_p) : null,
+          Number(row.special_p) > 0 ? Number(row.special_p) : null,
+          Number(row.avg_p) > 0 ? Number(row.avg_p) : null,
+          Number(row.normal_pp) > 0 ? Number(row.normal_pp) : null,
+          Number(row.special_pp) > 0 ? Number(row.special_pp) : null,
+          Number(row.avg_pp) > 0 ? Number(row.avg_pp) : null,
+          Number(row.avg_total) > 0 ? Number(row.avg_total) : null,
+        ]);
+        
+        // Format ตัวเลข 2 ตำแหน่ง
+        for(let i=2; i<=14; i++) addedRow.getCell(i).numFmt = '#,##0.00';
+        
+        addedRow.getCell(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F2FF' } }; 
+        addedRow.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F2FF' } }; 
+        addedRow.getCell(10).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F2FF' } }; 
+        addedRow.getCell(13).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F2FF' } }; 
+        addedRow.getCell(14).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } }; 
+        addedRow.getCell(14).font = { bold: true, color: { argb: 'FF375623' } };
+      });
+
+      // แถว Grand Total
+      const gtRow = worksheet.addRow([
+        'รวมทั้งหมด',
+        Number(grandTotal.normal_ab) > 0 ? Number(grandTotal.normal_ab) : null,
+        Number(grandTotal.special_ab) > 0 ? Number(grandTotal.special_ab) : null,
+        Number(grandTotal.avg_ab) > 0 ? Number(grandTotal.avg_ab) : null,
+        Number(grandTotal.normal_c) > 0 ? Number(grandTotal.normal_c) : null,
+        Number(grandTotal.special_c) > 0 ? Number(grandTotal.special_c) : null,
+        Number(grandTotal.avg_c) > 0 ? Number(grandTotal.avg_c) : null,
+        Number(grandTotal.normal_p) > 0 ? Number(grandTotal.normal_p) : null,
+        Number(grandTotal.special_p) > 0 ? Number(grandTotal.special_p) : null,
+        Number(grandTotal.avg_p) > 0 ? Number(grandTotal.avg_p) : null,
+        Number(grandTotal.normal_pp) > 0 ? Number(grandTotal.normal_pp) : null,
+        Number(grandTotal.special_pp) > 0 ? Number(grandTotal.special_pp) : null,
+        Number(grandTotal.avg_pp) > 0 ? Number(grandTotal.avg_pp) : null,
+        Number(grandTotal.avg_total) > 0 ? Number(grandTotal.avg_total) : null,
+      ]);
+      
+      gtRow.font = { bold: true };
+      gtRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFA6A6A6' } };
+      for(let i=2; i<=14; i++) gtRow.getCell(i).numFmt = '#,##0.00';
+      gtRow.getCell(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBDD7EE' } }; 
+      gtRow.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBDD7EE' } }; 
+      gtRow.getCell(10).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBDD7EE' } }; 
+      gtRow.getCell(13).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBDD7EE' } }; 
+      gtRow.getCell(14).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFA9D08E' } }; 
+      
+      // ตีเส้นตาราง
+      worksheet.eachRow({ includeEmpty: true }, function(row) {
+        row.eachCell({ includeEmpty: true }, function(cell) {
+          cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+        });
+      });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=average_price_report.xlsx');
+      await workbook.xlsx.write(res);
+      res.end();
+
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error generating Excel' });
+    }
+  },
+
+  // --- 5. ฟังก์ชัน สร้างไฟล์ PDF สำหรับรายงานราคาเฉลี่ย ---
+  exportAveragePriceReportPDF: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code, branch_name } = req.query;
+      const rows = await ReportModel.getAveragePriceReport({ branch_id, start_date, end_date, store_code });
+
+      let gt = {
+        price_normal_ab: 0, vol_normal_ab: 0, price_special_ab: 0, vol_special_ab: 0, price_ab: 0, vol_ab: 0,
+        price_normal_c: 0, vol_normal_c: 0, price_special_c: 0, vol_special_c: 0, price_c: 0, vol_c: 0,
+        price_normal_p: 0, vol_normal_p: 0, price_special_p: 0, vol_special_p: 0, price_p: 0, vol_p: 0,
+        price_normal_pp: 0, vol_normal_pp: 0, price_special_pp: 0, vol_special_pp: 0, price_pp: 0, vol_pp: 0,
+        total_price: 0, total_volumn: 0
+      };
+
+      rows.forEach(row => {
+        gt.price_normal_ab += Number(row.price_normal_ab || 0); gt.vol_normal_ab += Number(row.vol_normal_ab || 0);
+        gt.price_special_ab += Number(row.price_special_ab || 0); gt.vol_special_ab += Number(row.vol_special_ab || 0);
+        gt.price_ab += Number(row.price_ab || 0); gt.vol_ab += Number(row.vol_ab || 0);
+        
+        gt.price_normal_c += Number(row.price_normal_c || 0); gt.vol_normal_c += Number(row.vol_normal_c || 0);
+        gt.price_special_c += Number(row.price_special_c || 0); gt.vol_special_c += Number(row.vol_special_c || 0);
+        gt.price_c += Number(row.price_c || 0); gt.vol_c += Number(row.vol_c || 0);
+        
+        gt.price_normal_p += Number(row.price_normal_p || 0); gt.vol_normal_p += Number(row.vol_normal_p || 0);
+        gt.price_special_p += Number(row.price_special_p || 0); gt.vol_special_p += Number(row.vol_special_p || 0);
+        gt.price_p += Number(row.price_p || 0); gt.vol_p += Number(row.vol_p || 0);
+        
+        gt.price_normal_pp += Number(row.price_normal_pp || 0); gt.vol_normal_pp += Number(row.vol_normal_pp || 0);
+        gt.price_special_pp += Number(row.price_special_pp || 0); gt.vol_special_pp += Number(row.vol_special_pp || 0);
+        gt.price_pp += Number(row.price_pp || 0); gt.vol_pp += Number(row.vol_pp || 0);
+        
+        gt.total_price += Number(row.total_price || 0); gt.total_volumn += Number(row.total_volumn || 0);
+      });
+
+      const grandTotal = {
+        normal_ab: gt.vol_normal_ab > 0 ? gt.price_normal_ab / gt.vol_normal_ab : 0,
+        special_ab: gt.vol_special_ab > 0 ? gt.price_special_ab / gt.vol_special_ab : 0,
+        avg_ab: gt.vol_ab > 0 ? gt.price_ab / gt.vol_ab : 0,
+        normal_c: gt.vol_normal_c > 0 ? gt.price_normal_c / gt.vol_normal_c : 0,
+        special_c: gt.vol_special_c > 0 ? gt.price_special_c / gt.vol_special_c : 0,
+        avg_c: gt.vol_c > 0 ? gt.price_c / gt.vol_c : 0,
+        normal_p: gt.vol_normal_p > 0 ? gt.price_normal_p / gt.vol_normal_p : 0,
+        special_p: gt.vol_special_p > 0 ? gt.price_special_p / gt.vol_special_p : 0,
+        avg_p: gt.vol_p > 0 ? gt.price_p / gt.vol_p : 0,
+        normal_pp: gt.vol_normal_pp > 0 ? gt.price_normal_pp / gt.vol_normal_pp : 0,
+        special_pp: gt.vol_special_pp > 0 ? gt.price_special_pp / gt.vol_special_pp : 0,
+        avg_pp: gt.vol_pp > 0 ? gt.price_pp / gt.vol_pp : 0,
+        avg_total: gt.total_volumn > 0 ? gt.total_price / gt.total_volumn : 0
+      };
+
+      const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
+      let fontBase64 = '';
+      if (fs.existsSync(fontPath)) fontBase64 = fs.readFileSync(fontPath).toString('base64');
+
+      let tableRows = '';
+      rows.forEach((row) => {
+        tableRows += `
+          <tr>
+            <td class="left pl">${row.saw_name || 'ไม่ระบุ'}</td>
+            <td>${Number(row.normal_ab) > 0 ? Number(row.normal_ab).toFixed(2) : ''}</td>
+            <td>${Number(row.special_ab) > 0 ? Number(row.special_ab).toFixed(2) : ''}</td>
+            <td class="bg-blue-light bold">${Number(row.avg_ab) > 0 ? Number(row.avg_ab).toFixed(2) : ''}</td>
+            
+            <td>${Number(row.normal_c) > 0 ? Number(row.normal_c).toFixed(2) : ''}</td>
+            <td>${Number(row.special_c) > 0 ? Number(row.special_c).toFixed(2) : ''}</td>
+            <td class="bg-blue-light bold">${Number(row.avg_c) > 0 ? Number(row.avg_c).toFixed(2) : ''}</td>
+
+            <td>${Number(row.normal_p) > 0 ? Number(row.normal_p).toFixed(2) : ''}</td>
+            <td>${Number(row.special_p) > 0 ? Number(row.special_p).toFixed(2) : ''}</td>
+            <td class="bg-blue-light bold">${Number(row.avg_p) > 0 ? Number(row.avg_p).toFixed(2) : ''}</td>
+
+            <td>${Number(row.normal_pp) > 0 ? Number(row.normal_pp).toFixed(2) : ''}</td>
+            <td>${Number(row.special_pp) > 0 ? Number(row.special_pp).toFixed(2) : ''}</td>
+            <td class="bg-blue-light bold">${Number(row.avg_pp) > 0 ? Number(row.avg_pp).toFixed(2) : ''}</td>
+
+            <td class="bg-green-light bold">${Number(row.avg_total) > 0 ? Number(row.avg_total).toFixed(2) : ''}</td>
+          </tr>
+        `;
+      });
+
+      if (rows.length > 0) {
+        tableRows += `
+          <tr class="gt-row">
+            <td class="left pl bg-gray-header">รวมทั้งหมด</td>
+            <td>${Number(grandTotal.normal_ab) > 0 ? Number(grandTotal.normal_ab).toFixed(2) : '0'}</td>
+            <td>${Number(grandTotal.special_ab) > 0 ? Number(grandTotal.special_ab).toFixed(2) : '0'}</td>
+            <td class="bg-blue-dark">${Number(grandTotal.avg_ab) > 0 ? Number(grandTotal.avg_ab).toFixed(2) : '0'}</td>
+            
+            <td>${Number(grandTotal.normal_c) > 0 ? Number(grandTotal.normal_c).toFixed(2) : '0'}</td>
+            <td>${Number(grandTotal.special_c) > 0 ? Number(grandTotal.special_c).toFixed(2) : '0'}</td>
+            <td class="bg-blue-dark">${Number(grandTotal.avg_c) > 0 ? Number(grandTotal.avg_c).toFixed(2) : '0'}</td>
+
+            <td>${Number(grandTotal.normal_p) > 0 ? Number(grandTotal.normal_p).toFixed(2) : '0'}</td>
+            <td>${Number(grandTotal.special_p) > 0 ? Number(grandTotal.special_p).toFixed(2) : '0'}</td>
+            <td class="bg-blue-dark">${Number(grandTotal.avg_p) > 0 ? Number(grandTotal.avg_p).toFixed(2) : '0'}</td>
+
+            <td>${Number(grandTotal.normal_pp) > 0 ? Number(grandTotal.normal_pp).toFixed(2) : '0'}</td>
+            <td>${Number(grandTotal.special_pp) > 0 ? Number(grandTotal.special_pp).toFixed(2) : '0'}</td>
+            <td class="bg-blue-dark">${Number(grandTotal.avg_pp) > 0 ? Number(grandTotal.avg_pp).toFixed(2) : '0'}</td>
+
+            <td class="bg-green-dark">${Number(grandTotal.avg_total) > 0 ? Number(grandTotal.avg_total).toFixed(2) : '0'}</td>
+          </tr>
+        `;
+      }
+
+      const htmlContent = `
+        <html>
+          <head>
+            <style>
+              @font-face {
+                font-family: 'THSarabun';
+                src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype');
+                font-weight: normal;
+                font-style: normal;
+              }
+              body { font-family: 'THSarabun', sans-serif; font-size: 13px; margin: 0; padding: 20px; }
+              table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+              th, td { border: 1px solid #000; padding: 4px; text-align: right; }
+              th { background-color: #d9d9d9; text-align: center; font-weight: bold; }
+              .center { text-align: center; }
+              .left { text-align: left; }
+              .pl { padding-left: 10px; }
+              .bold { font-weight: bold; }
+              .bg-blue-light { background-color: #e6f2ff; }
+              .bg-green-light { background-color: #e2efda; color: #375623; }
+              .gt-row { font-weight: bold; }
+              .bg-gray-header { background-color: #a6a6a6; }
+              .bg-blue-dark { background-color: #bdd7ee; }
+              .bg-green-dark { background-color: #a9d08e; }
+              .title-box { text-align: center; margin-bottom: 15px; }
+              h1 { font-size: 20px; margin: 0 0 5px 0; font-weight: bold; }
+              h2 { font-size: 16px; margin: 0 0 5px 0; font-weight: bold; }
+              p { margin: 0; font-size: 14px; color: #444; }
+            </style>
+          </head>
+          <body>
+            <div class="title-box">
+              <h1>บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+              <h2>รายงานเปรียบเทียบราคาขายเฉลี่ย ตามแผนกและเกรดไม้</h2>
+              <p>ตั้งแต่วันที่ ${start_date} ถึงวันที่ ${end_date} สโตร์: ${store_code || 'รวมทุกสโตร์'}</p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th rowspan="2" style="vertical-align: middle;">แผนก</th>
+                  <th colspan="13">เฉลี่ยราคา</th>
+                </tr>
+                <tr>
+                  <th>AB ปกติ</th><th>AB พิเศษ</th><th class="bg-blue-light">AB</th>
+                  <th>C ปกติ</th><th>C พิเศษ</th><th class="bg-blue-light">C</th>
+                  <th>P ปกติ</th><th>P พิเศษ</th><th class="bg-blue-light">P</th>
+                  <th>PP ปกติ</th><th>PP พิเศษ</th><th class="bg-blue-light">PP</th>
+                  <th class="bg-green-light">รวม</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
+
+      const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
+      const page = await browser.newPage();
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      const pdfBuffer = await page.pdf({ 
+        format: 'A4', 
+        landscape: true, 
+        printBackground: true,
+        margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
+      });
+      await browser.close();
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="average_price_report.pdf"');
       res.send(pdfBuffer);
 
     } catch (error) {

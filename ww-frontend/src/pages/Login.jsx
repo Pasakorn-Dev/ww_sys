@@ -94,7 +94,7 @@ export default function Login() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
-            PPOS System
+            WW_Report System
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
             กรุณาเข้าสู่ระบบเพื่อจัดการหลังบ้าน

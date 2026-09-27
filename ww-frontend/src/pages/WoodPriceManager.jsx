@@ -29,31 +29,46 @@ export default function WoodPriceManager() {
 
   // ─── โหลดข้อมูลเริ่มต้น ───
   useEffect(() => {
+    let isMounted = true; // 💡 ตัวแปรดักจับเพื่อป้องกันการ Render เบิ้ล
+
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       const user = JSON.parse(storedUser);
       setCurrentUser(user);
       setIsAdmin(user.group_id === 1);
     }
-    fetchAllowedBranches();
-  }, []);
 
-  const fetchAllowedBranches = async () => {
-    try {
-      const data = await apiFetch('/branches/allowed');
-      if (data?.success) {
-        setBranches(data.data);
-        setAccessLevel(data.access_level);
-        if (data.access_level === 1) {
-          setSelectedBranch(0); // Admin: 0 = ดูภาพรวม (หรือต้องบังคับเลือกทีละสาขา)
-        } else if (data.data.length > 0) {
-          setSelectedBranch(data.data[0].id);
+    const fetchAllowedBranches = async () => {
+      try {
+        // 💡 ดึง Path ปัจจุบันและส่งไปให้ Backend เพื่อเช็คสิทธิ์ (access_level)
+        const currentPath = window.location.pathname;
+        const data = await apiFetch(`/branches/allowed?menu=${currentPath}`);
+        
+        // 💡 ถ้า Component ถูก Unmount ไปแล้ว (เช่น กดเปลี่ยนหน้าไวๆ) จะไม่เซ็ต State ต่อ
+        if (!isMounted) return;
+
+        if (data?.success) {
+          setBranches(data.data);
+          setAccessLevel(data.access_level);
+          
+          if (data.access_level === 1) {
+            setSelectedBranch(0); // Admin: 0 = ดูภาพรวม (หรือต้องบังคับเลือกทีละสาขา)
+          } else if (data.data.length > 0) {
+            setSelectedBranch(data.data[0].id);
+          }
         }
+      } catch (error) {
+        console.error('Fetch branches error:', error);
       }
-    } catch (error) {
-      console.error('Fetch branches error:', error);
-    }
-  };
+    };
+
+    fetchAllowedBranches();
+
+    // 💡 Cleanup function สำหรับจัดการการดึง API เบิ้ล
+    return () => {
+      isMounted = false; 
+    };
+  }, []);
 
   // ดึงข้อมูลสินค้าตาม Filter (เรียกเมื่อ Filter เปลี่ยน หรือ สาขาเปลี่ยน)
   const fetchProducts = async () => {

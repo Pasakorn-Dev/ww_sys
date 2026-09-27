@@ -46,6 +46,7 @@ const checkPermission = (menuLink, action) => {
             req.user.branch_id = branchId;
             req.permission = perm;
             
+            // console.log(accessLevel);
             // Debug log
             // console.log(`=== Permission Check [${menuLink}] ===`);
             // console.log('Action:', action);

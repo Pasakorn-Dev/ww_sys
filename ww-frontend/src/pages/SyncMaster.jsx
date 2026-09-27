@@ -30,6 +30,7 @@ export default function SyncMaster() {
     }
   }, [logs]);
 
+  // ─── โหลดข้อมูลเริ่มต้น ───
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
@@ -41,23 +42,23 @@ export default function SyncMaster() {
   }, []);
 
   const fetchAllowedBranches = async () => {
-    addLog('Fetching authorized branches...');
     try {
-      const data = await apiFetch('/branches/allowed');
+      // 💡 ดึง Path ปัจจุบัน (เช่น '/wood-prices') และแนบไปกับ API
+      const currentPath = window.location.pathname;
+      const data = await apiFetch(`/branches/allowed?menu=${currentPath}`);
+      
       if (data?.success) {
         setBranches(data.data);
         setAccessLevel(data.access_level);
         
         if (data.access_level === 1) {
-          setSelectedBranch(0); 
+          setSelectedBranch(0); // Admin: 0 = ดูภาพรวม (หรือต้องบังคับเลือกทีละสาขา)
         } else if (data.data.length > 0) {
           setSelectedBranch(data.data[0].id);
         }
-        addLog(`Loaded ${data.data.length} branches successfully. Access Level: ${data.access_level}`);
       }
     } catch (error) {
       console.error('Fetch branches error:', error);
-      addLog('❌ Error: Failed to fetch branches.');
     }
   };
 

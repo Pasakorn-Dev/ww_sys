@@ -33,7 +33,10 @@ export default function ProductionCoverReport() {
   useEffect(() => {
     const fetchBranches = async () => {
       try {
-        const res = await apiFetch('/branches/allowed');
+        // const res = await apiFetch('/branches/allowed');
+        const currentPath = window.location.pathname;
+        // 💡 2. แนบ ?menu=... พ่วงไปกับ API เลย Backend จะได้รู้เป๊ะๆ
+        const res = await apiFetch(`/branches/allowed?menu=${currentPath}`);
         if (res?.success) {
           const validBranches = res.data.filter(b => b.id !== 0);
           setBranches(validBranches);
