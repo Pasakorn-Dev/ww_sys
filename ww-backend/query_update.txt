@@ -2,4 +2,16 @@ INSERT INTO public.menus(
 	id, menu_name, link, icon, sort_order, parent_id)
 	VALUES (14, 'รายงานราคาเฉลี่ย', '/average-price', 'fas fa-chart-line', 3, 11);
 
+INSERT INTO public.menus(
+	id, menu_name, link, icon, sort_order, parent_id)
+	VALUES (15, 'รายงานไม้เลื่อย แยกตาม ความหนา มิล', '/production-thick-mil-report', 'fas fa-chart-line', 4, 11);
+
+INSERT INTO public.group_permissions(
+	id, group_id, menu_id, can_view, can_rpt, can_add, can_edit, can_delete, access_level)
+	VALUES (20, 1, 15, true, true, true, true, true, 2);
+
+
+add column transaction_saw_woods.sawer_id
+
+
 
