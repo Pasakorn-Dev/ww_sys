@@ -11,6 +11,7 @@ import SyncSawWood from './pages/SyncSawWood';
 import CheckSawWood from './pages/CheckSawWood';
 import ProductionConverReport from './pages/ProductionCoverReport';
 import WoodTypeReport from './pages/WoodTypeReport';
+import AveragePriceReport from './pages/AveragePriceReport';
 
 
 function App() {
@@ -30,6 +31,7 @@ function App() {
           <Route path="/check-saw-woods" element={<CheckSawWood />} />
           <Route path="/production-cover" element={<ProductionConverReport />} />
           <Route path="/wood-type-ab" element={<WoodTypeReport />} />
+          <Route path="/average-price" element={<AveragePriceReport />} />
         </Route>
       </Routes>
     </BrowserRouter>

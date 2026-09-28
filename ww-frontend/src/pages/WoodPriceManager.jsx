@@ -29,31 +29,46 @@ export default function WoodPriceManager() {
 
   // ─── โหลดข้อมูลเริ่มต้น ───
   useEffect(() => {
+    let isMounted = true; // 💡 ตัวแปรดักจับเพื่อป้องกันการ Render เบิ้ล
+
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       const user = JSON.parse(storedUser);
       setCurrentUser(user);
       setIsAdmin(user.group_id === 1);
     }
-    fetchAllowedBranches();
-  }, []);
 
-  const fetchAllowedBranches = async () => {
-    try {
-      const data = await apiFetch('/branches/allowed');
-      if (data?.success) {
-        setBranches(data.data);
-        setAccessLevel(data.access_level);
-        if (data.access_level === 1) {
-          setSelectedBranch(0); // Admin: 0 = ดูภาพรวม (หรือต้องบังคับเลือกทีละสาขา)
-        } else if (data.data.length > 0) {
-          setSelectedBranch(data.data[0].id);
+    const fetchAllowedBranches = async () => {
+      try {
+        // 💡 ดึง Path ปัจจุบันและส่งไปให้ Backend เพื่อเช็คสิทธิ์ (access_level)
+        const currentPath = window.location.pathname;
+        const data = await apiFetch(`/branches/allowed?menu=${currentPath}`);
+        
+        // 💡 ถ้า Component ถูก Unmount ไปแล้ว (เช่น กดเปลี่ยนหน้าไวๆ) จะไม่เซ็ต State ต่อ
+        if (!isMounted) return;
+
+        if (data?.success) {
+          setBranches(data.data);
+          setAccessLevel(data.access_level);
+          
+          if (data.access_level === 1) {
+            setSelectedBranch(0); // Admin: 0 = ดูภาพรวม (หรือต้องบังคับเลือกทีละสาขา)
+          } else if (data.data.length > 0) {
+            setSelectedBranch(data.data[0].id);
+          }
         }
+      } catch (error) {
+        console.error('Fetch branches error:', error);
       }
-    } catch (error) {
-      console.error('Fetch branches error:', error);
-    }
-  };
+    };
+
+    fetchAllowedBranches();
+
+    // 💡 Cleanup function สำหรับจัดการการดึง API เบิ้ล
+    return () => {
+      isMounted = false; 
+    };
+  }, []);
 
   // ดึงข้อมูลสินค้าตาม Filter (เรียกเมื่อ Filter เปลี่ยน หรือ สาขาเปลี่ยน)
   const fetchProducts = async () => {
@@ -205,7 +220,7 @@ export default function WoodPriceManager() {
         </div>
 
         {/* สาขา & Filter */}
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-end">
           <div className="md:col-span-2">
             <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">สาขาที่จัดการ</label>
             <select
@@ -219,7 +234,10 @@ export default function WoodPriceManager() {
               ))}
             </select>
           </div>
-          
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">มิล</label>
+            <input type="text" name="mil" value={filters.mil} onChange={handleFilterChange} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm rounded-lg p-2.5" placeholder="มิล..." />
+          </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">หนา</label>
             <input type="text" name="thick" value={filters.thick} onChange={handleFilterChange} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm rounded-lg p-2.5" placeholder="หนา..." />
@@ -232,7 +250,6 @@ export default function WoodPriceManager() {
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">ยาว</label>
             <input type="text" name="length" value={filters.length} onChange={handleFilterChange} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm rounded-lg p-2.5" placeholder="ยาว..." />
           </div>
-          
           <button onClick={fetchProducts} disabled={selectedBranch === '' || selectedBranch === 0} className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
             <i className="fas fa-search mr-2"></i> ค้นหา
           </button>

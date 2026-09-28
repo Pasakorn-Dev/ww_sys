@@ -17,6 +17,8 @@ router.put('/:id', verifyToken, checkPermission('/branches', 'edit'), branchCont
 router.delete('/:id', verifyToken, checkPermission('/branches', 'delete'), branchController.deleteBranch);
 
 // เพิ่ม Route ใหม่สำหรับดึงสาขาตามสิทธิ์ (วางไว้ด้านบนๆ ก่อน Route ที่มี /:id)
-router.get('/allowed', verifyToken, checkPermission('/sync-master', 'view'), branchController.getAllowedBranches);
+// router.get('/allowed', verifyToken, checkPermission('/sync-master', 'view'), branchController.getAllowedBranches);
+
+router.get('/allowed', verifyToken, branchController.getAllowedBranches);
 
 module.exports = router;

@@ -6,8 +6,8 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { th } from 'date-fns/locale';
 import { format, parseISO } from 'date-fns';
 
-// 1. สร้าง Component ย่อยสำหรับตาราง
-const ReportTable = React.memo(({ data }) => {
+// ─── Component ย่อยสำหรับแสดงตารางและยอดรวม ───
+const ReportTable = React.memo(({ data, grandTotal, showGrandTotal }) => {
   return (
     <table className="w-full text-xs border-collapse border border-gray-400 whitespace-nowrap mt-4">
       <thead>
@@ -28,6 +28,7 @@ const ReportTable = React.memo(({ data }) => {
       <tbody>
         {data.map((sawGroup, sawIdx) => (
           <React.Fragment key={sawIdx}>
+            {/* แถวแสดงชื่อชุดเลื่อย */}
             <tr className="bg-[#4472c4] text-white font-bold border-t-4 border-[#1f3864]">
               <td className="border border-gray-500 p-2 pl-3 text-left text-[13px]" colSpan="2">{sawGroup.saw_name}</td>
               <td className="border border-gray-500 p-2 pl-3 text-left text-[13px]" colSpan="10">ชุดที่ {sawIdx + 1}</td>
@@ -35,6 +36,7 @@ const ReportTable = React.memo(({ data }) => {
 
             {sawGroup.thicks.map((thickGroup, thickIdx) => (
               <React.Fragment key={`${sawIdx}-${thickIdx}`}>
+                {/* แถวแสดงความหนา */}
                 <tr className="bg-[#e6f2ff] font-bold">
                   <td className="border border-gray-400 p-1 pl-3 text-blue-900">ความหนา</td>
                   <td className="border border-gray-400 p-1 pl-2 text-blue-900" colSpan="11">{thickGroup.thick}</td>
@@ -42,6 +44,7 @@ const ReportTable = React.memo(({ data }) => {
 
                 {thickGroup.lengths.map((lenGroup, lenIdx) => (
                   <React.Fragment key={`${sawIdx}-${thickIdx}-${lenIdx}`}>
+                    {/* รายละเอียดรหัสไม้ */}
                     {lenGroup.items.map((item, itemIdx) => (
                       <tr key={itemIdx} className="bg-white hover:bg-gray-100 transition-colors">
                         <td className="border border-gray-400 p-1 pl-3 font-medium" colSpan="2">
@@ -61,6 +64,7 @@ const ReportTable = React.memo(({ data }) => {
                       </tr>
                     ))}
 
+                    {/* สรุปรวมยาว */}
                     <tr className="bg-[#fff2cc] font-bold text-gray-800">
                       <td className="border border-gray-400 p-1 pl-3" colSpan="2">รวมยาว {lenGroup.length}</td>
                       <td className="border border-gray-400 p-1 text-right">{lenGroup.subTotal.ab_volumn.toFixed(4)}</td>
@@ -77,6 +81,7 @@ const ReportTable = React.memo(({ data }) => {
                   </React.Fragment>
                 ))}
 
+                {/* สรุปรวมหนา */}
                 <tr className="bg-[#c6e0b4] font-bold text-gray-800 border-t-2 border-gray-500">
                   <td className="border border-gray-400 p-1 pl-3" colSpan="2">รวมหนา <span className="text-red-600">{thickGroup.thick}</span></td>
                   <td className="border border-gray-400 p-1 text-right text-green-900">{thickGroup.subTotal.ab_volumn.toFixed(4)}</td>
@@ -91,6 +96,7 @@ const ReportTable = React.memo(({ data }) => {
                   <td className="border border-gray-400 p-1 text-right text-green-900">{thickGroup.subTotal.spc_amt.toFixed(2)}</td>
                 </tr>
 
+                {/* สัดส่วนและราคาเฉลี่ยต่อความหนา */}
                 <tr className="bg-white font-medium">
                   <td className="border border-gray-400 p-1 pl-3" colSpan="2">% ความหนา (ชุด) รวมพิเศษ</td>
                   <td className="border border-gray-400 p-1 bg-[#f2f2f2]"></td>
@@ -99,7 +105,6 @@ const ReportTable = React.memo(({ data }) => {
                   <td className="border border-gray-400 p-1 text-right bg-[#ffe699] font-bold text-orange-900">{thickGroup.subTotal.spc_volumn > 0 ? thickGroup.pct_thick_all_spc.toFixed(2) + '%' : ''}</td>
                   <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="3"></td>
                 </tr>
-
                 <tr className="bg-white font-medium">
                   <td className="border border-gray-400 p-1 pl-3" colSpan="2">% ความหนา (ชุด) แยก ปกติ ,พิเศษ</td>
                   <td className="border border-gray-400 p-1 bg-[#f2f2f2]"></td>
@@ -108,7 +113,6 @@ const ReportTable = React.memo(({ data }) => {
                   <td className="border border-gray-400 p-1 text-right bg-[#f8cbad] font-bold text-orange-900">{thickGroup.subTotal.spc_volumn > 0 ? thickGroup.pct_thick_sep_spc.toFixed(2) + '%' : ''}</td>
                   <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="3"></td>
                 </tr>
-
                 <tr className="bg-white font-medium border-b-4 border-gray-400">
                   <td className="border border-gray-400 p-1 pl-3" colSpan="2">ราคาเฉลี่ย</td>
                   <td className="border border-gray-400 p-1 bg-[#f2f2f2]"></td>
@@ -117,11 +121,57 @@ const ReportTable = React.memo(({ data }) => {
                   <td className="border border-gray-400 p-1 text-right bg-[#ff0000] font-bold text-white">{thickGroup.subTotal.spc_volumn > 0 ? thickGroup.avg_price_spc.toFixed(2) : ''}</td>
                   <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="3"></td>
                 </tr>
-
               </React.Fragment>
             ))}
           </React.Fragment>
         ))}
+
+        {/* 🌟 แสดงแถวสรุปยอดรวมทั้งหมด (Grand Total) เฉพาะเมื่ออยู่หน้าสุดท้าย 🌟 */}
+        {showGrandTotal && grandTotal && (
+          <React.Fragment>
+            <tr className="bg-[#a9d08e] font-bold text-gray-900 border-t-4 border-gray-700">
+              <td className="border border-gray-500 p-2 pl-3 text-left text-[13px]" colSpan="2">รวมทั้งหมดทั้งรายงาน</td>
+              <td className="border border-gray-500 p-2 text-right">{grandTotal.ab_volumn.toFixed(4)}</td>
+              <td className="border border-gray-500 p-2 text-right bg-[#f2f2f2]"></td>
+              <td className="border border-gray-500 p-2 text-right text-gray-700">{grandTotal.ab_volumn > 0 ? '100.00%' : ''}</td>
+              <td className="border border-gray-500 p-2 text-right bg-[#f2f2f2]"></td>
+              <td className="border border-gray-500 p-2 text-right">{grandTotal.ab_amt.toFixed(2)}</td>
+              
+              <td className="border border-gray-500 p-2 text-right">{grandTotal.spc_volumn.toFixed(4)}</td>
+              <td className="border border-gray-500 p-2 text-right bg-[#f2f2f2]"></td>
+              <td className="border border-gray-500 p-2 text-right text-gray-700">{grandTotal.spc_volumn > 0 ? '100.00%' : ''}</td>
+              <td className="border border-gray-500 p-2 text-right bg-[#f2f2f2]"></td>
+              <td className="border border-gray-500 p-2 text-right">{grandTotal.spc_amt.toFixed(2)}</td>
+            </tr>
+
+            <tr className="bg-white font-medium">
+              <td className="border border-gray-400 p-1 pl-3" colSpan="2">% รวมทั้งหมด รวมพิเศษ</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]"></td>
+              <td className="border border-gray-400 p-1 text-right bg-[#ffe699] font-bold text-orange-900">{grandTotal.ab_volumn > 0 ? grandTotal.pct_all_ab.toFixed(2) + '%' : ''}</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="4"></td>
+              <td className="border border-gray-400 p-1 text-right bg-[#ffe699] font-bold text-orange-900">{grandTotal.spc_volumn > 0 ? grandTotal.pct_all_spc.toFixed(2) + '%' : ''}</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="3"></td>
+            </tr>
+
+            <tr className="bg-white font-medium">
+              <td className="border border-gray-400 p-1 pl-3" colSpan="2">% รวมทั้งหมด แยก ปกติ ,พิเศษ</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]"></td>
+              <td className="border border-gray-400 p-1 text-right bg-[#f8cbad] font-bold text-orange-900">{grandTotal.ab_volumn > 0 ? grandTotal.pct_sep_ab.toFixed(2) + '%' : ''}</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="4"></td>
+              <td className="border border-gray-400 p-1 text-right bg-[#f8cbad] font-bold text-orange-900">{grandTotal.spc_volumn > 0 ? grandTotal.pct_sep_spc.toFixed(2) + '%' : ''}</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="3"></td>
+            </tr>
+
+            <tr className="bg-white font-medium border-b-4 border-gray-700">
+              <td className="border border-gray-400 p-1 pl-3" colSpan="2">ราคาเฉลี่ยรวมทั้งหมด</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]"></td>
+              <td className="border border-gray-400 p-1 text-right bg-[#ff0000] font-bold text-white">{grandTotal.ab_volumn > 0 ? grandTotal.avg_price_ab.toFixed(2) : ''}</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="4"></td>
+              <td className="border border-gray-400 p-1 text-right bg-[#ff0000] font-bold text-white">{grandTotal.spc_volumn > 0 ? grandTotal.avg_price_spc.toFixed(2) : ''}</td>
+              <td className="border border-gray-400 p-1 bg-[#f2f2f2]" colSpan="3"></td>
+            </tr>
+          </React.Fragment>
+        )}
       </tbody>
     </table>
   );
@@ -137,21 +187,24 @@ export default function WoodTypeReport() {
   });
 
   const [reportData, setReportData] = useState([]);
+  const [grandTotalData, setGrandTotalData] = useState(null); // เก็บค่า Grand Total จาก Backend
   const [branches, setBranches] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   
-  // State สำหรับโหลดเอกสาร
+  // State สำหรับปุ่มส่งออกเอกสาร
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
-  // สถานะสำหรับการจัดการหน้า
+  // การจัดการหน้า (Pagination)
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 2;
+  const itemsPerPage = 2; // จำนวนชุดเลื่อยต่อหน้า
 
   useEffect(() => {
     const fetchBranches = async () => {
       try {
-        const res = await apiFetch('/branches/allowed');
+        const currentPath = window.location.pathname;
+        // 💡 2. แนบ ?menu=... พ่วงไปกับ API เลย Backend จะได้รู้เป๊ะๆ
+        const res = await apiFetch(`/branches/allowed?menu=${currentPath}`);
 
         if (res?.success && res.data.length > 0) {
           setBranches(res.data);
@@ -196,7 +249,8 @@ export default function WoodTypeReport() {
       const res = await apiFetch(`/reports/wood-type-ab?${q}`);
       if (res?.success) {
         setReportData(res.data);
-        setCurrentPage(1);
+        setGrandTotalData(res.grandTotal); // เซ็ตค่า Grand Total ที่รับมา
+        setCurrentPage(1); 
         if (res.data.length === 0) {
           Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลของสาขาและวันที่เลือก', 'info');
         }
@@ -208,7 +262,7 @@ export default function WoodTypeReport() {
     }
   };
 
-  // ฟังก์ชันโหลด PDF (Blob)
+  // ฟังก์ชันแสดงตัวอย่าง PDF แบบ Blob
   const handleExportPDF = async () => {
     setIsExportingPDF(true);
     try {
@@ -219,9 +273,6 @@ export default function WoodTypeReport() {
       }).toString();
 
       const token = localStorage.getItem('token');
-      
-      // [แก้ไขตรงนี้] เปลี่ยนจาก process.env เป็น import.meta.env ของ Vite
-      // หากคุณไม่ได้ตั้งค่า VITE_API_URL ไว้ ให้ใส่ URL ของ Backend แทนตรงๆ (เช่น 'http://localhost:5000/api')
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       
       const res = await fetch(`${apiUrl}/reports/wood-type-ab/pdf?${q}`, {
@@ -232,7 +283,7 @@ export default function WoodTypeReport() {
       
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
-      window.open(url, '_blank'); // เปิด Preview PDF ใน Tab ใหม่
+      window.open(url, '_blank'); // เปิด PDF ในแท็บใหม่
     } catch (error) {
       console.error(error);
       Swal.fire('ข้อผิดพลาด', 'ไม่สามารถสร้างไฟล์ PDF ได้', 'error');
@@ -241,7 +292,7 @@ export default function WoodTypeReport() {
     }
   };
 
-  // ฟังก์ชันโหลด Excel (Blob)
+  // ฟังก์ชันดาวน์โหลด Excel แบบ Blob
   const handleExportExcel = async () => {
     setIsExportingExcel(true);
     try {
@@ -252,8 +303,6 @@ export default function WoodTypeReport() {
       }).toString();
 
       const token = localStorage.getItem('token');
-      
-      // [แก้ไขตรงนี้] เปลี่ยนเป็น import.meta.env เช่นเดียวกัน
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       
       const res = await fetch(`${apiUrl}/reports/wood-type-ab/excel?${q}`, {
@@ -278,6 +327,7 @@ export default function WoodTypeReport() {
     }
   };
 
+  // คำนวณช่วงข้อมูลสำหรับการแบ่งหน้า
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentData = reportData.slice(indexOfFirstItem, indexOfLastItem);
@@ -290,6 +340,7 @@ export default function WoodTypeReport() {
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6 print:hidden">
         <h2 className="text-xl font-bold text-gray-800 mb-4">ค้นหารายงานการเบิกจ่ายแยกตาม ประเภทไม้</h2>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+
           <div className="flex flex-col">
             <label className="text-xs font-semibold mb-1 text-gray-700">สาขา</label>
             <select
@@ -316,7 +367,8 @@ export default function WoodTypeReport() {
               onChange={(date) => handleDateChange(date, 'start_date')}
               dateFormat="dd/MM/yyyy"
               locale={th}
-              className="w-full border rounded-md p-2 text-sm"
+              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500"
+              wrapperClassName="w-full"
             />
           </div>
 
@@ -327,7 +379,8 @@ export default function WoodTypeReport() {
               onChange={(date) => handleDateChange(date, 'end_date')}
               dateFormat="dd/MM/yyyy"
               locale={th}
-              className="w-full border rounded-md p-2 text-sm"
+              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500"
+              wrapperClassName="w-full"
             />
           </div>
 
@@ -370,7 +423,12 @@ export default function WoodTypeReport() {
             <p className="text-sm text-gray-500 mt-1">{filters.condition}</p>
           </div>
 
-          <ReportTable data={currentData} />
+          {/* 🌟 แสดงตารางพร้อมส่งข้อมูล Grand Total ไป และจะแสดงเมื่อถึงหน้าสุดท้าย 🌟 */}
+          <ReportTable 
+            data={currentData} 
+            grandTotal={grandTotalData} 
+            showGrandTotal={currentPage === totalPages || totalPages === 0} 
+          />
 
           {/* โซนควบคุมการเปลี่ยนหน้า */}
           {totalPages > 1 && (

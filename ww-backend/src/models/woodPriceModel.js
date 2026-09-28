@@ -4,7 +4,7 @@ const format = require('pg-format'); // 💡 ต้องมีบรรทั�
 const WoodPriceModel = {
   // ─── 1. ดึงข้อมูลราคาไม้เลื่อยตามสาขาและตัวกรอง ───
   getWoodPrices: async (filters) => {
-    const { branch_id, thick, width, length, wood_code } = filters;
+    const { branch_id, mil, thick, width, length, wood_code } = filters;
     
     let query = `
       SELECT id, wood_code, thick, width, length, mil, unit_price 
@@ -15,6 +15,7 @@ const WoodPriceModel = {
     let paramIndex = 2;
 
     // ต่อ String ค้นหาตามเงื่อนไข (Dynamic Query)
+    if (mil) { query += `AND mil = $${paramIndex++}`; params.push(mil); }
     if (thick) { query += ` AND thick = $${paramIndex++}`; params.push(thick); }
     if (width) { query += ` AND width = $${paramIndex++}`; params.push(width); }
     if (length) { query += ` AND length = $${paramIndex++}`; params.push(length); }
