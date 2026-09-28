@@ -179,6 +179,54 @@ const ReportModel = {
 
     const { rows } = await pool.query(query, params);
     return rows;
+  },
+
+  // เพิ่มต่อท้ายฟังก์ชันเดิมใน ReportModel
+  getProductionThickMilReport: async (filters) => {
+    const { branch_id, start_date, end_date, store_code } = filters;
+
+    let query = `
+      SELECT 
+          concat(SUBSTRING(mws.wood_code FROM 6 FOR 2),'-',SUBSTRING(mws.wood_code FROM 3 FOR 3)) as thick_mil
+          ,mws.thick
+          ,mws.length
+          ,RIGHT(mws.wood_code, 7) AS wood_code
+          ,SUM(tsw.volumn) AS ab_volumn
+          ,SUM(tsw.net_price) AS ab_amount
+      FROM transaction_saw_woods tsw
+      JOIN master_wood_sizes mws 
+        ON mws.old_id = tsw.wood_size_id 
+        AND tsw.branch_id = mws.branch_id
+      LEFT JOIN master_saw_wood_types swt 
+        ON tsw.saw_wood_type_id = swt.old_id 
+        AND tsw.branch_id = swt.branch_id
+      WHERE mws.grade = 'AB' 
+        AND tsw.branch_id = $1
+        AND DATE(tsw.produce_date) BETWEEN $2 AND $3
+    `;
+
+    const params = [branch_id, start_date, end_date];
+
+    // เพิ่มเงื่อนไขค้นหาสโตร์ ถ้ามีการส่งมา
+    if (store_code) {
+      query += ` AND swt.code = $4`;
+      params.push(store_code);
+    }
+
+    query += `
+      GROUP BY 
+        concat(SUBSTRING(mws.wood_code FROM 6 FOR 2),'-',SUBSTRING(mws.wood_code FROM 3 FOR 3)), 
+        mws.thick, 
+        mws.length, 
+        RIGHT(mws.wood_code, 7)
+      ORDER BY 
+        thick_mil ASC, 
+        mws.length ASC, 
+        wood_code ASC
+    `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
   }
 };
 

@@ -49,13 +49,15 @@ export default function SyncSawWood() {
       
       if (data?.success) {
         setBranches(data.data);
-        setAccessLevel(data.access_level);
         
-        if (data.access_level === 1) {
-          setSelectedBranch(0); 
-        } else if (data.data.length > 0) {
-          setSelectedBranch(data.data[0].id);
+        // 💡 3. กรองเอาเฉพาะสาขาจริง (ไม่เอา id 0) เพื่อใช้หาค่าเริ่มต้น
+        const validList = data.data.filter(b => b.id !== 0);
+        
+        // บังคับให้ค่าเริ่มต้นเป็นสาขาแรกที่มีอยู่จริงเสมอ
+        if (validList.length > 0) {
+          setSelectedBranch(validList[0].id);
         }
+        
         addLog(`Loaded ${data.data.length} branches successfully. Access Level: ${data.access_level}`);
       }
     } catch (error) {

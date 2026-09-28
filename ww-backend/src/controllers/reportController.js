@@ -126,6 +126,93 @@ const fetchWoodTypeAbData = async (start_date, end_date, branch_id) => {
   return { finalData, grandTotal };
 };
 
+// --- Helper Function สำหรับดึงข้อมูลและคำนวณ (ลดความซ้ำซ้อน) ---
+const fetchProductionThickMilData = async (start_date, end_date, branch_id, store_code) => {
+  const rows = await ReportModel.getProductionThickMilReport({ branch_id, start_date, end_date, store_code });
+
+  let grand_total_volumn = 0;
+  let grand_total_amount = 0;
+  const lengthSummaryMap = {};
+
+  rows.forEach(row => {
+    const vol = Number(row.ab_volumn) || 0;
+    const amt = Number(row.ab_amount) || 0;
+    const len = row.length;
+    
+    grand_total_volumn += vol;
+    grand_total_amount += amt;
+
+    if (!lengthSummaryMap[len]) lengthSummaryMap[len] = 0;
+    lengthSummaryMap[len] += vol;
+  });
+
+  const grouped = rows.reduce((acc, row) => {
+    const tm = row.thick_mil;
+    const l = row.length;
+    const vol = Number(row.ab_volumn) || 0;
+    const amt = Number(row.ab_amount) || 0;
+
+    if (!acc[tm]) {
+      acc[tm] = { thick_mil: tm, thick: row.thick, lengths: {}, total_volumn: 0, total_amount: 0 };
+    }
+    if (!acc[tm].lengths[l]) {
+      acc[tm].lengths[l] = { length: l, items: [], sub_volumn: 0, sub_amount: 0 };
+    }
+
+    acc[tm].lengths[l].items.push({
+      wood_code: row.wood_code,
+      ab_volumn: vol,
+      ab_amount: amt,
+      avg_price: vol > 0 ? amt / vol : 0
+    });
+
+    acc[tm].lengths[l].sub_volumn += vol;
+    acc[tm].lengths[l].sub_amount += amt;
+    acc[tm].total_volumn += vol;
+    acc[tm].total_amount += amt;
+
+    return acc;
+  }, {});
+
+  const formattedData = Object.values(grouped).map(tmGroup => {
+    const lengthsArr = Object.values(tmGroup.lengths).map(lenGroup => {
+      lenGroup.items = lenGroup.items.map(item => {
+          item.pct_width = lenGroup.sub_volumn > 0 ? (item.ab_volumn / lenGroup.sub_volumn) * 100 : 0;
+          return item;
+      });
+      lenGroup.pct_length = tmGroup.total_volumn > 0 ? (lenGroup.sub_volumn / tmGroup.total_volumn) * 100 : 0;
+      return lenGroup;
+    });
+
+    return {
+      thick_mil: tmGroup.thick_mil,
+      thick: tmGroup.thick,
+      lengths: lengthsArr,
+      total_volumn: tmGroup.total_volumn,
+      total_amount: tmGroup.total_amount,
+      pct_thick_total: grand_total_volumn > 0 ? (tmGroup.total_volumn / grand_total_volumn) * 100 : 0,
+      avg_price: tmGroup.total_volumn > 0 ? tmGroup.total_amount / tmGroup.total_volumn : 0
+    };
+  });
+
+  const lengthSummary = Object.keys(lengthSummaryMap).sort((a,b) => Number(a) - Number(b)).map(len => {
+      const vol = lengthSummaryMap[len];
+      return {
+        length: len,
+        volumn: vol,
+        pct: grand_total_volumn > 0 ? (vol / grand_total_volumn) * 100 : 0
+      };
+  });
+
+  const grandTotal = {
+    total_volumn: grand_total_volumn,
+    total_amount: grand_total_amount,
+    avg_price: grand_total_volumn > 0 ? grand_total_amount / grand_total_volumn : 0
+  };
+
+  return { formattedData, grandTotal, lengthSummary };
+};
+
 const reportController = {
   getProductionCover: async (req, res) => {
     try {
@@ -1153,7 +1240,318 @@ const reportController = {
       console.error(error);
       res.status(500).json({ success: false, message: 'Error generating PDF' });
     }
+  },
+
+  // เพิ่มเข้าไปใน reportController
+  getProductionThickMil: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code } = req.query;
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      const rows = await ReportModel.getProductionThickMilReport({ branch_id, start_date, end_date, store_code });
+
+      // 1. คำนวณยอดรวมทั้งหมด (Grand Total) และ สรุปสัดส่วนความยาว
+      let grand_total_volumn = 0;
+      let grand_total_amount = 0;
+      const lengthSummaryMap = {};
+
+      rows.forEach(row => {
+        const vol = Number(row.ab_volumn) || 0;
+        const amt = Number(row.ab_amount) || 0;
+        const len = row.length;
+        
+        grand_total_volumn += vol;
+        grand_total_amount += amt;
+
+        if (!lengthSummaryMap[len]) lengthSummaryMap[len] = 0;
+        lengthSummaryMap[len] += vol;
+      });
+
+      // 2. จัดกลุ่มข้อมูล (Thick_Mil -> Length -> WoodCode)
+      const grouped = rows.reduce((acc, row) => {
+        const tm = row.thick_mil;
+        const l = row.length;
+        const vol = Number(row.ab_volumn) || 0;
+        const amt = Number(row.ab_amount) || 0;
+
+        if (!acc[tm]) {
+          acc[tm] = { thick_mil: tm, thick: row.thick, lengths: {}, total_volumn: 0, total_amount: 0 };
+        }
+
+        if (!acc[tm].lengths[l]) {
+          acc[tm].lengths[l] = { length: l, items: [], sub_volumn: 0, sub_amount: 0 };
+        }
+
+        acc[tm].lengths[l].items.push({
+          wood_code: row.wood_code,
+          ab_volumn: vol,
+          ab_amount: amt,
+          avg_price: vol > 0 ? amt / vol : 0
+        });
+
+        acc[tm].lengths[l].sub_volumn += vol;
+        acc[tm].lengths[l].sub_amount += amt;
+        acc[tm].total_volumn += vol;
+        acc[tm].total_amount += amt;
+
+        return acc;
+      }, {});
+
+      // 3. คำนวณเปอร์เซ็นต์ (% กว้าง, % ยาว, % ความหนา)
+      const formattedData = Object.values(grouped).map(tmGroup => {
+        const lengthsArr = Object.values(tmGroup.lengths).map(lenGroup => {
+          lenGroup.items = lenGroup.items.map(item => {
+             // % กว้าง (เทียบกับยอดรวมของความยาวนั้น)
+             item.pct_width = lenGroup.sub_volumn > 0 ? (item.ab_volumn / lenGroup.sub_volumn) * 100 : 0;
+             return item;
+          });
+          // % ยาว (เทียบกับยอดรวมของความหนา-มิลไม้นั้น)
+          lenGroup.pct_length = tmGroup.total_volumn > 0 ? (lenGroup.sub_volumn / tmGroup.total_volumn) * 100 : 0;
+          return lenGroup;
+        });
+
+        return {
+          thick_mil: tmGroup.thick_mil,
+          lengths: lengthsArr,
+          total_volumn: tmGroup.total_volumn,
+          total_amount: tmGroup.total_amount,
+          // % หน้าไม้นี้ รวมพิเศษ (เทียบกับยอดรวมทั้งรายงาน)
+          pct_thick_total: grand_total_volumn > 0 ? (tmGroup.total_volumn / grand_total_volumn) * 100 : 0,
+          avg_price: tmGroup.total_volumn > 0 ? tmGroup.total_amount / tmGroup.total_volumn : 0
+        };
+      });
+
+      // 4. สรุปสัดส่วนความยาวภาพรวม
+      const lengthSummary = Object.keys(lengthSummaryMap).sort((a,b) => Number(a) - Number(b)).map(len => {
+         const vol = lengthSummaryMap[len];
+         return {
+           length: len,
+           volumn: vol,
+           pct: grand_total_volumn > 0 ? (vol / grand_total_volumn) * 100 : 0
+         };
+      });
+
+      const grandTotal = {
+        total_volumn: grand_total_volumn,
+        total_amount: grand_total_amount,
+        avg_price: grand_total_volumn > 0 ? grand_total_amount / grand_total_volumn : 0
+      };
+
+      res.json({
+        success: true,
+        data: formattedData,
+        grandTotal,
+        lengthSummary
+      });
+
+    } catch (error) {
+      console.error('Report Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงาน' });
+    }
+  },
+  
+  // --- นำไปใส่ต่อท้ายใน reportController ---
+  exportProductionThickMilExcel: async (req, res) => {
+    try {
+      const { start_date, end_date, branch_id, store_code } = req.query;
+      const { formattedData, grandTotal, lengthSummary } = await fetchProductionThickMilData(start_date, end_date, branch_id, store_code);
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Report');
+
+      worksheet.columns = [
+        { header: 'ขนาดไม้', key: 'col1', width: 20 },
+        { header: '', key: 'col2', width: 15 },
+        { header: 'AB', key: 'ab_vol', width: 15 },
+        { header: '% กว้าง', key: 'pct_w', width: 15 },
+        { header: '% ยาว', key: 'pct_l', width: 15 },
+        { header: 'ราคา', key: 'price', width: 15 },
+        { header: 'จำนวนเงิน', key: 'amount', width: 20 }
+      ];
+
+      worksheet.getRow(1).eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFB4C6E7' } };
+        cell.font = { bold: true };
+        cell.alignment = { horizontal: 'center' };
+      });
+      worksheet.mergeCells('A1:B1');
+      worksheet.getCell('A1').value = 'ขนาดไม้';
+
+      formattedData.forEach(tmGroup => {
+        const tmRow = worksheet.addRow(['ความหนา', `${tmGroup.thick_mil} mm`]);
+        
+        tmGroup.lengths.forEach(lenGroup => {
+          lenGroup.items.forEach(item => {
+            worksheet.addRow([
+              '', item.wood_code,
+              item.ab_volumn, `${item.pct_width.toFixed(2)}%`,
+              '', item.avg_price > 0 ? item.avg_price : '', item.ab_amount
+            ]);
+          });
+          
+          const lenRow = worksheet.addRow([
+            `รวมยาว ${lenGroup.length}`, '',
+            lenGroup.sub_volumn, '', `${lenGroup.pct_length.toFixed(2)}%`,
+            '', lenGroup.sub_amount
+          ]);
+          lenRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } };
+          lenRow.font = { bold: true };
+        });
+
+        const thickRow = worksheet.addRow([
+          `รวมหนา ${tmGroup.thick_mil} mm`, '', tmGroup.total_volumn, '', '', '', tmGroup.total_amount
+        ]);
+        thickRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6E0B4' } };
+        thickRow.font = { bold: true };
+
+        const pctRow = worksheet.addRow(['% หน้าไม้นี้ รวมพิเศษ', '', tmGroup.pct_thick_total]);
+        pctRow.getCell(3).numFmt = '0.00"%"';
+        pctRow.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE699' } };
+        pctRow.getCell(3).font = { color: { argb: 'FFC00000' }, bold: true };
+
+        const avgRow = worksheet.addRow(['ราคาเฉลี่ย', '', tmGroup.avg_price]);
+        avgRow.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } };
+        avgRow.getCell(3).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+      });
+
+      if (grandTotal) {
+        const gtRow = worksheet.addRow(['รวม ลบ. ฟุต ทั้งหมด', '', grandTotal.total_volumn, '100%', '', '', grandTotal.total_amount]);
+        gtRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF8EA9DB' } };
+        gtRow.font = { bold: true };
+        
+        const gtAvgRow = worksheet.addRow(['ราคาเฉลี่ย', '', grandTotal.avg_price]);
+        gtAvgRow.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE699' } };
+        gtAvgRow.getCell(3).font = { color: { argb: 'FFC00000' }, bold: true };
+        gtAvgRow.font = { bold: true };
+      }
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=production_thick_mil.xlsx');
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error Excel' });
+    }
+  },
+
+  exportProductionThickMilPDF: async (req, res) => {
+    try {
+      const { start_date, end_date, branch_id, store_code, branch_name } = req.query;
+      const { formattedData, grandTotal, lengthSummary } = await fetchProductionThickMilData(start_date, end_date, branch_id, store_code);
+
+      const fs = require('fs');
+      const path = require('path');
+      const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
+      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+
+      let rowsHtml = '';
+      formattedData.forEach(tmGroup => {
+        rowsHtml += `<tr><td class="left pl">ความหนา</td><td class="left pl">${tmGroup.thick_mil} mm</td><td colspan="5"></td></tr>`;
+        
+        tmGroup.lengths.forEach(lenGroup => {
+          lenGroup.items.forEach(item => {
+            rowsHtml += `
+              <tr>
+                <td></td><td class="left pl text-blue">${item.wood_code}</td>
+                <td>${item.ab_volumn.toFixed(4)}</td><td class="text-gray">${item.pct_width.toFixed(2)}%</td>
+                <td></td><td>${item.avg_price > 0 ? item.avg_price.toFixed(2) : ''}</td>
+                <td>${item.ab_amount.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+              </tr>`;
+          });
+          rowsHtml += `
+            <tr class="bg-yellow bold">
+              <td colspan="2" class="left pl">รวมยาว ${lenGroup.length}</td>
+              <td>${lenGroup.sub_volumn.toFixed(4)}</td><td></td>
+              <td>${lenGroup.pct_length.toFixed(2)}%</td><td></td>
+              <td>${lenGroup.sub_amount.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+            </tr>`;
+        });
+        
+        rowsHtml += `
+          <tr class="bg-green bold text-green-dark border-b">
+            <td colspan="2" class="left pl">รวมหนา ${tmGroup.thick_mil} mm</td>
+            <td>${tmGroup.total_volumn.toFixed(4)}</td><td colspan="3"></td>
+            <td>${tmGroup.total_amount.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+          </tr>
+          <tr><td colspan="2" class="left pl">% หน้าไม้นี้ รวมพิเศษ</td><td class="bg-yellow-light bold text-red">${tmGroup.pct_thick_total.toFixed(2)}%</td><td colspan="4"></td></tr>
+          <tr><td colspan="2" class="left pl">ราคาเฉลี่ย</td><td class="bg-red bold text-white">${tmGroup.avg_price.toFixed(2)}</td><td colspan="4"></td></tr>
+        `;
+      });
+
+      if(grandTotal) {
+        rowsHtml += `
+          <tr class="bg-blue bold border-t">
+            <td colspan="2" class="left pl">รวม ลบ. ฟุต ทั้งหมด</td><td class="text-blue-dark">${grandTotal.total_volumn.toFixed(4)}</td>
+            <td>100%</td><td colspan="2"></td><td class="text-blue-dark">${grandTotal.total_amount.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+          </tr>
+          <tr class="bg-gray bold">
+            <td colspan="2" class="left pl">ราคาเฉลี่ย</td><td class="bg-yellow-light text-red">${grandTotal.avg_price.toFixed(2)}</td><td colspan="4"></td>
+          </tr>
+        `;
+      }
+
+      let summaryHtml = '';
+      if(lengthSummary.length > 0) {
+        lengthSummary.forEach(sum => {
+          summaryHtml += `<tr><td class="left pl">รวมปริมาตร ${sum.length} ม.</td><td>${sum.volumn.toFixed(4)}</td><td>${sum.pct.toFixed(2)}%</td></tr>`;
+        });
+        summaryHtml += `<tr class="bg-gray bold"><td class="left pl">รวมปริมาตรทั้งหมด</td><td>${grandTotal.total_volumn.toFixed(2)}</td><td>100.00%</td></tr>`;
+      }
+
+      const htmlContent = `
+        <html><head><style>
+          @font-face { font-family: 'THSarabun'; src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype'); }
+          body { font-family: 'THSarabun', sans-serif; font-size: 13px; margin: 0; padding: 20px; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #777; padding: 4px; text-align: right; }
+          th { background-color: #b4c6e7; font-weight: bold; text-align: center; }
+          .left { text-align: left; } .pl { padding-left: 10px; } .bold { font-weight: bold; }
+          .bg-yellow { background-color: #fff2cc; } .bg-green { background-color: #c6e0b4; }
+          .bg-yellow-light { background-color: #ffe699; } .bg-red { background-color: #ff0000; }
+          .bg-blue { background-color: #8ea9db; } .bg-gray { background-color: #e2e8f0; }
+          .text-red { color: #c00000; } .text-white { color: #fff; }
+          .text-blue { color: #1e3a8a; } .text-blue-dark { color: #1e3a8a; } .text-green-dark { color: #14532d; }
+          .text-gray { color: #4b5563; }
+          .border-b { border-bottom: 2px solid #555; } .border-t { border-top: 2px solid #555; }
+        </style></head><body>
+          <div style="text-align:center; margin-bottom:15px;">
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h2 style="font-size:16px; margin:0;">รายงานการผลิต แยกตาม ความหนา-มิลไม้</h2>
+            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
+          </div>
+          <table>
+            <thead><tr><th colspan="2">ขนาดไม้</th><th>AB</th><th>% กว้าง</th><th>% ยาว</th><th>ราคา</th><th>จำนวนเงิน</th></tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+          <div style="width:50%; margin-top:20px;">
+            <table>
+              <thead><tr><th style="background:#f3f4f6; text-align:left;">สรุปสัดส่วนความยาว</th><th style="background:#f3f4f6;">ปริมาตร</th><th style="background:#f3f4f6;">เปอร์เซ็นต์</th></tr></thead>
+              <tbody>${summaryHtml}</tbody>
+            </table>
+          </div>
+        </body></html>
+      `;
+
+      const puppeteer = require('puppeteer');
+      const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
+      const page = await browser.newPage();
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      const pdfBuffer = await page.pdf({ format: 'A4', landscape: false, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
+      await browser.close();
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="report.pdf"');
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error PDF' });
+    }
   }
+
 };
 
 module.exports = reportController;

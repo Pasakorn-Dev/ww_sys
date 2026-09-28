@@ -17,4 +17,9 @@ router.get('/average-price', verifyToken, reportController.getAveragePriceReport
 router.get('/average-price/pdf', verifyToken, reportController.exportAveragePriceReportPDF);
 router.get('/average-price/excel', verifyToken, reportController.exportAveragePriceReportExcel);
 
+router.get('/production-thick-mil', verifyToken, reportController.getProductionThickMil);
+
+router.get('/production-thick-mil/pdf', verifyToken, reportController.exportProductionThickMilPDF);
+router.get('/production-thick-mil/excel', verifyToken, reportController.exportProductionThickMilExcel);
+
 module.exports = router;

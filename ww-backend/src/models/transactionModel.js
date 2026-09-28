@@ -27,9 +27,9 @@ const TransactionModel = {
         a.transaction_type_id, a.saw_time_id, a.saw_name, bc.barcode_id, 
         wsam.id AS wood_size_amount_map_id, wsam.amount,
         round(((MID(wz.wood_code,6,1)+MID(wz.wood_code,7,1)/8)*(IF(MID(wz.wood_code,8,1)="A",10,IF(MID(wz.wood_code,8,1)="B",11,IF(MID(wz.wood_code,8,1)="C",12,IF(MID(wz.wood_code,8,1)="D",13,IF(MID(wz.wood_code,8,1)="E",14,IF(MID(wz.wood_code,8,1)="F",15,IF(MID(wz.wood_code,8,1)="G",16,IF(MID(wz.wood_code,8,1)="H",17,IF(MID(wz.wood_code,8,1)="I",18,IF(MID(wz.wood_code,8,1)="J",19,IF(MID(wz.wood_code,8,1)="K",20,MID(wz.wood_code,8,1))))))))))))+MID(wz.wood_code,9,1)/8)*(RIGHT(wz.wood_code,3)/100)*0.0228 * wsam.amount),4) as volumn,
-        wz.id AS wood_size_id, wsam.saw_wood_type_id
+        wz.id AS wood_size_id, wsam.saw_wood_type_id, a.sawer_id
       FROM (
-        SELECT lwqc.*, rws.id as rws_id, rws.barcode_id, rws.produce_date
+        SELECT lwqc.*, rws.id as rws_id, rws.barcode_id, rws.produce_date, rws.sawer_id
         FROM (
           SELECT scale_date_time, log_wood_type_id, log_wood_eval_size_id, ws_customer_id, transaction_type_id, saw_time_id, saw_name
           FROM log_woodqc lwqc
@@ -37,10 +37,12 @@ const TransactionModel = {
           GROUP BY scale_date_time, log_wood_type_id, log_wood_eval_size_id, ws_customer_id, transaction_type_id, saw_time_id, saw_name
         ) lwqc
         INNER JOIN (
-          SELECT rws.id, rws.barcode_id, rws.saw_table_id, date(rws.produce_date) as produce_date, isws.code, rws.saw_time_id
+          SELECT rws.id, rws.barcode_id, rws.saw_table_id, date(rws.produce_date) as produce_date, isws.code, rws.saw_time_id ,i.sawer_id
           FROM raw_wood_source rws 
           LEFT JOIN interface_saw_worker_set isws ON isws.id = rws.interfaced_worker_set_id
-          WHERE rws.produce_date >= ? AND rws.produce_date <= ?
+        LEFT join interface_saw_worker_set_interface_saw_worker ri on ri.interface_saw_worker_set_workers_id=isws.id
+        LEFT join interface_saw_worker i on i.id = ri.interface_saw_worker_id
+          WHERE rws.produce_date >= ? AND rws.produce_date <= ? AND i.position_id = 1
         ) rws ON 1=1 
           AND date(rws.produce_date) = date(lwqc.scale_date_time) 
           AND rws.code = lwqc.saw_name 
@@ -74,7 +76,7 @@ const TransactionModel = {
           INSERT INTO transaction_saw_woods (
             wood_size_amount_map_id, barcode_id, produce_date, log_wood_type_id, log_wood_eval_size_id, 
             ws_customer_id, transaction_type_id, saw_time_id, saw_name, wood_size_id, saw_wood_type_id, 
-            amount, volumn, unit_price, branch_id
+            amount, volumn, unit_price, branch_id , sawer_id
           ) 
           VALUES %L 
           ON CONFLICT (branch_id ,wood_size_amount_map_id) 
@@ -91,7 +93,8 @@ const TransactionModel = {
             saw_wood_type_id = EXCLUDED.saw_wood_type_id,
             amount = EXCLUDED.amount,
             volumn = EXCLUDED.volumn,
-            unit_price = EXCLUDED.unit_price
+            unit_price = EXCLUDED.unit_price,
+            sawer_id = EXCLUDED.sawer_id
         `, chunk);
 
         await client.query(upsertQuery);

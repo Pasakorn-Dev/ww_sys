@@ -12,6 +12,7 @@ import CheckSawWood from './pages/CheckSawWood';
 import ProductionConverReport from './pages/ProductionCoverReport';
 import WoodTypeReport from './pages/WoodTypeReport';
 import AveragePriceReport from './pages/AveragePriceReport';
+import ProductionThickMilReport from './pages/ProductionThickMilReport';
 
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
           <Route path="/production-cover" element={<ProductionConverReport />} />
           <Route path="/wood-type-ab" element={<WoodTypeReport />} />
           <Route path="/average-price" element={<AveragePriceReport />} />
+          <Route path="/production-thick-mil-report" element={<ProductionThickMilReport />} />
         </Route>
       </Routes>
     </BrowserRouter>

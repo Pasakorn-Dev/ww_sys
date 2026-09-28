@@ -58,7 +58,8 @@ const transactionController = {
           row.amount || 0,
           row.volumn || 0,
           unitPrice,
-          branch_id
+          branch_id,
+          row.sawer_id || null
         ];
       });
 
