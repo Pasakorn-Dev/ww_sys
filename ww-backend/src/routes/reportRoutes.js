@@ -22,4 +22,8 @@ router.get('/production-thick-mil', verifyToken, reportController.getProductionT
 router.get('/production-thick-mil/pdf', verifyToken, reportController.exportProductionThickMilPDF);
 router.get('/production-thick-mil/excel', verifyToken, reportController.exportProductionThickMilExcel);
 
+router.get('/sawer-performance', verifyToken, reportController.getSawerPerformance);
+router.get('/sawer-performance/pdf', verifyToken, reportController.exportSawerPerformancePDF);
+router.get('/sawer-performance/excel', verifyToken, reportController.exportSawerPerformanceExcel);
+
 module.exports = router;
