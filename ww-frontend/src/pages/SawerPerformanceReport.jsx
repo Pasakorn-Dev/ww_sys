@@ -163,7 +163,8 @@ export default function SawerPerformanceReport() {
     branch_id: '',
     branch_name: '',
     start_date: new Date().toISOString().split('T')[0],
-    end_date: new Date().toISOString().split('T')[0]
+    end_date: new Date().toISOString().split('T')[0],
+    report_format: '1' // 💡 เพิ่มค่าตัวเลือกรูปแบบรายงาน
   });
 
   const [reportData, setReportData] = useState([]);
@@ -178,7 +179,7 @@ export default function SawerPerformanceReport() {
 
   // การจัดการหน้า (Pagination)
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10; // จำนวนพนักงานนายม้า ต่อหน้า
+  const itemsPerPage = 10; 
 
   // ─── โหลดสาขาเริ่มต้น ───
   useEffect(() => {
@@ -209,6 +210,10 @@ export default function SawerPerformanceReport() {
   }, []);
 
   // ─── Handlers ───
+  const handleFilterChange = (e) => {
+    setFilters({ ...filters, [e.target.name]: e.target.value });
+  };
+  
   const handleDateChange = (date, name) => {
     if (date) setFilters({ ...filters, [name]: format(date, 'yyyy-MM-dd') });
   };
@@ -227,7 +232,8 @@ export default function SawerPerformanceReport() {
       const q = new URLSearchParams({
         start_date: filters.start_date,
         end_date: filters.end_date,
-        branch_id: filters.branch_id
+        branch_id: filters.branch_id,
+        report_format: filters.report_format // 💡 แนบรูปแบบรายงาน
       }).toString();
 
       const res = await apiFetch(`/reports/sawer-performance?${q}`);
@@ -252,7 +258,6 @@ export default function SawerPerformanceReport() {
   const handleExportPDF = async (isPreview = false) => {
     setIsExportingPDF(true);
     
-    // 💡 แสดง Popup Loading ระหว่างรอสร้าง PDF
     Swal.fire({
       title: 'กำลังสร้างไฟล์ PDF...',
       html: 'กรุณารอสักครู่ ระบบกำลังประมวลผลข้อมูล',
@@ -265,7 +270,8 @@ export default function SawerPerformanceReport() {
         start_date: filters.start_date,
         end_date: filters.end_date,
         branch_id: filters.branch_id,
-        branch_name: filters.branch_name
+        branch_name: filters.branch_name,
+        report_format: filters.report_format // 💡 แนบรูปแบบรายงาน
       }).toString();
 
       const token = localStorage.getItem('token');
@@ -280,7 +286,6 @@ export default function SawerPerformanceReport() {
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       
-      // ปิด Popup Loading เมื่อเสร็จ
       Swal.close();
 
       if (isPreview) {
@@ -305,7 +310,6 @@ export default function SawerPerformanceReport() {
   const handleExportExcel = async () => {
     setIsExportingExcel(true);
 
-    // 💡 แสดง Popup Loading ระหว่างรอสร้าง Excel
     Swal.fire({
       title: 'กำลังสร้างไฟล์ Excel...',
       html: 'กรุณารอสักครู่ ระบบกำลังประมวลผลข้อมูล',
@@ -317,7 +321,8 @@ export default function SawerPerformanceReport() {
       const q = new URLSearchParams({
         start_date: filters.start_date,
         end_date: filters.end_date,
-        branch_id: filters.branch_id
+        branch_id: filters.branch_id,
+        report_format: filters.report_format // 💡 แนบรูปแบบรายงาน
       }).toString();
 
       const token = localStorage.getItem('token');
@@ -332,7 +337,6 @@ export default function SawerPerformanceReport() {
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
 
-      // ปิด Popup Loading เมื่อเสร็จ
       Swal.close();
 
       const a = document.createElement('a');
@@ -349,7 +353,6 @@ export default function SawerPerformanceReport() {
     }
   };
 
-  // คำนวณช่วงข้อมูลสำหรับการแบ่งหน้า
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentData = reportData.slice(indexOfFirstItem, indexOfLastItem);
@@ -364,7 +367,7 @@ export default function SawerPerformanceReport() {
           <i className="fas fa-users-cog text-blue-600"></i> ค้นหารายงานสรุปผลงานนายม้า
         </h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="flex flex-col">
             <label className="text-xs font-semibold mb-1 text-gray-700">สาขา <span className="text-red-500">*</span></label>
             <select
@@ -402,6 +405,19 @@ export default function SawerPerformanceReport() {
               wrapperClassName="w-full"
             />
           </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs font-semibold mb-1 text-gray-700">รูปแบบรายงาน</label>
+            <select
+              name="report_format"
+              value={filters.report_format}
+              onChange={handleFilterChange}
+              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-blue-50 text-blue-700 font-semibold"
+            >
+              <option value="1">แบบที่ 1 (แสดงนายม้า+แหล่งที่มา)</option>
+              <option value="2">แบบที่ 2 (สรุปเฉพาะแผนก)</option>
+            </select>
+          </div>
         </div>
 
         <div className="mt-6 flex justify-between items-center">
@@ -415,14 +431,14 @@ export default function SawerPerformanceReport() {
 
           {reportData.length > 0 && (
             <div className="flex gap-2">
-              <button onClick={() => handleExportPDF(true)} className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2">
-                <i className="fas fa-search-plus"></i> ตัวอย่าง PDF
+              <button onClick={() => handleExportPDF(true)} disabled={isExportingPDF} className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2">
+                <i className="fas fa-search-plus"></i> {isExportingPDF ? 'กำลังสร้าง...' : 'ตัวอย่าง PDF'}
               </button>
-              <button onClick={() => handleExportPDF(false)} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2">
+              <button onClick={() => handleExportPDF(false)} disabled={isExportingPDF} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2">
                 <i className="fas fa-file-pdf"></i> โหลด PDF
               </button>
-              <button onClick={handleExportExcel} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2">
-                <i className="fas fa-file-excel"></i> โหลด Excel
+              <button onClick={handleExportExcel} disabled={isExportingExcel} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2">
+                <i className="fas fa-file-excel"></i> {isExportingExcel ? 'กำลังสร้าง...' : 'โหลด Excel'}
               </button>
             </div>
           )}
@@ -496,6 +512,7 @@ export default function SawerPerformanceReport() {
               </div>
             </div>
           )}
+
         </div>
       )}
     </div>

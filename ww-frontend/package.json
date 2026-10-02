@@ -20,6 +20,7 @@
     "react-datepicker": "^9.1.0",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.2",
+    "react-select": "^5.10.2",
     "sweetalert2": "^11.26.25",
     "xlsx": "^0.18.5"
   },

@@ -3,11 +3,12 @@ import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
 import useMasterOptions from '../hooks/useMasterOptions';
 
-// 💡 1. นำเข้าไลบรารีปฏิทินและภาษาไทย
+// 💡 1. นำเข้าไลบรารีปฏิทินและ react-select
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { th } from 'date-fns/locale';
 import { format, parseISO } from 'date-fns';
+import Select from 'react-select'; // นำเข้า react-select
 
 export default function CheckSawWood() {
   const [branches, setBranches] = useState([]);
@@ -27,7 +28,6 @@ export default function CheckSawWood() {
     saw_wood_types_code: ''
   });
 
-  // 💡 เรียกใช้ Custom Hook ตรงนี้ โดยส่งค่า filters.branch_id เข้าไป
   const { options, isLoadingOptions } = useMasterOptions(filters.branch_id);
 
   useEffect(() => {
@@ -36,9 +36,7 @@ export default function CheckSawWood() {
 
   const fetchBranches = async () => {
     try {
-      // const res = await apiFetch('/branches/allowed');
       const currentPath = window.location.pathname;
-      // 💡 2. แนบ ?menu=... พ่วงไปกับ API เลย Backend จะได้รู้เป๊ะๆ
       const res = await apiFetch(`/branches/allowed?menu=${currentPath}`);
       if (res?.success) {
         const validBranches = res.data.filter(b => b.id !== 0);
@@ -56,7 +54,6 @@ export default function CheckSawWood() {
     setFilters({ ...filters, [e.target.name]: e.target.value });
   };
 
-  // 💡 2. เพิ่มฟังก์ชันจัดการเมื่อเลือกวันที่จากปฏิทิน
   const handleDateChange = (date, name) => {
     if (date) {
       setFilters({ ...filters, [name]: format(date, 'yyyy-MM-dd') });
@@ -84,7 +81,6 @@ export default function CheckSawWood() {
     }
   };
 
-  // ─── ฟังก์ชันดูรายละเอียดตาม Barcode ───
   const viewDetails = async (barcode_id) => {
     Swal.fire({
       title: 'กำลังโหลดข้อมูล...',
@@ -142,9 +138,15 @@ export default function CheckSawWood() {
     }
   };
 
-  // ─── จัดกลุ่มข้อมูลในตารางหลักตาม Barcode (ให้ดูง่ายขึ้น) ───
-  // หากต้องการแสดงรายบรรทัดตาม สามารถลบ reduce นี้ออกและใช้ data.map ได้เลย
-  // ในที่นี้จะจำลองให้เห็นทีละรายการ
+  // 💡 2. จัดโครงสร้างข้อมูลเจ้าหนี้ (รถไม้) สำหรับ react-select
+  const truckOptions = options.truckCompanies ? options.truckCompanies.map(item => ({
+    value: item.id,
+    label: `${item.code} - ${item.name}`
+  })) : [];
+  
+  // ค้นหาค่าเริ่มต้นที่เลือกอยู่
+  const selectedTruck = truckOptions.find(opt => String(opt.value) === String(filters.ws_customer_id)) || null;
+
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto flex flex-col min-h-[80vh]">
       
@@ -163,7 +165,6 @@ export default function CheckSawWood() {
             </select>
           </div>
           
-          {/* 💡 3. เปลี่ยนช่องวันที่เริ่มต้นเป็น DatePicker */}
           <div className="flex flex-col">
             <label className="block text-xs font-semibold text-gray-600 mb-1">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
             <DatePicker
@@ -177,7 +178,6 @@ export default function CheckSawWood() {
             />
           </div>
           
-          {/* 💡 3. เปลี่ยนช่องวันที่สิ้นสุดเป็น DatePicker */}
           <div className="flex flex-col">
             <label className="block text-xs font-semibold text-gray-600 mb-1">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
             <DatePicker
@@ -196,7 +196,6 @@ export default function CheckSawWood() {
             <input type="text" name="saw_wood_types_code" value={filters.saw_wood_types_code} onChange={handleFilterChange} placeholder="ระบุโค้ด (ถ้ามี)" className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none" />
           </div>
           
-          {/* ตัวกรองที่เปลี่ยนเป็น Dropdown เลือกจาก Master Data */}
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">ประเภทการชั่ง</label>
             <select name="transaction_type_id" value={filters.transaction_type_id} onChange={handleFilterChange} disabled={isLoadingOptions} className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none">
@@ -218,13 +217,40 @@ export default function CheckSawWood() {
               {options.logWoodEvalSizes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </div>
-          <div>
+          
+          {/* 💡 3. เปลี่ยน Dropdown เจ้าหนี้ เป็นแบบค้นหาได้ (react-select) */}
+          <div className="flex flex-col z-20">
             <label className="block text-xs font-semibold text-gray-600 mb-1">เจ้าหนี้ (รถไม้)</label>
-            <select name="ws_customer_id" value={filters.ws_customer_id} onChange={handleFilterChange} disabled={isLoadingOptions} className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none">
-              <option value="">-- ทั้งหมด --</option>
-              {options.truckCompanies.map(item => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}
-            </select>
+            <Select
+              options={truckOptions}
+              value={selectedTruck}
+              // จับคู่ event กลับไปให้ handleFilterChange
+              onChange={(selected) => handleFilterChange({
+                target: { name: 'ws_customer_id', value: selected ? selected.value : '' }
+              })}
+              isDisabled={isLoadingOptions}
+              isClearable
+              isSearchable
+              placeholder="-- ค้นหา / ทั้งหมด --"
+              noOptionsMessage={() => "ไม่พบข้อมูล"}
+              menuPortalTarget={document.body} // 💡 บังคับให้ Dropdown ลอยอยู่หน้าสุดเสมอ
+              styles={{
+                control: (base) => ({
+                  ...base,
+                  minHeight: '38px',
+                  borderRadius: '0.5rem',
+                  borderColor: '#e5e7eb',
+                  backgroundColor: '#f9fafb',
+                  fontSize: '0.875rem',
+                  boxShadow: 'none',
+                  '&:hover': { borderColor: '#d1d5db' }
+                }),
+                menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                menu: (base) => ({ ...base, fontSize: '0.875rem' })
+              }}
+            />
           </div>
+
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">กะการทำงาน (เวลา)</label>
             <select name="saw_time_id" value={filters.saw_time_id} onChange={handleFilterChange} disabled={isLoadingOptions} className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none">
@@ -244,7 +270,7 @@ export default function CheckSawWood() {
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col">
         <div className="overflow-x-auto flex-1">
           <table className="w-full text-sm text-left whitespace-nowrap">
-            <thead className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 sticky top-0">
+            <thead className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 sticky top-0 z-10">
               <tr>
                 <th className="px-4 py-3 border-b">วันที่ผลิต</th>
                 <th className="px-4 py-3 border-b">สาขา</th>

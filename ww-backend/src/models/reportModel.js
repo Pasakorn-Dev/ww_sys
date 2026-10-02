@@ -269,6 +269,46 @@ const ReportModel = {
     const params = [branch_id, start_date, end_date];
     const { rows } = await pool.query(query, params);
     return rows;
+  },
+
+  // 💡 เพิ่มฟังก์ชันนี้ต่อท้ายฟังก์ชันเดิม (รูปแบบที่ 2: สรุปเฉพาะแผนก)
+  getSawerPerformanceReportFormat2: async (filters) => {
+    const { branch_id, start_date, end_date } = filters;
+
+    const query = `
+      SELECT 
+        t.saw_name AS department,
+        'รวมทุกนายม้า' AS sawer,
+        'รวมทุกแหล่งที่มา' AS source,
+        SUM(CASE WHEN ws.is_special = false AND ws.grade = 'AB' THEN t.volumn ELSE 0 END) AS vol_normal_ab,
+        SUM(CASE WHEN ws.is_special = true AND ws.grade = 'AB' THEN t.volumn ELSE 0 END) AS vol_special_ab,
+        SUM(CASE WHEN ws.grade = 'AB' THEN t.volumn ELSE 0 END) AS vol_ab,
+        
+        SUM(CASE WHEN ws.is_special = false AND ws.grade = 'C' THEN t.volumn ELSE 0 END) AS vol_normal_c,
+        SUM(CASE WHEN ws.is_special = true AND ws.grade = 'C' THEN t.volumn ELSE 0 END) AS vol_special_c,
+        SUM(CASE WHEN ws.grade = 'C' THEN t.volumn ELSE 0 END) AS vol_c,
+
+        SUM(CASE WHEN ws.is_special = false AND ws.grade = 'P' THEN t.volumn ELSE 0 END) AS vol_normal_p,
+        SUM(CASE WHEN ws.is_special = true AND ws.grade = 'P' THEN t.volumn ELSE 0 END) AS vol_special_p,
+        SUM(CASE WHEN ws.grade = 'P' THEN t.volumn ELSE 0 END) AS vol_p,
+
+        SUM(CASE WHEN ws.is_special = false AND ws.grade = 'PP' THEN t.volumn ELSE 0 END) AS vol_normal_pp,
+        SUM(CASE WHEN ws.is_special = true AND ws.grade = 'PP' THEN t.volumn ELSE 0 END) AS vol_special_pp,
+        SUM(CASE WHEN ws.grade = 'PP' THEN t.volumn ELSE 0 END) AS vol_pp,
+
+        SUM(t.volumn) AS total_volumn
+      FROM transaction_saw_woods t
+      INNER JOIN master_wood_sizes ws ON t.wood_size_id = ws.old_id AND t.branch_id = ws.branch_id
+      -- 💡 สังเกตว่าไม่ต้อง LEFT JOIN พนักงาน หรือ แหล่งที่มา เพื่อให้ฐานข้อมูลประมวลผลเร็วขึ้น
+      WHERE t.branch_id = $1
+        AND DATE(t.produce_date) BETWEEN $2 AND $3
+      GROUP BY t.saw_name
+      ORDER BY t.saw_name ASC
+    `;
+
+    const params = [branch_id, start_date, end_date];
+    const { rows } = await pool.query(query, params);
+    return rows;
   }
 };
 

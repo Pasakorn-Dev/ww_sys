@@ -1422,155 +1422,38 @@ const reportController = {
       res.status(500).json({ success: false, message: 'Error PDF' });
     }
   },
-  // เพิ่มเข้าไปใน reportController
+
   getSawerPerformance: async (req, res) => {
     try {
-      const { branch_id, start_date, end_date } = req.query;
+      const { branch_id, start_date, end_date, report_format } = req.query;
 
       if (!branch_id || !start_date || !end_date) {
         return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
       }
 
-      const rows = await ReportModel.getSawerPerformanceReport({ branch_id, start_date, end_date });
-
-      // 1. คำนวณยอด "รวมทั้งหมด" (Grand Total) ประจำคอลัมน์
-      let gt = {
-        vol_normal_ab: 0, vol_special_ab: 0, vol_ab: 0,
-        vol_normal_c: 0, vol_special_c: 0, vol_c: 0,
-        vol_normal_p: 0, vol_special_p: 0, vol_p: 0,
-        vol_normal_pp: 0, vol_special_pp: 0, vol_pp: 0,
-        total_volumn: 0
-      };
-
-      rows.forEach(row => {
-        gt.vol_normal_ab += Number(row.vol_normal_ab || 0);
-        gt.vol_special_ab += Number(row.vol_special_ab || 0);
-        gt.vol_ab += Number(row.vol_ab || 0);
-        
-        gt.vol_normal_c += Number(row.vol_normal_c || 0);
-        gt.vol_special_c += Number(row.vol_special_c || 0);
-        gt.vol_c += Number(row.vol_c || 0);
-        
-        gt.vol_normal_p += Number(row.vol_normal_p || 0);
-        gt.vol_special_p += Number(row.vol_special_p || 0);
-        gt.vol_p += Number(row.vol_p || 0);
-        
-        gt.vol_normal_pp += Number(row.vol_normal_pp || 0);
-        gt.vol_special_pp += Number(row.vol_special_pp || 0);
-        gt.vol_pp += Number(row.vol_pp || 0);
-        
-        gt.total_volumn += Number(row.total_volumn || 0);
-      });
-
-      // 2. คำนวณ % สัดส่วนของแต่ละแถว (เทียบกับยอด Grand Total ของคอลัมน์นั้นๆ ตามในรูป)
-      const formattedData = rows.map(row => {
-        return {
-          ...row,
-          pct_normal_ab: gt.vol_normal_ab > 0 ? (Number(row.vol_normal_ab) / gt.vol_normal_ab) * 100 : 0,
-          pct_special_ab: gt.vol_special_ab > 0 ? (Number(row.vol_special_ab) / gt.vol_special_ab) * 100 : 0,
-          pct_ab: gt.vol_ab > 0 ? (Number(row.vol_ab) / gt.vol_ab) * 100 : 0,
-
-          pct_normal_c: gt.vol_normal_c > 0 ? (Number(row.vol_normal_c) / gt.vol_normal_c) * 100 : 0,
-          pct_special_c: gt.vol_special_c > 0 ? (Number(row.vol_special_c) / gt.vol_special_c) * 100 : 0,
-          pct_c: gt.vol_c > 0 ? (Number(row.vol_c) / gt.vol_c) * 100 : 0,
-
-          pct_normal_p: gt.vol_normal_p > 0 ? (Number(row.vol_normal_p) / gt.vol_normal_p) * 100 : 0,
-          pct_special_p: gt.vol_special_p > 0 ? (Number(row.vol_special_p) / gt.vol_special_p) * 100 : 0,
-          pct_p: gt.vol_p > 0 ? (Number(row.vol_p) / gt.vol_p) * 100 : 0,
-
-          pct_normal_pp: gt.vol_normal_pp > 0 ? (Number(row.vol_normal_pp) / gt.vol_normal_pp) * 100 : 0,
-          pct_special_pp: gt.vol_special_pp > 0 ? (Number(row.vol_special_pp) / gt.vol_special_pp) * 100 : 0,
-          pct_pp: gt.vol_pp > 0 ? (Number(row.vol_pp) / gt.vol_pp) * 100 : 0,
-
-          pct_total: gt.total_volumn > 0 ? (Number(row.total_volumn) / gt.total_volumn) * 100 : 0,
-        };
-      });
-
-      // 3. คำนวณ "เฉลี่ย ลบ.ฟ./ชุด" (นำ Grand Total มาหารด้วยจำนวนชุดเลื่อยที่หาเจอ)
-      const rowCount = rows.length;
-      const avgPerSet = {
-        vol_normal_ab: rowCount > 0 ? gt.vol_normal_ab / rowCount : 0,
-        vol_special_ab: rowCount > 0 ? gt.vol_special_ab / rowCount : 0,
-        vol_ab: rowCount > 0 ? gt.vol_ab / rowCount : 0,
-        
-        vol_normal_c: rowCount > 0 ? gt.vol_normal_c / rowCount : 0,
-        vol_special_c: rowCount > 0 ? gt.vol_special_c / rowCount : 0,
-        vol_c: rowCount > 0 ? gt.vol_c / rowCount : 0,
-        
-        vol_normal_p: rowCount > 0 ? gt.vol_normal_p / rowCount : 0,
-        vol_special_p: rowCount > 0 ? gt.vol_special_p / rowCount : 0,
-        vol_p: rowCount > 0 ? gt.vol_p / rowCount : 0,
-        
-        vol_normal_pp: rowCount > 0 ? gt.vol_normal_pp / rowCount : 0,
-        vol_special_pp: rowCount > 0 ? gt.vol_special_pp / rowCount : 0,
-        vol_pp: rowCount > 0 ? gt.vol_pp / rowCount : 0,
-        
-        total_volumn: rowCount > 0 ? gt.total_volumn / rowCount : 0,
-      };
+      // เรียกใช้ Helper ฟังก์ชันเดียวจบ
+      const { formattedData, grandTotal, avgPerSet } = await reportController.fetchSawerPerfDataHelper(branch_id, start_date, end_date, report_format);
 
       res.json({
         success: true,
         data: formattedData,
-        grandTotal: gt,
+        grandTotal,
         avgPerSet
       });
-
     } catch (error) {
       console.error('Report Error:', error);
-      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงาน' });
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานสรุปผลงานนายม้า' });
     }
   },
   // --- Helper Function สำหรับดึงและคำนวณข้อมูลนายม้า (ลดความซ้ำซ้อน) ---
-  fetchSawerPerfDataHelper: async (branch_id, start_date, end_date) => {
-    const rows = await ReportModel.getSawerPerformanceReport({ branch_id, start_date, end_date });
-
-    let gt = {
-      vol_normal_ab: 0, vol_special_ab: 0, vol_ab: 0,
-      vol_normal_c: 0, vol_special_c: 0, vol_c: 0,
-      vol_normal_p: 0, vol_special_p: 0, vol_p: 0,
-      vol_normal_pp: 0, vol_special_pp: 0, vol_pp: 0,
-      total_volumn: 0
-    };
-
-    rows.forEach(row => {
-      gt.vol_normal_ab += Number(row.vol_normal_ab || 0); gt.vol_special_ab += Number(row.vol_special_ab || 0); gt.vol_ab += Number(row.vol_ab || 0);
-      gt.vol_normal_c += Number(row.vol_normal_c || 0); gt.vol_special_c += Number(row.vol_special_c || 0); gt.vol_c += Number(row.vol_c || 0);
-      gt.vol_normal_p += Number(row.vol_normal_p || 0); gt.vol_special_p += Number(row.vol_special_p || 0); gt.vol_p += Number(row.vol_p || 0);
-      gt.vol_normal_pp += Number(row.vol_normal_pp || 0); gt.vol_special_pp += Number(row.vol_special_pp || 0); gt.vol_pp += Number(row.vol_pp || 0);
-      gt.total_volumn += Number(row.total_volumn || 0);
-    });
-
-    const formattedData = rows.map(row => ({
-      ...row,
-      pct_normal_ab: gt.vol_normal_ab > 0 ? (Number(row.vol_normal_ab) / gt.vol_normal_ab) * 100 : 0,
-      pct_special_ab: gt.vol_special_ab > 0 ? (Number(row.vol_special_ab) / gt.vol_special_ab) * 100 : 0,
-      pct_ab: gt.vol_ab > 0 ? (Number(row.vol_ab) / gt.vol_ab) * 100 : 0,
-      pct_normal_c: gt.vol_normal_c > 0 ? (Number(row.vol_normal_c) / gt.vol_normal_c) * 100 : 0,
-      pct_special_c: gt.vol_special_c > 0 ? (Number(row.vol_special_c) / gt.vol_special_c) * 100 : 0,
-      pct_c: gt.vol_c > 0 ? (Number(row.vol_c) / gt.vol_c) * 100 : 0,
-      pct_normal_p: gt.vol_normal_p > 0 ? (Number(row.vol_normal_p) / gt.vol_normal_p) * 100 : 0,
-      pct_special_p: gt.vol_special_p > 0 ? (Number(row.vol_special_p) / gt.vol_special_p) * 100 : 0,
-      pct_p: gt.vol_p > 0 ? (Number(row.vol_p) / gt.vol_p) * 100 : 0,
-      pct_normal_pp: gt.vol_normal_pp > 0 ? (Number(row.vol_normal_pp) / gt.vol_normal_pp) * 100 : 0,
-      pct_special_pp: gt.vol_special_pp > 0 ? (Number(row.vol_special_pp) / gt.vol_special_pp) * 100 : 0,
-      pct_pp: gt.vol_pp > 0 ? (Number(row.vol_pp) / gt.vol_pp) * 100 : 0,
-      pct_total: gt.total_volumn > 0 ? (Number(row.total_volumn) / gt.total_volumn) * 100 : 0,
-    }));
-
-    const rowCount = rows.length;
-    const avgPerSet = {
-      vol_normal_ab: rowCount > 0 ? gt.vol_normal_ab / rowCount : 0, vol_special_ab: rowCount > 0 ? gt.vol_special_ab / rowCount : 0, vol_ab: rowCount > 0 ? gt.vol_ab / rowCount : 0,
-      vol_normal_c: rowCount > 0 ? gt.vol_normal_c / rowCount : 0, vol_special_c: rowCount > 0 ? gt.vol_special_c / rowCount : 0, vol_c: rowCount > 0 ? gt.vol_c / rowCount : 0,
-      vol_normal_p: rowCount > 0 ? gt.vol_normal_p / rowCount : 0, vol_special_p: rowCount > 0 ? gt.vol_special_p / rowCount : 0, vol_p: rowCount > 0 ? gt.vol_p / rowCount : 0,
-      vol_normal_pp: rowCount > 0 ? gt.vol_normal_pp / rowCount : 0, vol_special_pp: rowCount > 0 ? gt.vol_special_pp / rowCount : 0, vol_pp: rowCount > 0 ? gt.vol_pp / rowCount : 0,
-      total_volumn: rowCount > 0 ? gt.total_volumn / rowCount : 0,
-    };
-
-    return { formattedData, grandTotal: gt, avgPerSet };
-  },
-  // --- Helper Function สำหรับดึงและคำนวณข้อมูลนายม้า (ลดความซ้ำซ้อน) ---
-  fetchSawerPerfDataHelper: async (branch_id, start_date, end_date) => {
-    const rows = await ReportModel.getSawerPerformanceReport({ branch_id, start_date, end_date });
+  fetchSawerPerfDataHelper: async (branch_id, start_date, end_date, reportFormat) => {
+    let rows;
+    // 💡 แก้ไข: แปลงค่าเป็น String ก่อนเปรียบเทียบ หรือใช้ '2'
+    if (String(reportFormat) === '2') {
+      rows = await ReportModel.getSawerPerformanceReportFormat2({ branch_id, start_date, end_date });
+    } else {
+      rows = await ReportModel.getSawerPerformanceReport({ branch_id, start_date, end_date });
+    }
 
     let gt = {
       vol_normal_ab: 0, vol_special_ab: 0, vol_ab: 0,
@@ -1620,8 +1503,9 @@ const reportController = {
   // --- ฟังก์ชัน สร้างไฟล์ Excel สรุปผลงานนายม้า ---
   exportSawerPerformanceExcel: async (req, res) => {
     try {
-      const { branch_id, start_date, end_date } = req.query;
-      const { formattedData, grandTotal, avgPerSet } = await reportController.fetchSawerPerfDataHelper(branch_id, start_date, end_date);
+      // 💡 แก้ไข: เพิ่ม report_format เข้าไปในการรับค่า
+      const { branch_id, start_date, end_date, report_format } = req.query;
+      const { formattedData, grandTotal, avgPerSet } = await reportController.fetchSawerPerfDataHelper(branch_id, start_date, end_date, report_format);
 
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Sawer Performance');
@@ -1664,7 +1548,6 @@ const reportController = {
 
       // ใส่ข้อมูล
       formattedData.forEach(row => {
-        // 💡 ครอบ Number() ให้หมด เพื่อให้ลง Excel เป็นตัวเลขที่เอาไป Sum ต่อได้
         const volRow = worksheet.addRow([
           row.department, row.sawer, row.source,
           Number(row.vol_normal_ab) || null, Number(row.vol_special_ab) || null, Number(row.vol_ab) || null,
@@ -1733,8 +1616,9 @@ const reportController = {
   // --- ฟังก์ชัน สร้างไฟล์ PDF สรุปผลงานนายม้า ---
   exportSawerPerformancePDF: async (req, res) => {
     try {
-      const { branch_id, start_date, end_date, branch_name } = req.query;
-      const { formattedData, grandTotal, avgPerSet } = await reportController.fetchSawerPerfDataHelper(branch_id, start_date, end_date);
+      // 💡 แก้ไข: เพิ่ม report_format เข้าไปในการรับค่า
+      const { branch_id, start_date, end_date, branch_name, report_format } = req.query;
+      const { formattedData, grandTotal, avgPerSet } = await reportController.fetchSawerPerfDataHelper(branch_id, start_date, end_date, report_format);
 
       const fs = require('fs');
       const path = require('path');
@@ -1743,7 +1627,6 @@ const reportController = {
 
       let rowsHtml = '';
       formattedData.forEach((row) => {
-        // 💡 ครอบ Number() ให้หมด ป้องกัน Error toFixed is not a function
         rowsHtml += `
           <tr class="bg-white">
             <td rowspan="2" class="left pl">${row.department || ''}</td>
@@ -1870,7 +1753,6 @@ const reportController = {
       const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
       const page = await browser.newPage();
       await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      // รายงานนี้คอลัมน์เยอะมาก (16 คอลัมน์) จึงต้องใช้กระดาษแนวนอน (Landscape)
       const pdfBuffer = await page.pdf({ format: 'A4', landscape: true, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
       await browser.close();
 
@@ -1883,4 +1765,5 @@ const reportController = {
     }
   }
 };
+
 module.exports = reportController;
