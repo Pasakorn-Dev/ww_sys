@@ -60,11 +60,14 @@ src/
   hooks/
     useMasterOptions.js
   pages/
+    AveragePriceReport.jsx
     Branches.jsx
     CheckSawWood.jsx
     Dashboard.jsx
     Login.jsx
     ProductionCoverReport.jsx
+    ProductionThickMilReport.jsx
+    SawerPerformanceReport.jsx
     SyncMaster.jsx
     SyncSawWood.jsx
     WoodPriceManager.jsx
@@ -77,12 +80,12 @@ src/
   main.jsx
 .env.example
 .gitignore
-.oxlintrc.json
-.repomixignore
 index.html
+.oxlintrc.json
 package.json
 pnpm-workspace.yaml
 README.md
+.repomixignore
 repomix-output.md
 vite.config.js
 </directory_structure>
@@ -746,6 +749,427 @@ export default function useMasterOptions(branchId) {
 }
 </file>
 
+<file path="src/pages/AveragePriceReport.jsx">
+import React, { useState, useEffect } from 'react';
+import Swal from 'sweetalert2';
+import apiFetch from '../services/apiFetch';
+import useMasterOptions from '../hooks/useMasterOptions';
+
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { th } from 'date-fns/locale';
+import { format, parseISO } from 'date-fns';
+
+// ─── Component ย่อยสำหรับตารางรายงาน ───
+const ReportTable = React.memo(({ data, grandTotal }) => {
+  return (
+    <div className="overflow-x-auto pb-4">
+      <table className="w-full text-xs border-collapse border border-gray-400 whitespace-nowrap min-w-max">
+        <thead>
+          {/* Header แถวบนสุด (แบ่งกลุ่มเกรด) */}
+          <tr className="bg-gray-200 text-gray-800">
+            <th className="border border-gray-400 p-2 text-center align-middle" rowSpan="2">
+              แผนก<br/>(ชุดเลื่อย)
+            </th>
+            <th className="border border-gray-400 p-2 text-center" colSpan="13">
+              เฉลี่ยราคา
+            </th>
+          </tr>
+          {/* Header แถวที่ 2 (แบ่งย่อยแต่ละเกรด) */}
+          <tr className="bg-gray-100 text-gray-700">
+            <th className="border border-gray-400 p-2 text-right">AB ปกติ</th>
+            <th className="border border-gray-400 p-2 text-right">AB พิเศษ</th>
+            <th className="border border-gray-400 p-2 text-right bg-blue-50 font-bold">AB</th>
+            
+            <th className="border border-gray-400 p-2 text-right">C ปกติ</th>
+            <th className="border border-gray-400 p-2 text-right">C พิเศษ</th>
+            <th className="border border-gray-400 p-2 text-right bg-blue-50 font-bold">C</th>
+
+            <th className="border border-gray-400 p-2 text-right">P ปกติ</th>
+            <th className="border border-gray-400 p-2 text-right">P พิเศษ</th>
+            <th className="border border-gray-400 p-2 text-right bg-blue-50 font-bold">P</th>
+
+            <th className="border border-gray-400 p-2 text-right">PP ปกติ</th>
+            <th className="border border-gray-400 p-2 text-right">PP พิเศษ</th>
+            <th className="border border-gray-400 p-2 text-right bg-blue-50 font-bold">PP</th>
+
+            <th className="border border-gray-400 p-2 text-right bg-green-100 font-bold">รวม</th>
+          </tr>
+        </thead>
+        <tbody>
+          {/* วนลูปข้อมูลแต่ละชุดเลื่อย */}
+          {data.length > 0 ? (
+            data.map((row, idx) => (
+              <tr key={idx} className="hover:bg-blue-50 transition-colors bg-white">
+                <td className="border border-gray-400 p-2 text-left font-medium">{row.saw_name || 'ไม่ระบุ'}</td>
+                
+                {/* กลุ่ม AB */}
+                <td className="border border-gray-400 p-2 text-right">{Number(row.normal_ab) > 0 ? Number(row.normal_ab).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(row.special_ab) > 0 ? Number(row.special_ab).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right bg-blue-50/30 font-semibold">{Number(row.avg_ab) > 0 ? Number(row.avg_ab).toFixed(2) : ''}</td>
+
+                {/* กลุ่ม C */}
+                <td className="border border-gray-400 p-2 text-right">{Number(row.normal_c) > 0 ? Number(row.normal_c).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(row.special_c) > 0 ? Number(row.special_c).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right bg-blue-50/30 font-semibold">{Number(row.avg_c) > 0 ? Number(row.avg_c).toFixed(2) : ''}</td>
+
+                {/* กลุ่ม P */}
+                <td className="border border-gray-400 p-2 text-right">{Number(row.normal_p) > 0 ? Number(row.normal_p).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(row.special_p) > 0 ? Number(row.special_p).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right bg-blue-50/30 font-semibold">{Number(row.avg_p) > 0 ? Number(row.avg_p).toFixed(2) : ''}</td>
+
+                {/* กลุ่ม PP */}
+                <td className="border border-gray-400 p-2 text-right">{Number(row.normal_pp) > 0 ? Number(row.normal_pp).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(row.special_pp) > 0 ? Number(row.special_pp).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right bg-blue-50/30 font-semibold">{Number(row.avg_pp) > 0 ? Number(row.avg_pp).toFixed(2) : ''}</td>
+
+                {/* รวมเฉลี่ยทั้งหมด (ต่อชุดเลื่อย) */}
+                <td className="border border-gray-400 p-2 text-right bg-green-50 text-green-800 font-bold">
+                  {Number(row.avg_total) > 0 ? Number(row.avg_total).toFixed(2) : ''}
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan="14" className="border border-gray-400 p-8 text-center text-gray-500">
+                ไม่พบข้อมูลในช่วงเวลาที่เลือก
+              </td>
+            </tr>
+          )}
+
+          {/* แถวสรุปรวมทั้งหมด (Grand Total) */}
+          {grandTotal && data.length > 0 && (
+            <tr className="bg-gray-300 font-bold text-gray-900 border-t-2 border-gray-600">
+              <td className="border border-gray-500 p-2 text-left bg-gray-400">รวมทั้งหมด</td>
+              
+              <td className="border border-gray-500 p-2 text-right">{Number(grandTotal.normal_ab) > 0 ? Number(grandTotal.normal_ab).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 p-2 text-right">{Number(grandTotal.special_ab) > 0 ? Number(grandTotal.special_ab).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 p-2 text-right bg-blue-200">{Number(grandTotal.avg_ab) > 0 ? Number(grandTotal.avg_ab).toFixed(2) : '0'}</td>
+
+              <td className="border border-gray-500 p-2 text-right">{Number(grandTotal.normal_c) > 0 ? Number(grandTotal.normal_c).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 p-2 text-right">{Number(grandTotal.special_c) > 0 ? Number(grandTotal.special_c).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 p-2 text-right bg-blue-200">{Number(grandTotal.avg_c) > 0 ? Number(grandTotal.avg_c).toFixed(2) : '0'}</td>
+
+              <td className="border border-gray-500 p-2 text-right">{Number(grandTotal.normal_p) > 0 ? Number(grandTotal.normal_p).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 p-2 text-right">{Number(grandTotal.special_p) > 0 ? Number(grandTotal.special_p).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 p-2 text-right bg-blue-200">{Number(grandTotal.avg_p) > 0 ? Number(grandTotal.avg_p).toFixed(2) : '0'}</td>
+
+              <td className="border border-gray-500 p-2 text-right">{Number(grandTotal.normal_pp) > 0 ? Number(grandTotal.normal_pp).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 p-2 text-right">{Number(grandTotal.special_pp) > 0 ? Number(grandTotal.special_pp).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 p-2 text-right bg-blue-200">{Number(grandTotal.avg_pp) > 0 ? Number(grandTotal.avg_pp).toFixed(2) : '0'}</td>
+
+              <td className="border border-gray-500 p-2 text-right bg-green-300 text-green-900">
+                {Number(grandTotal.avg_total) > 0 ? Number(grandTotal.avg_total).toFixed(2) : '0'}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+});
+
+export default function AveragePriceReport() {
+  // ─── State ───
+  const [filters, setFilters] = useState({
+    start_date: new Date().toISOString().split('T')[0],
+    end_date: new Date().toISOString().split('T')[0],
+    branch_id: '',
+    branch_name: '',
+    store_code: ''
+  });
+
+  const [reportData, setReportData] = useState([]);
+  const [grandTotalData, setGrandTotalData] = useState(null);
+  const [branches, setBranches] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const { options } = useMasterOptions(filters.branch_id);
+
+  // ─── Effect: โหลดสาขาเริ่มต้น ───
+  useEffect(() => {
+    const fetchBranches = async () => {
+      try {
+        // const res = await apiFetch('/branches/allowed');
+        // 💡 1. ดึงชื่อเมนูหน้าปัจจุบันจาก URL (เช่น '/average-price-report')
+        const currentPath = window.location.pathname;
+        
+        // 💡 2. แนบ ?menu=... พ่วงไปกับ API เลย Backend จะได้รู้เป๊ะๆ
+        const res = await apiFetch(`/branches/allowed?menu=${currentPath}`);
+        
+        if (res?.success && res.data.length > 0) {
+          const validBranches = res.data.filter(b => b.id !== 0);
+          setBranches(validBranches);
+          if (validBranches.length > 0) {
+            setFilters(prev => ({
+              ...prev,
+              branch_id: validBranches[0].id,
+              branch_name: validBranches[0].branch_name
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching branches:', error);
+      }
+    };
+    fetchBranches();
+  }, []);
+
+  // ─── Handlers ───
+  const handleFilterChange = (e) => {
+    setFilters({ ...filters, [e.target.name]: e.target.value });
+  };
+
+  const handleBranchChange = (e) => {
+    const selectedIndex = e.target.options.selectedIndex;
+    const branchName = e.target.options[selectedIndex].text;
+    setFilters({ ...filters, branch_id: e.target.value, branch_name: branchName });
+  };
+
+  const handleDateChange = (date, name) => {
+    if (date) setFilters({ ...filters, [name]: format(date, 'yyyy-MM-dd') });
+  };
+
+  const handleSearch = async () => {
+    if (!filters.branch_id) {
+      return Swal.fire('แจ้งเตือน', 'กรุณาเลือกสาขาก่อนค้นหา', 'warning');
+    }
+
+    setIsLoading(true);
+    try {
+      const q = new URLSearchParams({
+        start_date: filters.start_date,
+        end_date: filters.end_date,
+        branch_id: filters.branch_id,
+        store_code: filters.store_code
+      }).toString();
+
+      const res = await apiFetch(`/reports/average-price?${q}`);
+      
+      if (res?.success) {
+        setReportData(res.data);
+        setGrandTotalData(res.grandTotal);
+        if (res.data.length === 0) {
+          Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลในช่วงเวลาที่เลือก', 'info');
+        }
+      } else {
+        Swal.fire('ข้อผิดพลาด', res?.message || 'ไม่สามารถดึงข้อมูลได้', 'error');
+      }
+    } catch (error) {
+      Swal.fire('Error', 'เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // --- ฟังก์ชันโหลด PDF (Blob) ---
+  const handleExportPDF = async (isPreview = false) => {
+    setIsExportingPDF(true);
+    try {
+      const q = new URLSearchParams({
+        start_date: filters.start_date,
+        end_date: filters.end_date,
+        branch_id: filters.branch_id,
+        store_code: filters.store_code,
+        branch_name: filters.branch_name
+      }).toString();
+
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      const res = await fetch(`${apiUrl}/reports/average-price/pdf?${q}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error('Failed to generate PDF');
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      if (isPreview) {
+        window.open(url, '_blank');
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Average_Price_Report_${filters.start_date}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+    } catch (error) {
+      console.error(error);
+      Swal.fire('ข้อผิดพลาด', 'ไม่สามารถสร้างไฟล์ PDF ได้', 'error');
+    } finally {
+      setIsExportingPDF(false);
+    }
+  };
+
+  // --- ฟังก์ชันโหลด Excel (Blob) ---
+  const handleExportExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      const q = new URLSearchParams({
+        start_date: filters.start_date,
+        end_date: filters.end_date,
+        branch_id: filters.branch_id,
+        store_code: filters.store_code
+      }).toString();
+
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+      
+      const res = await fetch(`${apiUrl}/reports/average-price/excel?${q}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error('Failed to generate Excel');
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Average_Price_Report_${filters.start_date}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (error) {
+      console.error(error);
+      Swal.fire('ข้อผิดพลาด', 'ไม่สามารถสร้างไฟล์ Excel ได้', 'error');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  return (
+    <div className="p-4 md:p-6 mx-auto min-h-screen bg-gray-50">
+      
+      {/* ─── 1. ส่วนเงื่อนไขการค้นหา ─── */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6 print:hidden">
+        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <i className="fas fa-chart-line text-blue-600"></i> ค้นหารายงานเปรียบเทียบราคาขายเฉลี่ย
+        </h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="flex flex-col">
+            <label className="text-xs font-semibold mb-1 text-gray-700">สาขา <span className="text-red-500">*</span></label>
+            <select
+              value={filters.branch_id}
+              onChange={handleBranchChange}
+              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-gray-50"
+            >
+              <option value="">-- เลือกสาขา --</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>{branch.branch_name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs font-semibold mb-1 text-gray-700">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
+            <DatePicker
+              selected={filters.start_date ? parseISO(filters.start_date) : null}
+              onChange={(date) => handleDateChange(date, 'start_date')}
+              dateFormat="dd/MM/yyyy"
+              locale={th}
+              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-gray-50"
+              wrapperClassName="w-full"
+            />
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs font-semibold mb-1 text-gray-700">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
+            <DatePicker
+              selected={filters.end_date ? parseISO(filters.end_date) : null}
+              onChange={(date) => handleDateChange(date, 'end_date')}
+              dateFormat="dd/MM/yyyy"
+              locale={th}
+              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-gray-50"
+              wrapperClassName="w-full"
+            />
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs font-semibold mb-1 text-gray-700">รหัสสโตร์</label>
+            <select 
+              name="store_code" 
+              value={filters.store_code} 
+              onChange={handleFilterChange} 
+              className="w-full border rounded-lg p-2 text-sm outline-none bg-gray-50"
+            >
+              <option value="">-- รวมทุกสโตร์ --</option>
+              {options?.sawWoodTypes?.map(item => (
+                <option key={item.id} value={item.code}>{item.code} - {item.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-wrap justify-between items-center gap-4">
+          <button 
+            onClick={handleSearch} 
+            disabled={isLoading} 
+            className="bg-blue-600 text-white px-8 py-2 rounded-md text-sm font-semibold hover:bg-blue-700 shadow-sm transition-all flex items-center justify-center min-w-[120px]"
+          >
+            {isLoading ? <><i className="fas fa-spinner fa-spin mr-2"></i>กำลังดึงข้อมูล...</> : <><i className="fas fa-search mr-2"></i>ดึงข้อมูล</>}
+          </button>
+
+          {reportData.length > 0 && (
+            <div className="flex gap-2">
+              <button 
+                onClick={() => handleExportPDF(true)} 
+                disabled={isExportingPDF} 
+                className={`px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2 transition-all ${isExportingPDF ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-red-500 hover:bg-red-600 text-white'}`}
+              >
+                <i className="fas fa-search-plus"></i> {isExportingPDF ? 'กำลังสร้าง PDF...' : 'แสดงตัวอย่าง PDF'}
+              </button>
+              <button 
+                onClick={() => handleExportPDF(false)} 
+                disabled={isExportingPDF} 
+                className={`px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2 transition-all ${isExportingPDF ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 text-white'}`}
+              >
+                <i className="fas fa-file-pdf"></i> โหลด PDF
+              </button>
+              <button 
+                onClick={handleExportExcel} 
+                disabled={isExportingExcel} 
+                className={`px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2 transition-all ${isExportingExcel ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+              >
+                <i className="fas fa-file-excel"></i> {isExportingExcel ? 'กำลังสร้าง Excel...' : 'ดาวน์โหลด Excel'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ─── 2. ส่วนแสดงผลตารางรายงาน ─── */}
+      {reportData.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 pb-6 print:border-none print:shadow-none">
+          
+          {/* หัวกระดาษ */}
+          <div className="text-center mb-6 pt-8">
+            <h1 className="text-xl font-bold text-gray-800">บริษัท วู้ดเวิร์ค จำกัด ( {filters.branch_name} )</h1>
+            <h2 className="text-lg font-semibold text-gray-700 mt-2">รายงานเปรียบเทียบราคาขายเฉลี่ย ตามแผนกและเกรดไม้</h2>
+            <p className="text-md text-gray-600 mt-2">
+              ตั้งแต่วันที่ {format(parseISO(filters.start_date), 'dd/MM/yyyy')} ถึง {format(parseISO(filters.end_date), 'dd/MM/yyyy')} 
+              <span className="ml-2">
+                สโตร์: {filters.store_code || 'รวมทุกสโตร์'}
+              </span>
+            </p>
+          </div>
+
+          {/* ตารางข้อมูล */}
+          <div className="px-4">
+            <ReportTable data={reportData} grandTotal={grandTotalData} />
+          </div>
+
+        </div>
+      )}
+    </div>
+  );
+}
+</file>
+
 <file path="src/pages/Branches.jsx">
 // src/pages/Branches.jsx
 // ─────────────────────────────────────────────────────────────
@@ -1144,11 +1568,12 @@ import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
 import useMasterOptions from '../hooks/useMasterOptions';
 
-// 💡 1. นำเข้าไลบรารีปฏิทินและภาษาไทย
+// 💡 1. นำเข้าไลบรารีปฏิทินและ react-select
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { th } from 'date-fns/locale';
 import { format, parseISO } from 'date-fns';
+import Select from 'react-select'; // นำเข้า react-select
 
 export default function CheckSawWood() {
   const [branches, setBranches] = useState([]);
@@ -1168,7 +1593,6 @@ export default function CheckSawWood() {
     saw_wood_types_code: ''
   });
 
-  // 💡 เรียกใช้ Custom Hook ตรงนี้ โดยส่งค่า filters.branch_id เข้าไป
   const { options, isLoadingOptions } = useMasterOptions(filters.branch_id);
 
   useEffect(() => {
@@ -1177,7 +1601,8 @@ export default function CheckSawWood() {
 
   const fetchBranches = async () => {
     try {
-      const res = await apiFetch('/branches/allowed');
+      const currentPath = window.location.pathname;
+      const res = await apiFetch(`/branches/allowed?menu=${currentPath}`);
       if (res?.success) {
         const validBranches = res.data.filter(b => b.id !== 0);
         setBranches(validBranches);
@@ -1194,7 +1619,6 @@ export default function CheckSawWood() {
     setFilters({ ...filters, [e.target.name]: e.target.value });
   };
 
-  // 💡 2. เพิ่มฟังก์ชันจัดการเมื่อเลือกวันที่จากปฏิทิน
   const handleDateChange = (date, name) => {
     if (date) {
       setFilters({ ...filters, [name]: format(date, 'yyyy-MM-dd') });
@@ -1222,7 +1646,6 @@ export default function CheckSawWood() {
     }
   };
 
-  // ─── ฟังก์ชันดูรายละเอียดตาม Barcode ───
   const viewDetails = async (barcode_id) => {
     Swal.fire({
       title: 'กำลังโหลดข้อมูล...',
@@ -1280,9 +1703,15 @@ export default function CheckSawWood() {
     }
   };
 
-  // ─── จัดกลุ่มข้อมูลในตารางหลักตาม Barcode (ให้ดูง่ายขึ้น) ───
-  // หากต้องการแสดงรายบรรทัดตาม สามารถลบ reduce นี้ออกและใช้ data.map ได้เลย
-  // ในที่นี้จะจำลองให้เห็นทีละรายการ
+  // 💡 2. จัดโครงสร้างข้อมูลเจ้าหนี้ (รถไม้) สำหรับ react-select
+  const truckOptions = options.truckCompanies ? options.truckCompanies.map(item => ({
+    value: item.id,
+    label: `${item.code} - ${item.name}`
+  })) : [];
+  
+  // ค้นหาค่าเริ่มต้นที่เลือกอยู่
+  const selectedTruck = truckOptions.find(opt => String(opt.value) === String(filters.ws_customer_id)) || null;
+
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto flex flex-col min-h-[80vh]">
       
@@ -1301,7 +1730,6 @@ export default function CheckSawWood() {
             </select>
           </div>
           
-          {/* 💡 3. เปลี่ยนช่องวันที่เริ่มต้นเป็น DatePicker */}
           <div className="flex flex-col">
             <label className="block text-xs font-semibold text-gray-600 mb-1">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
             <DatePicker
@@ -1315,7 +1743,6 @@ export default function CheckSawWood() {
             />
           </div>
           
-          {/* 💡 3. เปลี่ยนช่องวันที่สิ้นสุดเป็น DatePicker */}
           <div className="flex flex-col">
             <label className="block text-xs font-semibold text-gray-600 mb-1">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
             <DatePicker
@@ -1334,7 +1761,6 @@ export default function CheckSawWood() {
             <input type="text" name="saw_wood_types_code" value={filters.saw_wood_types_code} onChange={handleFilterChange} placeholder="ระบุโค้ด (ถ้ามี)" className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none" />
           </div>
           
-          {/* ตัวกรองที่เปลี่ยนเป็น Dropdown เลือกจาก Master Data */}
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">ประเภทการชั่ง</label>
             <select name="transaction_type_id" value={filters.transaction_type_id} onChange={handleFilterChange} disabled={isLoadingOptions} className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none">
@@ -1356,13 +1782,40 @@ export default function CheckSawWood() {
               {options.logWoodEvalSizes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </div>
-          <div>
+          
+          {/* 💡 3. เปลี่ยน Dropdown เจ้าหนี้ เป็นแบบค้นหาได้ (react-select) */}
+          <div className="flex flex-col z-20">
             <label className="block text-xs font-semibold text-gray-600 mb-1">เจ้าหนี้ (รถไม้)</label>
-            <select name="ws_customer_id" value={filters.ws_customer_id} onChange={handleFilterChange} disabled={isLoadingOptions} className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none">
-              <option value="">-- ทั้งหมด --</option>
-              {options.truckCompanies.map(item => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}
-            </select>
+            <Select
+              options={truckOptions}
+              value={selectedTruck}
+              // จับคู่ event กลับไปให้ handleFilterChange
+              onChange={(selected) => handleFilterChange({
+                target: { name: 'ws_customer_id', value: selected ? selected.value : '' }
+              })}
+              isDisabled={isLoadingOptions}
+              isClearable
+              isSearchable
+              placeholder="-- ค้นหา / ทั้งหมด --"
+              noOptionsMessage={() => "ไม่พบข้อมูล"}
+              menuPortalTarget={document.body} // 💡 บังคับให้ Dropdown ลอยอยู่หน้าสุดเสมอ
+              styles={{
+                control: (base) => ({
+                  ...base,
+                  minHeight: '38px',
+                  borderRadius: '0.5rem',
+                  borderColor: '#e5e7eb',
+                  backgroundColor: '#f9fafb',
+                  fontSize: '0.875rem',
+                  boxShadow: 'none',
+                  '&:hover': { borderColor: '#d1d5db' }
+                }),
+                menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                menu: (base) => ({ ...base, fontSize: '0.875rem' })
+              }}
+            />
           </div>
+
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">กะการทำงาน (เวลา)</label>
             <select name="saw_time_id" value={filters.saw_time_id} onChange={handleFilterChange} disabled={isLoadingOptions} className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none">
@@ -1382,7 +1835,7 @@ export default function CheckSawWood() {
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col">
         <div className="overflow-x-auto flex-1">
           <table className="w-full text-sm text-left whitespace-nowrap">
-            <thead className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 sticky top-0">
+            <thead className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 sticky top-0 z-10">
               <tr>
                 <th className="px-4 py-3 border-b">วันที่ผลิต</th>
                 <th className="px-4 py-3 border-b">สาขา</th>
@@ -1646,7 +2099,10 @@ export default function ProductionCoverReport() {
   useEffect(() => {
     const fetchBranches = async () => {
       try {
-        const res = await apiFetch('/branches/allowed');
+        // const res = await apiFetch('/branches/allowed');
+        const currentPath = window.location.pathname;
+        // 💡 2. แนบ ?menu=... พ่วงไปกับ API เลย Backend จะได้รู้เป๊ะๆ
+        const res = await apiFetch(`/branches/allowed?menu=${currentPath}`);
         if (res?.success) {
           const validBranches = res.data.filter(b => b.id !== 0);
           setBranches(validBranches);
@@ -2105,6 +2561,946 @@ export default function ProductionCoverReport() {
 }
 </file>
 
+<file path="src/pages/ProductionThickMilReport.jsx">
+import React, { useState, useEffect, useRef } from 'react';
+import Swal from 'sweetalert2';
+import apiFetch from '../services/apiFetch';
+import useMasterOptions from '../hooks/useMasterOptions';
+
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { th } from 'date-fns/locale';
+import { format, parseISO } from 'date-fns';
+
+export default function ProductionThickMilReport() {
+  const [filters, setFilters] = useState({
+    branch_id: '',
+    branch_name: '',
+    start_date: new Date().toISOString().split('T')[0],
+    end_date: new Date().toISOString().split('T')[0],
+    store_code: ''
+  });
+
+  const [reportData, setReportData] = useState([]);
+  const [grandTotalData, setGrandTotalData] = useState(null);
+  const [lengthSummary, setLengthSummary] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [accessLevel, setAccessLevel] = useState(3);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+
+  const { options } = useMasterOptions(filters.branch_id);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 3; 
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchBranches = async () => {
+      try {
+        const currentPath = window.location.pathname;
+        const res = await apiFetch(`/branches/allowed?menu=${currentPath}`);
+        
+        if (!isMounted) return;
+        if (res?.success) {
+          const validBranches = res.data.filter(b => b.id !== 0);
+          setBranches(validBranches);
+          setAccessLevel(res.access_level);
+          
+          if (res.access_level === 1) {
+            setFilters(prev => ({ ...prev, branch_id: '', branch_name: '' }));
+          } else if (validBranches.length > 0) {
+            setFilters(prev => ({ ...prev, branch_id: validBranches[0].id, branch_name: validBranches[0].branch_name }));
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching branches:', error);
+      }
+    };
+    fetchBranches();
+    return () => { isMounted = false; };
+  }, []);
+
+  const handleFilterChange = (e) => setFilters({ ...filters, [e.target.name]: e.target.value });
+  const handleDateChange = (date, name) => {
+    if (date) setFilters({ ...filters, [name]: format(date, 'yyyy-MM-dd') });
+  };
+  const handleBranchChange = (e) => {
+    const selectedIndex = e.target.options.selectedIndex;
+    const branchName = e.target.options[selectedIndex].text;
+    setFilters({ ...filters, branch_id: e.target.value, branch_name: branchName });
+  };
+
+  const handleSearch = async () => {
+    if (!filters.branch_id) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกสาขาก่อนค้นหา', 'warning');
+
+    setIsLoading(true);
+    try {
+      const q = new URLSearchParams({
+        start_date: filters.start_date,
+        end_date: filters.end_date,
+        branch_id: filters.branch_id,
+        store_code: filters.store_code
+      }).toString();
+
+      const res = await apiFetch(`/reports/production-thick-mil?${q}`);
+      
+      if (res?.success) {
+        setReportData(res.data);
+        setGrandTotalData(res.grandTotal);
+        setLengthSummary(res.lengthSummary);
+        setCurrentPage(1);
+        if (res.data.length === 0) Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลในช่วงเวลาที่เลือก', 'info');
+      } else {
+        Swal.fire('ข้อผิดพลาด', res?.message || 'ดึงข้อมูลไม่สำเร็จ', 'error');
+      }
+    } catch (error) {
+      Swal.fire('Error', 'เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleExportPDF = async (isPreview = false) => {
+    setIsExportingPDF(true);
+    try {
+      const q = new URLSearchParams({
+        start_date: filters.start_date,
+        end_date: filters.end_date,
+        branch_id: filters.branch_id,
+        store_code: filters.store_code,
+        branch_name: filters.branch_name
+      }).toString();
+
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      const res = await fetch(`${apiUrl}/reports/production-thick-mil/pdf?${q}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error('Failed to generate PDF');
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      if (isPreview) {
+        window.open(url, '_blank');
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Production_Thick_Mil_${filters.start_date}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+    } catch (error) {
+      console.error(error);
+      Swal.fire('ข้อผิดพลาด', 'ไม่สามารถสร้างไฟล์ PDF ได้', 'error');
+    } finally {
+      setIsExportingPDF(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      const q = new URLSearchParams({
+        start_date: filters.start_date,
+        end_date: filters.end_date,
+        branch_id: filters.branch_id,
+        store_code: filters.store_code
+      }).toString();
+
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      const res = await fetch(`${apiUrl}/reports/production-thick-mil/excel?${q}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error('Failed to generate Excel');
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Production_Thick_Mil_${filters.start_date}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (error) {
+      console.error(error);
+      Swal.fire('ข้อผิดพลาด', 'ไม่สามารถสร้างไฟล์ Excel ได้', 'error');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentData = reportData.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(reportData.length / itemsPerPage);
+
+  return (
+    <div className="p-4 md:p-6 mx-auto min-h-screen bg-gray-50">
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6 print:hidden">
+        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <i className="fas fa-layer-group text-blue-600"></i> รายงานการผลิต แยกตาม ความหนา-มิลไม้
+        </h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="flex flex-col">
+            <label className="text-xs font-semibold mb-1 text-gray-700">สาขา <span className="text-red-500">*</span></label>
+            <select
+              name="branch_id"
+              value={filters.branch_id}
+              onChange={handleBranchChange}
+              disabled={isLoading || (accessLevel !== 1 && branches.length <= 1)}
+              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-gray-50 disabled:bg-gray-200 disabled:text-gray-500"
+            >
+              <option value="" disabled>-- เลือกสาขา --</option>
+              {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+            </select>
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs font-semibold mb-1 text-gray-700">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
+            <DatePicker
+              selected={filters.start_date ? parseISO(filters.start_date) : null}
+              onChange={(date) => handleDateChange(date, 'start_date')}
+              dateFormat="dd/MM/yyyy"
+              locale={th}
+              className="w-full border rounded-md p-2 text-sm outline-none bg-gray-50"
+              wrapperClassName="w-full"
+            />
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs font-semibold mb-1 text-gray-700">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
+            <DatePicker
+              selected={filters.end_date ? parseISO(filters.end_date) : null}
+              onChange={(date) => handleDateChange(date, 'end_date')}
+              dateFormat="dd/MM/yyyy"
+              locale={th}
+              className="w-full border rounded-md p-2 text-sm outline-none bg-gray-50"
+              wrapperClassName="w-full"
+            />
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs font-semibold mb-1 text-gray-700">รหัสสโตร์</label>
+            <select 
+              name="store_code" 
+              value={filters.store_code} 
+              onChange={handleFilterChange} 
+              className="w-full border rounded-lg p-2 text-sm outline-none bg-gray-50"
+            >
+              <option value="">-- รวมทุกสโตร์ --</option>
+              {options?.sawWoodTypes?.map(item => (
+                <option key={item.id} value={item.code}>{item.code} - {item.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-between items-center">
+          <button 
+            onClick={handleSearch} 
+            disabled={isLoading} 
+            className="bg-blue-600 text-white px-8 py-2 rounded-md text-sm font-semibold hover:bg-blue-700 shadow-sm flex items-center justify-center min-w-[120px]"
+          >
+            {isLoading ? <><i className="fas fa-spinner fa-spin mr-2"></i>กำลังโหลด...</> : <><i className="fas fa-search mr-2"></i>ดึงข้อมูล</>}
+          </button>
+
+          {reportData.length > 0 && (
+            <div className="flex gap-2">
+              <button onClick={() => handleExportPDF(true)} disabled={isExportingPDF} className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2">
+                <i className="fas fa-search-plus"></i> {isExportingPDF ? 'กำลังสร้าง...' : 'ตัวอย่าง PDF'}
+              </button>
+              <button onClick={() => handleExportPDF(false)} disabled={isExportingPDF} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2">
+                <i className="fas fa-file-pdf"></i> โหลด PDF
+              </button>
+              <button onClick={handleExportExcel} disabled={isExportingExcel} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2">
+                <i className="fas fa-file-excel"></i> {isExportingExcel ? 'กำลังสร้าง...' : 'โหลด Excel'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {reportData.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto pb-6">
+          <div className="text-center mb-6 pt-6">
+            <h1 className="text-xl font-bold text-gray-800">รายงานการผลิต แยกตาม ความหนา-มิลไม้</h1>
+            <h2 className="text-md font-semibold text-gray-700 mt-2">บริษัท วู้ดเวิร์ค จำกัด ({filters.branch_name})</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              ตั้งแต่วันที่ {format(parseISO(filters.start_date), 'dd/MM/yyyy')} ถึง {format(parseISO(filters.end_date), 'dd/MM/yyyy')} 
+            </p>
+          </div>
+
+          <table className="w-full text-xs border-collapse border border-gray-400 whitespace-nowrap min-w-max px-4 mx-4" style={{ width: 'calc(100% - 32px)' }}>
+            <thead>
+              <tr className="bg-[#b4c6e7] text-gray-800 font-semibold border-y-2 border-gray-500">
+                <th className="border border-gray-400 p-2 text-left" colSpan="2">ขนาดไม้</th>
+                <th className="border border-gray-400 p-2 text-right">AB</th>
+                <th className="border border-gray-400 p-2 text-right">% กว้าง</th>
+                <th className="border border-gray-400 p-2 text-right">% ยาว</th>
+                <th className="border border-gray-400 p-2 text-right">ราคา</th>
+                <th className="border border-gray-400 p-2 text-right">จำนวนเงิน</th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentData.map((tmGroup, idx) => (
+                <React.Fragment key={idx}>
+                  <tr className="bg-white text-gray-800 border-t border-gray-400">
+                    <td className="border border-gray-400 p-2 pl-3 w-32">ความหนา</td>
+                    <td className="border border-gray-400 p-2 w-40">{tmGroup.thick_mil} mm</td>
+                    <td className="border border-gray-400 p-2" colSpan="5"></td>
+                  </tr>
+
+                  {tmGroup.lengths.map((lenGroup, lIdx) => (
+                    <React.Fragment key={lIdx}>
+                      {lenGroup.items.map((item, iIdx) => (
+                        <tr key={iIdx} className="hover:bg-gray-50 bg-white">
+                          <td className="border border-gray-400 p-1 bg-white"></td>
+                          <td className="border border-gray-400 p-1 pl-2 text-blue-800">{item.wood_code}</td>
+                          <td className="border border-gray-400 p-1 text-right">{item.ab_volumn.toFixed(4)}</td>
+                          <td className="border border-gray-400 p-1 text-right text-gray-600">{item.pct_width.toFixed(2)}%</td>
+                          <td className="border border-gray-400 p-1 text-right bg-white"></td>
+                          <td className="border border-gray-400 p-1 text-right">{item.avg_price > 0 ? item.avg_price.toFixed(2) : ''}</td>
+                          <td className="border border-gray-400 p-1 text-right">{item.ab_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-[#fff2cc] font-semibold text-gray-800">
+                        <td className="border border-gray-400 p-1 pl-3" colSpan="2">รวมยาว {lenGroup.length}</td>
+                        <td className="border border-gray-400 p-1 text-right">{lenGroup.sub_volumn.toFixed(4)}</td>
+                        <td className="border border-gray-400 p-1 text-right bg-white"></td>
+                        <td className="border border-gray-400 p-1 text-right">{lenGroup.pct_length.toFixed(2)}%</td>
+                        <td className="border border-gray-400 p-1 text-right bg-white"></td>
+                        <td className="border border-gray-400 p-1 text-right">{lenGroup.sub_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                      </tr>
+                    </React.Fragment>
+                  ))}
+
+                  <tr className="bg-[#c6e0b4] font-bold text-gray-900 border-b border-gray-500">
+                    <td className="border border-gray-400 p-2 pl-3 text-green-900" colSpan="2">รวมหนา {tmGroup.thick_mil} mm</td>
+                    <td className="border border-gray-400 p-2 text-right text-green-900">{tmGroup.total_volumn.toFixed(4)}</td>
+                    <td className="border border-gray-400 p-2 text-right bg-white" colSpan="3"></td>
+                    <td className="border border-gray-400 p-2 text-right text-green-900">{tmGroup.total_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  </tr>
+                  
+                  <tr className="bg-white font-medium">
+                    <td className="border border-gray-400 p-1 pl-3" colSpan="2">% หน้าไม้นี้ รวมพิเศษ</td>
+                    <td className="border border-gray-400 p-1 text-right bg-[#ffe699] font-bold text-orange-900">{tmGroup.pct_thick_total.toFixed(2)}%</td>
+                    <td className="border border-gray-400 p-1 text-right bg-white" colSpan="4"></td>
+                  </tr>
+                  <tr className="bg-white font-medium">
+                    <td className="border border-gray-400 p-1 pl-3" colSpan="2">ราคาเฉลี่ย</td>
+                    <td className="border border-gray-400 p-1 text-right bg-[#ff0000] font-bold text-white">{tmGroup.avg_price.toFixed(2)}</td>
+                    <td className="border border-gray-400 p-1 text-right bg-white" colSpan="4"></td>
+                  </tr>
+                </React.Fragment>
+              ))}
+
+              {grandTotalData && (currentPage === totalPages || totalPages === 0) && (
+                <>
+                  <tr className="bg-[#8ea9db] font-bold text-gray-900 border-t-4 border-gray-600">
+                    <td className="border border-gray-500 p-2 pl-3" colSpan="2">รวม ลบ. ฟุต ทั้งหมด</td>
+                    <td className="border border-gray-500 p-2 text-right text-blue-900">{grandTotalData.total_volumn.toFixed(4)}</td>
+                    <td className="border border-gray-500 p-2 text-right">100%</td>
+                    <td className="border border-gray-500 p-2 text-right bg-white" colSpan="2"></td>
+                    <td className="border border-gray-500 p-2 text-right text-blue-900">{grandTotalData.total_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  </tr>
+                  <tr className="bg-gray-200 font-bold">
+                    <td className="border border-gray-500 p-2 pl-3" colSpan="2">ราคาเฉลี่ย</td>
+                    <td className="border border-gray-500 p-2 text-right text-orange-900 bg-[#ffe699]">{grandTotalData.avg_price.toFixed(2)}</td>
+                    <td className="border border-gray-500 p-2 text-right bg-white" colSpan="4"></td>
+                  </tr>
+
+                  <tr className="bg-white">
+                    <td colSpan="7" className="p-0 border-0">
+                      <div className="mt-4 w-1/2 min-w-[300px]">
+                        <table className="w-full text-xs border-collapse border border-gray-300">
+                          <thead>
+                            <tr className="bg-gray-100 font-semibold text-gray-700">
+                              <th className="border border-gray-300 p-2 text-left">สรุปสัดส่วนความยาว</th>
+                              <th className="border border-gray-300 p-2 text-right">ปริมาตร</th>
+                              <th className="border border-gray-300 p-2 text-right">เปอร์เซ็นต์</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {lengthSummary.map((sum, i) => (
+                              <tr key={i} className="hover:bg-gray-50">
+                                <td className="border border-gray-300 p-1 pl-3">รวมปริมาตร {sum.length} ม.</td>
+                                <td className="border border-gray-300 p-1 text-right">{sum.volumn > 0 ? sum.volumn.toFixed(4) : ''}</td>
+                                <td className="border border-gray-300 p-1 text-right">{sum.pct > 0 ? sum.pct.toFixed(2) + '%' : ''}</td>
+                              </tr>
+                            ))}
+                            <tr className="bg-gray-100 font-bold text-gray-800">
+                              <td className="border border-gray-300 p-2 pl-3">รวมปริมาตรทั้งหมด</td>
+                              <td className="border border-gray-300 p-2 text-right">{grandTotalData.total_volumn.toFixed(2)}</td>
+                              <td className="border border-gray-300 p-2 text-right">100.00%</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </td>
+                  </tr>
+                </>
+              )}
+            </tbody>
+          </table>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 mt-4 mx-4 print:hidden">
+              <div className="flex gap-2">
+                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">« หน้าแรก</button>
+                <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">‹ ก่อนหน้า</button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">หน้า</span>
+                <select value={currentPage} onChange={(e) => setCurrentPage(Number(e.target.value))} className="border rounded-md py-1 px-2 text-sm font-semibold text-blue-700 outline-none">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+                <span className="text-sm">จาก {totalPages}</span>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">ถัดไป ›</button>
+                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">หน้าสุดท้าย »</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+</file>
+
+<file path="src/pages/SawerPerformanceReport.jsx">
+import React, { useState, useEffect } from 'react';
+import Swal from 'sweetalert2';
+import apiFetch from '../services/apiFetch';
+
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { th } from 'date-fns/locale';
+import { format, parseISO } from 'date-fns';
+
+// ─── Component ย่อยสำหรับแสดงตาราง ───
+const ReportTable = React.memo(({ data, grandTotal, avgPerSet, showFooter }) => {
+  return (
+    <div className="overflow-x-auto pb-4">
+      <table className="w-full text-[11px] md:text-xs border-collapse border border-gray-400 whitespace-nowrap min-w-max">
+        <thead>
+          <tr className="bg-gray-100 text-gray-800 font-bold">
+            <th className="border border-gray-400 p-2 text-center align-middle" rowSpan="2">แผนก</th>
+            <th className="border border-gray-400 p-2 text-center align-middle" rowSpan="2">นายม้า</th>
+            <th className="border border-gray-400 p-2 text-center align-middle" rowSpan="2">แหล่งที่มา</th>
+            
+            <th className="border border-gray-400 p-1 text-center" colSpan="3">AB</th>
+            <th className="border border-gray-400 p-1 text-center" colSpan="3">C</th>
+            <th className="border border-gray-400 p-1 text-center" colSpan="3">P</th>
+            <th className="border border-gray-400 p-1 text-center" colSpan="3">PP</th>
+            <th className="border border-gray-400 p-2 text-center align-middle" rowSpan="2">รวม</th>
+          </tr>
+          <tr className="bg-gray-50 text-gray-700 font-semibold">
+            {/* AB */}
+            <th className="border border-gray-400 p-1 text-right">AB</th>
+            <th className="border border-gray-400 p-1 text-right">AB พิเศษ</th>
+            <th className="border border-gray-400 p-1 text-right">รวม AB</th>
+            {/* C */}
+            <th className="border border-gray-400 p-1 text-right">C</th>
+            <th className="border border-gray-400 p-1 text-right">C พิเศษ</th>
+            <th className="border border-gray-400 p-1 text-right">รวม C</th>
+            {/* P */}
+            <th className="border border-gray-400 p-1 text-right">P ปกติ</th>
+            <th className="border border-gray-400 p-1 text-right">P พิเศษ</th>
+            <th className="border border-gray-400 p-1 text-right">P</th>
+            {/* PP */}
+            <th className="border border-gray-400 p-1 text-right">PP ปกติ</th>
+            <th className="border border-gray-400 p-1 text-right">PP พิเศษ</th>
+            <th className="border border-gray-400 p-1 text-right">PP</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.length > 0 ? (
+            data.map((row, idx) => (
+              <React.Fragment key={idx}>
+                {/* ─── บรรทัดที่ 1: ปริมาตร (ลบ.ฟุต) ─── */}
+                <tr className="bg-white hover:bg-gray-50 transition-colors">
+                  <td className="border border-gray-400 p-1.5 px-2 text-left" rowSpan="2">{row.department}</td>
+                  <td className="border border-gray-400 p-1.5 px-2 text-left text-gray-600" rowSpan="2">{row.sawer}</td>
+                  <td className="border border-gray-400 p-1.5 px-2 text-left text-gray-600" rowSpan="2">{row.source}</td>
+                  
+                  <td className="border border-gray-400 p-1.5 px-2 text-right text-blue-800">{Number(row.vol_normal_ab) > 0 ? Number(row.vol_normal_ab).toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 p-1.5 px-2 text-right text-blue-800">{Number(row.vol_special_ab) > 0 ? Number(row.vol_special_ab).toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 p-1.5 px-2 text-right font-semibold text-blue-900">{Number(row.vol_ab) > 0 ? Number(row.vol_ab).toFixed(2) : ''}</td>
+
+                  <td className="border border-gray-400 p-1.5 px-2 text-right">{Number(row.vol_normal_c) > 0 ? Number(row.vol_normal_c).toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 p-1.5 px-2 text-right">{Number(row.vol_special_c) > 0 ? Number(row.vol_special_c).toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 p-1.5 px-2 text-right font-semibold">{Number(row.vol_c) > 0 ? Number(row.vol_c).toFixed(2) : ''}</td>
+
+                  <td className="border border-gray-400 p-1.5 px-2 text-right">{Number(row.vol_normal_p) > 0 ? Number(row.vol_normal_p).toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 p-1.5 px-2 text-right">{Number(row.vol_special_p) > 0 ? Number(row.vol_special_p).toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 p-1.5 px-2 text-right font-semibold">{Number(row.vol_p) > 0 ? Number(row.vol_p).toFixed(2) : ''}</td>
+
+                  <td className="border border-gray-400 p-1.5 px-2 text-right">{Number(row.vol_normal_pp) > 0 ? Number(row.vol_normal_pp).toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 p-1.5 px-2 text-right">{Number(row.vol_special_pp) > 0 ? Number(row.vol_special_pp).toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 p-1.5 px-2 text-right font-semibold">{Number(row.vol_pp) > 0 ? Number(row.vol_pp).toFixed(2) : ''}</td>
+
+                  <td className="border border-gray-400 p-1.5 px-2 text-right font-bold text-gray-900 bg-gray-50">{Number(row.total_volumn) > 0 ? Number(row.total_volumn).toFixed(2) : ''}</td>
+                </tr>
+                {/* ─── บรรทัดที่ 2: เปอร์เซ็นต์ (%) ─── */}
+                <tr className="bg-white hover:bg-gray-50 transition-colors text-gray-500">
+                  <td className="border border-gray-400 p-1 px-2 text-right">{Number(row.pct_normal_ab) > 0 ? Number(row.pct_normal_ab).toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 p-1 px-2 text-right">{Number(row.pct_special_ab) > 0 ? Number(row.pct_special_ab).toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 p-1 px-2 text-right">{Number(row.pct_ab) > 0 ? Number(row.pct_ab).toFixed(2) + '%' : ''}</td>
+
+                  <td className="border border-gray-400 p-1 px-2 text-right">{Number(row.pct_normal_c) > 0 ? Number(row.pct_normal_c).toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 p-1 px-2 text-right">{Number(row.pct_special_c) > 0 ? Number(row.pct_special_c).toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 p-1 px-2 text-right">{Number(row.pct_c) > 0 ? Number(row.pct_c).toFixed(2) + '%' : ''}</td>
+
+                  <td className="border border-gray-400 p-1 px-2 text-right">{Number(row.pct_normal_p) > 0 ? Number(row.pct_normal_p).toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 p-1 px-2 text-right">{Number(row.pct_special_p) > 0 ? Number(row.pct_special_p).toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 p-1 px-2 text-right">{Number(row.pct_p) > 0 ? Number(row.pct_p).toFixed(2) + '%' : ''}</td>
+
+                  <td className="border border-gray-400 p-1 px-2 text-right">{Number(row.pct_normal_pp) > 0 ? Number(row.pct_normal_pp).toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 p-1 px-2 text-right">{Number(row.pct_special_pp) > 0 ? Number(row.pct_special_pp).toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 p-1 px-2 text-right">{Number(row.pct_pp) > 0 ? Number(row.pct_pp).toFixed(2) + '%' : ''}</td>
+
+                  <td className="border border-gray-400 p-1 px-2 text-right bg-gray-50">{Number(row.pct_total) > 0 ? Number(row.pct_total).toFixed(2) + '%' : ''}</td>
+                </tr>
+              </React.Fragment>
+            ))
+          ) : (
+            <tr>
+              <td colSpan="16" className="border border-gray-400 p-8 text-center text-gray-500">
+                ไม่พบข้อมูลในช่วงเวลาที่เลือก
+              </td>
+            </tr>
+          )}
+
+          {/* ─── แถวสรุปรวมท้ายตาราง (โชว์เฉพาะหน้าสุดท้าย) ─── */}
+          {showFooter && grandTotal && avgPerSet && data.length > 0 && (
+            <>
+              {/* รวมทั้งหมด */}
+              <tr className="bg-gray-300 font-bold text-gray-900 border-t-2 border-gray-500">
+                <td colSpan="3" className="border border-gray-400 p-2 text-center tracking-wider">
+                  รวมทั้งหมด
+                </td>
+                <td className="border border-gray-400 p-2 text-right">{Number(grandTotal.vol_normal_ab) > 0 ? Number(grandTotal.vol_normal_ab).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(grandTotal.vol_special_ab) > 0 ? Number(grandTotal.vol_special_ab).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(grandTotal.vol_ab) > 0 ? Number(grandTotal.vol_ab).toFixed(2) : ''}</td>
+
+                <td className="border border-gray-400 p-2 text-right">{Number(grandTotal.vol_normal_c) > 0 ? Number(grandTotal.vol_normal_c).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(grandTotal.vol_special_c) > 0 ? Number(grandTotal.vol_special_c).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(grandTotal.vol_c) > 0 ? Number(grandTotal.vol_c).toFixed(2) : ''}</td>
+
+                <td className="border border-gray-400 p-2 text-right">{Number(grandTotal.vol_normal_p) > 0 ? Number(grandTotal.vol_normal_p).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(grandTotal.vol_special_p) > 0 ? Number(grandTotal.vol_special_p).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(grandTotal.vol_p) > 0 ? Number(grandTotal.vol_p).toFixed(2) : ''}</td>
+
+                <td className="border border-gray-400 p-2 text-right">{Number(grandTotal.vol_normal_pp) > 0 ? Number(grandTotal.vol_normal_pp).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(grandTotal.vol_special_pp) > 0 ? Number(grandTotal.vol_special_pp).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(grandTotal.vol_pp) > 0 ? Number(grandTotal.vol_pp).toFixed(2) : ''}</td>
+
+                <td className="border border-gray-400 p-2 text-right">{Number(grandTotal.total_volumn) > 0 ? Number(grandTotal.total_volumn).toFixed(2) : ''}</td>
+              </tr>
+              {/* เฉลี่ย ลบ.ฟ./ชุด */}
+              <tr className="bg-gray-400 font-bold text-gray-900">
+                <td colSpan="3" className="border border-gray-400 p-2 text-center tracking-wider">
+                  เฉลี่ย ลบ.ฟ./ชุด
+                </td>
+                <td className="border border-gray-400 p-2 text-right">{Number(avgPerSet.vol_normal_ab) > 0 ? Number(avgPerSet.vol_normal_ab).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(avgPerSet.vol_special_ab) > 0 ? Number(avgPerSet.vol_special_ab).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(avgPerSet.vol_ab) > 0 ? Number(avgPerSet.vol_ab).toFixed(2) : ''}</td>
+
+                <td className="border border-gray-400 p-2 text-right">{Number(avgPerSet.vol_normal_c) > 0 ? Number(avgPerSet.vol_normal_c).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(avgPerSet.vol_special_c) > 0 ? Number(avgPerSet.vol_special_c).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(avgPerSet.vol_c) > 0 ? Number(avgPerSet.vol_c).toFixed(2) : ''}</td>
+
+                <td className="border border-gray-400 p-2 text-right">{Number(avgPerSet.vol_normal_p) > 0 ? Number(avgPerSet.vol_normal_p).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(avgPerSet.vol_special_p) > 0 ? Number(avgPerSet.vol_special_p).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(avgPerSet.vol_p) > 0 ? Number(avgPerSet.vol_p).toFixed(2) : ''}</td>
+
+                <td className="border border-gray-400 p-2 text-right">{Number(avgPerSet.vol_normal_pp) > 0 ? Number(avgPerSet.vol_normal_pp).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(avgPerSet.vol_special_pp) > 0 ? Number(avgPerSet.vol_special_pp).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 p-2 text-right">{Number(avgPerSet.vol_pp) > 0 ? Number(avgPerSet.vol_pp).toFixed(2) : ''}</td>
+
+                <td className="border border-gray-400 p-2 text-right">{Number(avgPerSet.total_volumn) > 0 ? Number(avgPerSet.total_volumn).toFixed(2) : ''}</td>
+              </tr>
+            </>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+});
+
+export default function SawerPerformanceReport() {
+  const [filters, setFilters] = useState({
+    branch_id: '',
+    branch_name: '',
+    start_date: new Date().toISOString().split('T')[0],
+    end_date: new Date().toISOString().split('T')[0],
+    report_format: '1' // 💡 เพิ่มค่าตัวเลือกรูปแบบรายงาน
+  });
+
+  const [reportData, setReportData] = useState([]);
+  const [grandTotalData, setGrandTotalData] = useState(null);
+  const [avgData, setAvgData] = useState(null);
+  
+  const [branches, setBranches] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [accessLevel, setAccessLevel] = useState(3);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+
+  // การจัดการหน้า (Pagination)
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10; 
+
+  // ─── โหลดสาขาเริ่มต้น ───
+  useEffect(() => {
+    let isMounted = true;
+    const fetchBranches = async () => {
+      try {
+        const currentPath = window.location.pathname;
+        const res = await apiFetch(`/branches/allowed?menu=${currentPath}`);
+        
+        if (!isMounted) return;
+        if (res?.success) {
+          const validBranches = res.data.filter(b => b.id !== 0);
+          setBranches(validBranches);
+          setAccessLevel(res.access_level);
+          
+          if (res.access_level === 1) {
+            setFilters(prev => ({ ...prev, branch_id: '', branch_name: '' }));
+          } else if (validBranches.length > 0) {
+            setFilters(prev => ({ ...prev, branch_id: validBranches[0].id, branch_name: validBranches[0].branch_name }));
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching branches:', error);
+      }
+    };
+    fetchBranches();
+    return () => { isMounted = false; };
+  }, []);
+
+  // ─── Handlers ───
+  const handleFilterChange = (e) => {
+    setFilters({ ...filters, [e.target.name]: e.target.value });
+  };
+  
+  const handleDateChange = (date, name) => {
+    if (date) setFilters({ ...filters, [name]: format(date, 'yyyy-MM-dd') });
+  };
+  
+  const handleBranchChange = (e) => {
+    const selectedIndex = e.target.options.selectedIndex;
+    const branchName = e.target.options[selectedIndex].text;
+    setFilters({ ...filters, branch_id: e.target.value, branch_name: branchName });
+  };
+
+  const handleSearch = async () => {
+    if (!filters.branch_id) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกสาขาก่อนค้นหา', 'warning');
+
+    setIsLoading(true);
+    try {
+      const q = new URLSearchParams({
+        start_date: filters.start_date,
+        end_date: filters.end_date,
+        branch_id: filters.branch_id,
+        report_format: filters.report_format // 💡 แนบรูปแบบรายงาน
+      }).toString();
+
+      const res = await apiFetch(`/reports/sawer-performance?${q}`);
+      
+      if (res?.success) {
+        setReportData(res.data);
+        setGrandTotalData(res.grandTotal);
+        setAvgData(res.avgPerSet);
+        setCurrentPage(1);
+        if (res.data.length === 0) Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลในช่วงเวลาที่เลือก', 'info');
+      } else {
+        Swal.fire('ข้อผิดพลาด', res?.message || 'ดึงข้อมูลไม่สำเร็จ', 'error');
+      }
+    } catch (error) {
+      Swal.fire('Error', 'เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // --- ฟังก์ชันโหลด PDF (Blob) ---
+  const handleExportPDF = async (isPreview = false) => {
+    setIsExportingPDF(true);
+    
+    Swal.fire({
+      title: 'กำลังสร้างไฟล์ PDF...',
+      html: 'กรุณารอสักครู่ ระบบกำลังประมวลผลข้อมูล',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    try {
+      const q = new URLSearchParams({
+        start_date: filters.start_date,
+        end_date: filters.end_date,
+        branch_id: filters.branch_id,
+        branch_name: filters.branch_name,
+        report_format: filters.report_format // 💡 แนบรูปแบบรายงาน
+      }).toString();
+
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      const res = await fetch(`${apiUrl}/reports/sawer-performance/pdf?${q}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error('Failed to generate PDF');
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      Swal.close();
+
+      if (isPreview) {
+        window.open(url, '_blank');
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Sawer_Performance_${filters.start_date}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+    } catch (error) {
+      console.error(error);
+      Swal.fire('ข้อผิดพลาด', 'ไม่สามารถสร้างไฟล์ PDF ได้', 'error');
+    } finally {
+      setIsExportingPDF(false);
+    }
+  };
+
+  // --- ฟังก์ชันโหลด Excel (Blob) ---
+  const handleExportExcel = async () => {
+    setIsExportingExcel(true);
+
+    Swal.fire({
+      title: 'กำลังสร้างไฟล์ Excel...',
+      html: 'กรุณารอสักครู่ ระบบกำลังประมวลผลข้อมูล',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    try {
+      const q = new URLSearchParams({
+        start_date: filters.start_date,
+        end_date: filters.end_date,
+        branch_id: filters.branch_id,
+        report_format: filters.report_format // 💡 แนบรูปแบบรายงาน
+      }).toString();
+
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      const res = await fetch(`${apiUrl}/reports/sawer-performance/excel?${q}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error('Failed to generate Excel');
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      Swal.close();
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Sawer_Performance_${filters.start_date}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (error) {
+      console.error(error);
+      Swal.fire('ข้อผิดพลาด', 'ไม่สามารถสร้างไฟล์ Excel ได้', 'error');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentData = reportData.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(reportData.length / itemsPerPage);
+
+  return (
+    <div className="p-4 md:p-6 mx-auto min-h-screen bg-gray-50">
+      
+      {/* ─── โซนค้นหา ─── */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6 print:hidden">
+        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <i className="fas fa-users-cog text-blue-600"></i> ค้นหารายงานสรุปผลงานนายม้า
+        </h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="flex flex-col">
+            <label className="text-xs font-semibold mb-1 text-gray-700">สาขา <span className="text-red-500">*</span></label>
+            <select
+              name="branch_id"
+              value={filters.branch_id}
+              onChange={handleBranchChange}
+              disabled={isLoading || (accessLevel !== 1 && branches.length <= 1)}
+              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-gray-50 disabled:bg-gray-200 disabled:text-gray-500"
+            >
+              <option value="" disabled>-- เลือกสาขา --</option>
+              {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+            </select>
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs font-semibold mb-1 text-gray-700">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
+            <DatePicker
+              selected={filters.start_date ? parseISO(filters.start_date) : null}
+              onChange={(date) => handleDateChange(date, 'start_date')}
+              dateFormat="dd/MM/yyyy"
+              locale={th}
+              className="w-full border rounded-md p-2 text-sm outline-none bg-gray-50"
+              wrapperClassName="w-full"
+            />
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs font-semibold mb-1 text-gray-700">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
+            <DatePicker
+              selected={filters.end_date ? parseISO(filters.end_date) : null}
+              onChange={(date) => handleDateChange(date, 'end_date')}
+              dateFormat="dd/MM/yyyy"
+              locale={th}
+              className="w-full border rounded-md p-2 text-sm outline-none bg-gray-50"
+              wrapperClassName="w-full"
+            />
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs font-semibold mb-1 text-gray-700">รูปแบบรายงาน</label>
+            <select
+              name="report_format"
+              value={filters.report_format}
+              onChange={handleFilterChange}
+              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-blue-50 text-blue-700 font-semibold"
+            >
+              <option value="1">แบบที่ 1 (แสดงนายม้า+แหล่งที่มา)</option>
+              <option value="2">แบบที่ 2 (สรุปเฉพาะแผนก)</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-between items-center">
+          <button 
+            onClick={handleSearch} 
+            disabled={isLoading} 
+            className="bg-blue-600 text-white px-8 py-2 rounded-md text-sm font-semibold hover:bg-blue-700 shadow-sm flex items-center justify-center min-w-[120px]"
+          >
+            {isLoading ? <><i className="fas fa-spinner fa-spin mr-2"></i>กำลังโหลด...</> : <><i className="fas fa-search mr-2"></i>ดึงข้อมูล</>}
+          </button>
+
+          {reportData.length > 0 && (
+            <div className="flex gap-2">
+              <button onClick={() => handleExportPDF(true)} disabled={isExportingPDF} className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2">
+                <i className="fas fa-search-plus"></i> {isExportingPDF ? 'กำลังสร้าง...' : 'ตัวอย่าง PDF'}
+              </button>
+              <button onClick={() => handleExportPDF(false)} disabled={isExportingPDF} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2">
+                <i className="fas fa-file-pdf"></i> โหลด PDF
+              </button>
+              <button onClick={handleExportExcel} disabled={isExportingExcel} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2">
+                <i className="fas fa-file-excel"></i> {isExportingExcel ? 'กำลังสร้าง...' : 'โหลด Excel'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ─── โซนแสดงรายงาน ─── */}
+      {reportData.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 pb-6 print:border-none print:shadow-none min-h-[900px] flex flex-col justify-between">
+          
+          <div>
+            <div className="text-center mb-6 pt-6">
+              <h1 className="text-lg font-bold text-gray-800">บริษัท วู้ดเวิร์ค จำกัด ({filters.branch_name})</h1>
+              <h2 className="text-md font-semibold text-gray-700 mt-1">รายงานสรุปผลงานนายม้า แยกตามเกรดคุณภาพไม้ (AB, C, P, PP)</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                ตั้งแต่วันที่ {format(parseISO(filters.start_date), 'dd/MM/yyyy')} ถึง {format(parseISO(filters.end_date), 'dd/MM/yyyy')}
+                <span className="ml-2">สโตร์: ทั้งหมด</span>
+              </p>
+              <p className="text-sm text-gray-600">แหล่งที่มา: ทั้งหมด &nbsp;|&nbsp; ประเภทไม้: ทั้งหมด &nbsp;|&nbsp; กลุ่มไม้: ทั้งหมด</p>
+            </div>
+
+            <div className="px-4">
+              <ReportTable 
+                data={currentData} 
+                grandTotal={grandTotalData} 
+                avgPerSet={avgData}
+                showFooter={currentPage === totalPages || totalPages === 0} 
+              />
+            </div>
+          </div>
+
+          {/* ─── โซนเซ็นชื่อท้ายรายงาน (แสดงเฉพาะหน้าสุดท้าย) ─── */}
+          {(currentPage === totalPages || totalPages === 0) && (
+            <div className="mt-12 px-10 grid grid-cols-4 gap-4 text-center text-sm mb-4">
+              <div>
+                <p>-------------------------</p>
+                <p className="mt-2">ผู้รายงาน</p>
+              </div>
+              <div>
+                <p>-------------------------</p>
+                <p className="mt-2">ผู้ตรวจสอบ</p>
+              </div>
+              <div>
+                <p>-------------------------</p>
+                <p className="mt-2">ผู้พิจารณา</p>
+              </div>
+              <div>
+                <p>-------------------------</p>
+                <p className="mt-2">ผู้อนุมัติ</p>
+              </div>
+            </div>
+          )}
+
+          {/* ─── Pagination ─── */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 mt-4 mx-4 print:hidden">
+              <div className="flex gap-2">
+                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">« หน้าแรก</button>
+                <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">‹ ก่อนหน้า</button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">หน้า</span>
+                <select value={currentPage} onChange={(e) => setCurrentPage(Number(e.target.value))} className="border rounded-md py-1 px-2 text-sm font-semibold text-blue-700 outline-none">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+                <span className="text-sm">จาก {totalPages}</span>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">ถัดไป ›</button>
+                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">หน้าสุดท้าย »</button>
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+    </div>
+  );
+}
+</file>
+
 <file path="src/pages/SyncMaster.jsx">
 import { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
@@ -2138,6 +3534,7 @@ export default function SyncMaster() {
     }
   }, [logs]);
 
+  // ─── โหลดข้อมูลเริ่มต้น ───
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
@@ -2149,23 +3546,23 @@ export default function SyncMaster() {
   }, []);
 
   const fetchAllowedBranches = async () => {
-    addLog('Fetching authorized branches...');
     try {
-      const data = await apiFetch('/branches/allowed');
+      // 💡 ดึง Path ปัจจุบัน (เช่น '/wood-prices') และแนบไปกับ API
+      const currentPath = window.location.pathname;
+      const data = await apiFetch(`/branches/allowed?menu=${currentPath}`);
+      
       if (data?.success) {
         setBranches(data.data);
         setAccessLevel(data.access_level);
         
         if (data.access_level === 1) {
-          setSelectedBranch(0); 
+          setSelectedBranch(0); // Admin: 0 = ดูภาพรวม (หรือต้องบังคับเลือกทีละสาขา)
         } else if (data.data.length > 0) {
           setSelectedBranch(data.data[0].id);
         }
-        addLog(`Loaded ${data.data.length} branches successfully. Access Level: ${data.access_level}`);
       }
     } catch (error) {
       console.error('Fetch branches error:', error);
-      addLog('❌ Error: Failed to fetch branches.');
     }
   };
 
@@ -2416,14 +3813,29 @@ export default function SyncSawWood() {
   }, []);
 
   const fetchAllowedBranches = async () => {
+    addLog('Fetching authorized branches...');
     try {
-      const data = await apiFetch('/branches/allowed');
+      // 💡 1. ดึง Path ของหน้าปัจจุบัน (เช่น '/sync-master')
+      const currentPath = window.location.pathname;
+      
+      // 💡 2. แนบไปกับ API
+      const data = await apiFetch(`/branches/allowed?menu=${currentPath}`);
+      
       if (data?.success) {
         setBranches(data.data);
-        if (data.access_level === 1) setSelectedBranch(0); 
-        else if (data.data.length > 0) setSelectedBranch(data.data[0].id);
+        
+        // 💡 3. กรองเอาเฉพาะสาขาจริง (ไม่เอา id 0) เพื่อใช้หาค่าเริ่มต้น
+        const validList = data.data.filter(b => b.id !== 0);
+        
+        // บังคับให้ค่าเริ่มต้นเป็นสาขาแรกที่มีอยู่จริงเสมอ
+        if (validList.length > 0) {
+          setSelectedBranch(validList[0].id);
+        }
+        
+        addLog(`Loaded ${data.data.length} branches successfully. Access Level: ${data.access_level}`);
       }
     } catch (error) {
+      console.error('Fetch branches error:', error);
       addLog('❌ Error: Failed to fetch branches.');
     }
   };
@@ -2641,31 +4053,46 @@ export default function WoodPriceManager() {
 
   // ─── โหลดข้อมูลเริ่มต้น ───
   useEffect(() => {
+    let isMounted = true; // 💡 ตัวแปรดักจับเพื่อป้องกันการ Render เบิ้ล
+
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       const user = JSON.parse(storedUser);
       setCurrentUser(user);
       setIsAdmin(user.group_id === 1);
     }
-    fetchAllowedBranches();
-  }, []);
 
-  const fetchAllowedBranches = async () => {
-    try {
-      const data = await apiFetch('/branches/allowed');
-      if (data?.success) {
-        setBranches(data.data);
-        setAccessLevel(data.access_level);
-        if (data.access_level === 1) {
-          setSelectedBranch(0); // Admin: 0 = ดูภาพรวม (หรือต้องบังคับเลือกทีละสาขา)
-        } else if (data.data.length > 0) {
-          setSelectedBranch(data.data[0].id);
+    const fetchAllowedBranches = async () => {
+      try {
+        // 💡 ดึง Path ปัจจุบันและส่งไปให้ Backend เพื่อเช็คสิทธิ์ (access_level)
+        const currentPath = window.location.pathname;
+        const data = await apiFetch(`/branches/allowed?menu=${currentPath}`);
+        
+        // 💡 ถ้า Component ถูก Unmount ไปแล้ว (เช่น กดเปลี่ยนหน้าไวๆ) จะไม่เซ็ต State ต่อ
+        if (!isMounted) return;
+
+        if (data?.success) {
+          setBranches(data.data);
+          setAccessLevel(data.access_level);
+          
+          if (data.access_level === 1) {
+            setSelectedBranch(0); // Admin: 0 = ดูภาพรวม (หรือต้องบังคับเลือกทีละสาขา)
+          } else if (data.data.length > 0) {
+            setSelectedBranch(data.data[0].id);
+          }
         }
+      } catch (error) {
+        console.error('Fetch branches error:', error);
       }
-    } catch (error) {
-      console.error('Fetch branches error:', error);
-    }
-  };
+    };
+
+    fetchAllowedBranches();
+
+    // 💡 Cleanup function สำหรับจัดการการดึง API เบิ้ล
+    return () => {
+      isMounted = false; 
+    };
+  }, []);
 
   // ดึงข้อมูลสินค้าตาม Filter (เรียกเมื่อ Filter เปลี่ยน หรือ สาขาเปลี่ยน)
   const fetchProducts = async () => {
@@ -3133,7 +4560,9 @@ export default function WoodTypeReport() {
   useEffect(() => {
     const fetchBranches = async () => {
       try {
-        const res = await apiFetch('/branches/allowed');
+        const currentPath = window.location.pathname;
+        // 💡 2. แนบ ?menu=... พ่วงไปกับ API เลย Backend จะได้รู้เป๊ะๆ
+        const res = await apiFetch(`/branches/allowed?menu=${currentPath}`);
 
         if (res?.success && res.data.length > 0) {
           setBranches(res.data);
@@ -3666,6 +5095,9 @@ import SyncSawWood from './pages/SyncSawWood';
 import CheckSawWood from './pages/CheckSawWood';
 import ProductionConverReport from './pages/ProductionCoverReport';
 import WoodTypeReport from './pages/WoodTypeReport';
+import AveragePriceReport from './pages/AveragePriceReport';
+import ProductionThickMilReport from './pages/ProductionThickMilReport';
+import SawerPerformanceReport from './pages/SawerPerformanceReport';
 
 
 function App() {
@@ -3685,6 +5117,9 @@ function App() {
           <Route path="/check-saw-woods" element={<CheckSawWood />} />
           <Route path="/production-cover" element={<ProductionConverReport />} />
           <Route path="/wood-type-ab" element={<WoodTypeReport />} />
+          <Route path="/average-price" element={<AveragePriceReport />} />
+          <Route path="/production-thick-mil-report" element={<ProductionThickMilReport />} />
+          <Route path="/sawer-performance" element={<SawerPerformanceReport />} />
         </Route>
       </Routes>
     </BrowserRouter>
@@ -3842,6 +5277,24 @@ dist-ssr
 repomix-frontend-output.xml
 </file>
 
+<file path="index.html">
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WW_Report System</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+</file>
+
 <file path=".oxlintrc.json">
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
@@ -3851,6 +5304,69 @@ repomix-frontend-output.xml
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
   }
 }
+</file>
+
+<file path="package.json">
+{
+  "name": "ww-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "date-fns": "^4.4.0",
+    "html-to-image": "^1.11.13",
+    "html2canvas": "^1.4.1",
+    "html2pdf.js": "^0.14.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
+    "react": "^19.2.8",
+    "react-datepicker": "^9.1.0",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.2",
+    "react-select": "^5.10.2",
+    "sweetalert2": "^11.26.25",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "4.3.4",
+    "oxlint": "^1.75.0",
+    "tailwindcss": "^4.3.3",
+    "vite": "5.4.11"
+  }
+}
+</file>
+
+<file path="pnpm-workspace.yaml">
+allowBuilds:
+  esbuild: false
+</file>
+
+<file path="README.md">
+# React + Vite
+
+This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+
+Currently, two official plugins are available:
+
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+
+## React Compiler
+
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+
+## Expanding the Oxlint configuration
+
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
 </file>
 
 <file path=".repomixignore">
@@ -3931,86 +5447,6 @@ dist-ssr
 .env.development.local
 .env.test.local
 .env.production.local
-</file>
-
-<file path="index.html">
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WW_Report System</title>
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
-</file>
-
-<file path="package.json">
-{
-  "name": "ww-frontend",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "oxlint",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "date-fns": "^4.4.0",
-    "html-to-image": "^1.11.13",
-    "html2canvas": "^1.4.1",
-    "html2pdf.js": "^0.14.0",
-    "jspdf": "^4.2.1",
-    "jspdf-autotable": "^5.0.8",
-    "react": "^19.2.8",
-    "react-datepicker": "^9.1.0",
-    "react-dom": "^19.2.8",
-    "react-router-dom": "^7.18.2",
-    "sweetalert2": "^11.26.25",
-    "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
-    "@tailwindcss/vite": "^4.3.3",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "4.3.4",
-    "oxlint": "^1.75.0",
-    "tailwindcss": "^4.3.3",
-    "vite": "5.4.11"
-  }
-}
-</file>
-
-<file path="pnpm-workspace.yaml">
-allowBuilds:
-  esbuild: false
-</file>
-
-<file path="README.md">
-# React + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
 </file>
 
 <file path="repomix-output.md">
