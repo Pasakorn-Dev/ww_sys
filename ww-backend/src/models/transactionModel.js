@@ -223,6 +223,68 @@ const TransactionModel = {
 
     const { rows } = await pool.query(query, params);
     return rows;
+  },
+
+  // ==========================================
+  // ส่วนคำนวณราคาขายใหม่ (Recalculation)
+  // ==========================================
+
+  // 1. สร้าง Log ว่าเริ่มทำงาน (สถานะ Processing)
+  createRecalLog: async (branch_id, produce_date, user_id) => {
+    const query = `
+      INSERT INTO recal_logs (branch_id, produce_date, status, created_by)
+      VALUES ($1, $2, 'Processing', $3) RETURNING id;
+    `;
+    const { rows } = await pool.query(query, [branch_id, produce_date, user_id]);
+    return rows[0].id;
+  },
+
+  // 2. อัปเดต Log เมื่อเสร็จสิ้น (Success / Error)
+  updateRecalLog: async (id, status, total_updated, error_message = null) => {
+    const query = `
+      UPDATE recal_logs 
+      SET status = $1, total_updated = $2, error_message = $3, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $4;
+    `;
+    await pool.query(query, [status, total_updated, error_message, id]);
+  },
+
+  // 3. ดึงประวัติการทำงานมาแสดงในตาราง
+  getRecalLogs: async (branch_id) => {
+    let query = `
+      SELECT r.*, b.branch_name, u.fullname as created_by_name
+      FROM recal_logs r
+      LEFT JOIN branches b ON r.branch_id = b.id
+      LEFT JOIN users u ON r.created_by = u.id
+    `;
+    const params = [];
+    // หากมีการระบุสาขา ให้กรองเฉพาะสาขานั้น
+    if (branch_id) {
+       query += ` WHERE r.branch_id = $1 `;
+       params.push(branch_id);
+    }
+    query += ` ORDER BY r.created_at DESC LIMIT 50;`;
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
+
+  // 4. คำสั่ง SQL อัปเดตราคาใหม่ 
+  executeRecalculation: async (branch_id, produce_date) => {
+    const query = `
+      UPDATE transaction_saw_woods tsw
+      SET unit_price = ws.unit_price
+      FROM master_wood_sizes ws
+      WHERE tsw.wood_size_id = ws.old_id 
+        AND tsw.branch_id = ws.branch_id
+        AND tsw.branch_id = $1 
+        AND tsw.produce_date::DATE = $2::DATE
+    `;
+    
+    // 💡 แก้ไข: รับเป็น result เต็มๆ แทนการดึงเฉพาะ { rows }
+    const result = await pool.query(query, [branch_id, produce_date]);
+    
+    // 💡 แก้ไข: ใช้ result.rowCount ในการส่งกลับจำนวนแถวที่ถูกอัปเดตจริงๆ
+    return result.rowCount; 
   }
 };
 

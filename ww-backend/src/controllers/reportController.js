@@ -5,6 +5,45 @@ const ExcelJS = require('exceljs'); // <- ต้องมีบรรทัด�
 const fs = require('fs');      
 const path = require('path');  
 
+// 💡 ระบบแชร์ Browser ตัวเดียว (Global) แบบป้องกันการกดรัวๆ (Promise Caching)
+let browserPromise = null;
+
+const getBrowser = async () => {
+  try {
+    // 1. ถ้ามีคิวเปิดบราวเซอร์อยู่แล้ว หรือเปิดทิ้งไว้แล้ว ให้รอใช้ตัวนั้น
+    if (browserPromise) {
+      const browser = await browserPromise;
+      
+      // ตรวจสอบสถานะการเชื่อมต่อ (รองรับทั้งแบบ function และ boolean เผื่อเวอร์ชันของ Puppeteer ต่างกัน)
+      const isConnected = typeof browser.isConnected === 'function' ? browser.isConnected() : browser.connected;
+      
+      if (isConnected) {
+        return browser;
+      }
+    }
+
+    // 2. ถ้ายังไม่เคยสร้าง หรือบราวเซอร์แครชไปแล้ว ให้สร้างขึ้นมาใหม่
+    console.log("🚀 Starting new Chrome browser instance...");
+    browserPromise = puppeteer.launch({ 
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox', 
+        '--disable-dev-shm-usage', // ป้องกันปัญหาแรมเต็มใน Linux
+        '--disable-gpu'            // ลดการใช้ทรัพยากร
+        // ❌ เอา '--single-process' ออกไปเลยครับ เพราะเป็นตัวการทำให้แครชเมื่อดึง PDF หลายแท็บ
+      ],
+      headless: "new"
+    });
+
+    return await browserPromise;
+
+  } catch (error) {
+    console.error("❌ Browser Launch Error:", error);
+    browserPromise = null; // รีเซ็ตเพื่อเคลียร์คิวให้กดลองใหม่ได้
+    throw error;
+  }
+};
+
 const fetchWoodTypeAbData = async (start_date, end_date, branch_id) => {
   const query = `
     WITH BaseData AS (
@@ -645,8 +684,10 @@ const reportController = {
         </html>
       `;
 
-      const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
+      // 💡 โค้ดใหม่ (ใช้ Browser ตัวเดิม แต่เปิด Tab ใหม่)
+      const browser = await getBrowser();
       const page = await browser.newPage();
+
       await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
       const pdfBuffer = await page.pdf({ 
         format: 'A4', 
@@ -654,7 +695,9 @@ const reportController = {
         printBackground: true,
         margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
       });
-      await browser.close();
+
+      // 💡 สำคัญมาก: เปลี่ยนจาก browser.close() เป็น page.close() เพื่อปิดแค่ Tab ไม่ปิดโปรแกรมหลัก
+      await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="report.pdf"');
@@ -1092,8 +1135,10 @@ const reportController = {
         </html>
       `;
 
-      const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
+      // 💡 โค้ดใหม่ (ใช้ Browser ตัวเดิม แต่เปิด Tab ใหม่)
+      const browser = await getBrowser();
       const page = await browser.newPage();
+
       await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
       const pdfBuffer = await page.pdf({ 
         format: 'A4', 
@@ -1101,7 +1146,9 @@ const reportController = {
         printBackground: true,
         margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
       });
-      await browser.close();
+
+      // 💡 สำคัญมาก: เปลี่ยนจาก browser.close() เป็น page.close() เพื่อปิดแค่ Tab ไม่ปิดโปรแกรมหลัก
+      await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="average_price_report.pdf"');
@@ -1407,12 +1454,21 @@ const reportController = {
         </body></html>
       `;
 
-      const puppeteer = require('puppeteer');
-      const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
+      // const puppeteer = require('puppeteer');
+      // 💡 โค้ดใหม่ (ใช้ Browser ตัวเดิม แต่เปิด Tab ใหม่)
+      const browser = await getBrowser();
       const page = await browser.newPage();
+
       await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ format: 'A4', landscape: false, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
-      await browser.close();
+      const pdfBuffer = await page.pdf({ 
+        format: 'A4', 
+        landscape: true, 
+        printBackground: true,
+        margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
+      });
+
+      // 💡 สำคัญมาก: เปลี่ยนจาก browser.close() เป็น page.close() เพื่อปิดแค่ Tab ไม่ปิดโปรแกรมหลัก
+      await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="report.pdf"');
@@ -1749,15 +1805,492 @@ const reportController = {
         </body></html>
       `;
 
-      const puppeteer = require('puppeteer');
-      const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
+      // const puppeteer = require('puppeteer');
+      // 💡 โค้ดใหม่ (ใช้ Browser ตัวเดิม แต่เปิด Tab ใหม่)
+      const browser = await getBrowser();
       const page = await browser.newPage();
+
       await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ format: 'A4', landscape: true, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
-      await browser.close();
+      const pdfBuffer = await page.pdf({ 
+        format: 'A4', 
+        landscape: true, 
+        printBackground: true,
+        margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
+      });
+
+      // 💡 สำคัญมาก: เปลี่ยนจาก browser.close() เป็น page.close() เพื่อปิดแค่ Tab ไม่ปิดโปรแกรมหลัก
+      await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="sawer_performance.pdf"');
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error PDF' });
+    }
+  },
+
+  // เพิ่มเข้าไปใน reportController
+  getDailyProduction: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date } = req.query;
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      const rows = await ReportModel.getDailyProductionReport({ branch_id, start_date, end_date });
+
+      // 1. เตรียมตัวแปรเก็บยอดรวมทั้งหมด (Grand Total)
+      let gt = {
+        vol_normal_ab: 0, vol_special_ab: 0,
+        vol_normal_c: 0, vol_special_c: 0,
+        vol_normal_p: 0, vol_special_p: 0,
+        vol_normal_pp: 0, vol_special_pp: 0,
+        total_volumn: 0
+      };
+
+      // 2. จัดกลุ่มข้อมูลแยกตาม "เดือน/ปี"
+      const monthlyGroups = {};
+
+      rows.forEach(row => {
+        const d = new Date(row.produce_date);
+        // สร้าง Key สำหรับจัดกลุ่ม เช่น "5/2025"
+        const monthYear = `${d.getMonth() + 1}/${d.getFullYear()}`;
+
+        if (!monthlyGroups[monthYear]) {
+          monthlyGroups[monthYear] = {
+            month_label: monthYear,
+            days: [],
+            monthly_total: {
+              vol_normal_ab: 0, vol_special_ab: 0,
+              vol_normal_c: 0, vol_special_c: 0,
+              vol_normal_p: 0, vol_special_p: 0,
+              vol_normal_pp: 0, vol_special_pp: 0,
+              total_volumn: 0
+            }
+          };
+        }
+
+        // เก็บค่าปริมาตรรายวัน
+        const dailyVols = {
+          vol_normal_ab: Number(row.vol_normal_ab || 0),
+          vol_special_ab: Number(row.vol_special_ab || 0),
+          vol_normal_c: Number(row.vol_normal_c || 0),
+          vol_special_c: Number(row.vol_special_c || 0),
+          vol_normal_p: Number(row.vol_normal_p || 0),
+          vol_special_p: Number(row.vol_special_p || 0),
+          vol_normal_pp: Number(row.vol_normal_pp || 0),
+          vol_special_pp: Number(row.vol_special_pp || 0),
+          total_volumn: Number(row.total_volumn || 0)
+        };
+
+        // คำนวณ % สัดส่วนรายวัน
+        const dailyPcts = {};
+        for (const key in dailyVols) {
+          if (key !== 'total_volumn') {
+            dailyPcts[key] = dailyVols.total_volumn > 0 ? (dailyVols[key] / dailyVols.total_volumn) * 100 : 0;
+          }
+        }
+        dailyPcts.total_volumn = dailyVols.total_volumn > 0 ? 100 : 0;
+
+        // ดันข้อมูลรายวันเข้ากลุ่มของเดือนนั้นๆ
+        monthlyGroups[monthYear].days.push({
+          date: row.produce_date,
+          vols: dailyVols,
+          pcts: dailyPcts
+        });
+
+        // บวกรวมยอดรายวันเข้า "ยอดรวมประจำเดือน" และ "ยอดรวมทั้งหมด"
+        for (const key in dailyVols) {
+          monthlyGroups[monthYear].monthly_total[key] += dailyVols[key];
+          gt[key] += dailyVols[key];
+        }
+      });
+
+      // 3. คำนวณ % สัดส่วนประจำเดือน
+      Object.values(monthlyGroups).forEach(group => {
+        const mt = group.monthly_total;
+        group.monthly_pcts = {};
+        for (const key in mt) {
+          if (key !== 'total_volumn') {
+            group.monthly_pcts[key] = mt.total_volumn > 0 ? (mt[key] / mt.total_volumn) * 100 : 0;
+          }
+        }
+        group.monthly_pcts.total_volumn = mt.total_volumn > 0 ? 100 : 0;
+      });
+
+      // 4. คำนวณ % สัดส่วนรวมทั้งหมด
+      const gtPcts = {};
+      for (const key in gt) {
+        if (key !== 'total_volumn') {
+          gtPcts[key] = gt.total_volumn > 0 ? (gt[key] / gt.total_volumn) * 100 : 0;
+        }
+      }
+      gtPcts.total_volumn = gt.total_volumn > 0 ? 100 : 0;
+
+      res.json({
+        success: true,
+        data: Object.values(monthlyGroups),
+        grandTotal: { vols: gt, pcts: gtPcts }
+      });
+
+    } catch (error) {
+      console.error('Report Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานสรุปผลผลิตไม้รายวัน' });
+    }
+  },
+
+  // --- Helper Function สำหรับรายงานผลผลิตไม้รายวันและรายเดือน ---
+  fetchDailyProductionDataHelper: async (branch_id, start_date, end_date) => {
+    const rows = await ReportModel.getDailyProductionReport({ branch_id, start_date, end_date });
+
+    let gt = {
+      vol_normal_ab: 0, vol_special_ab: 0,
+      vol_normal_c: 0, vol_special_c: 0,
+      vol_normal_p: 0, vol_special_p: 0,
+      vol_normal_pp: 0, vol_special_pp: 0,
+      total_volumn: 0
+    };
+
+    const monthlyGroups = {};
+
+    rows.forEach(row => {
+      const d = new Date(row.produce_date);
+      const monthYear = `${d.getMonth() + 1}/${d.getFullYear()}`;
+
+      if (!monthlyGroups[monthYear]) {
+        monthlyGroups[monthYear] = {
+          month_label: monthYear,
+          days: [],
+          monthly_total: {
+            vol_normal_ab: 0, vol_special_ab: 0,
+            vol_normal_c: 0, vol_special_c: 0,
+            vol_normal_p: 0, vol_special_p: 0,
+            vol_normal_pp: 0, vol_special_pp: 0,
+            total_volumn: 0
+          }
+        };
+      }
+
+      const dailyVols = {
+        vol_normal_ab: Number(row.vol_normal_ab || 0),
+        vol_special_ab: Number(row.vol_special_ab || 0),
+        vol_normal_c: Number(row.vol_normal_c || 0),
+        vol_special_c: Number(row.vol_special_c || 0),
+        vol_normal_p: Number(row.vol_normal_p || 0),
+        vol_special_p: Number(row.vol_special_p || 0),
+        vol_normal_pp: Number(row.vol_normal_pp || 0),
+        vol_special_pp: Number(row.vol_special_pp || 0),
+        total_volumn: Number(row.total_volumn || 0)
+      };
+
+      const dailyPcts = {};
+      for (const key in dailyVols) {
+        if (key !== 'total_volumn') {
+          dailyPcts[key] = dailyVols.total_volumn > 0 ? (dailyVols[key] / dailyVols.total_volumn) * 100 : 0;
+        }
+      }
+      dailyPcts.total_volumn = dailyVols.total_volumn > 0 ? 100 : 0;
+
+      monthlyGroups[monthYear].days.push({
+        date: row.produce_date,
+        vols: dailyVols,
+        pcts: dailyPcts
+      });
+
+      for (const key in dailyVols) {
+        monthlyGroups[monthYear].monthly_total[key] += dailyVols[key];
+        gt[key] += dailyVols[key];
+      }
+    });
+
+    Object.values(monthlyGroups).forEach(group => {
+      const mt = group.monthly_total;
+      group.monthly_pcts = {};
+      for (const key in mt) {
+        if (key !== 'total_volumn') {
+          group.monthly_pcts[key] = mt.total_volumn > 0 ? (mt[key] / mt.total_volumn) * 100 : 0;
+        }
+      }
+      group.monthly_pcts.total_volumn = mt.total_volumn > 0 ? 100 : 0;
+    });
+
+    const gtPcts = {};
+    for (const key in gt) {
+      if (key !== 'total_volumn') {
+        gtPcts[key] = gt.total_volumn > 0 ? (gt[key] / gt.total_volumn) * 100 : 0;
+      }
+    }
+    gtPcts.total_volumn = gt.total_volumn > 0 ? 100 : 0;
+
+    return { formattedData: Object.values(monthlyGroups), grandTotal: { vols: gt, pcts: gtPcts } };
+  },
+
+  // 💡 ปรับให้ฟังก์ชัน JSON เดิมไปใช้ Helper
+  getDailyProduction: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date } = req.query;
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      const { formattedData, grandTotal } = await reportController.fetchDailyProductionDataHelper(branch_id, start_date, end_date);
+      res.json({ success: true, data: formattedData, grandTotal });
+    } catch (error) {
+      console.error('Report Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงาน' });
+    }
+  },
+
+  // --- ฟังก์ชัน สร้างไฟล์ Excel ---
+  exportDailyProductionExcel: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date } = req.query;
+      const { formattedData, grandTotal } = await reportController.fetchDailyProductionDataHelper(branch_id, start_date, end_date);
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Daily Production');
+
+      worksheet.columns = [
+        { key: 'date', width: 20 },
+        { key: 'ab1', width: 12 }, { key: 'ab2', width: 12 },
+        { key: 'c1', width: 12 }, { key: 'c2', width: 12 },
+        { key: 'p1', width: 12 }, { key: 'p2', width: 12 },
+        { key: 'pp1', width: 12 }, { key: 'pp2', width: 12 },
+        { key: 'total', width: 15 }
+      ];
+
+      const headerRow = worksheet.addRow(['วันที่ผลิต', 'AB', 'AB พิเศษ', 'C', 'C พิเศษ', 'P ปกติ', 'P พิเศษ', 'PP ปกติ', 'PP พิเศษ', 'รวม']);
+      headerRow.eachCell(cell => {
+        cell.font = { bold: true };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
+        cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+      });
+
+      formattedData.forEach(month => {
+        month.days.forEach(day => {
+          const dDate = new Date(day.date);
+          const dateStr = `${String(dDate.getDate()).padStart(2, '0')}/${String(dDate.getMonth()+1).padStart(2, '0')}/${dDate.getFullYear()}`;
+          
+          const volRow = worksheet.addRow([
+            dateStr,
+            day.vols.vol_normal_ab || null, day.vols.vol_special_ab || null,
+            day.vols.vol_normal_c || null, day.vols.vol_special_c || null,
+            day.vols.vol_normal_p || null, day.vols.vol_special_p || null,
+            day.vols.vol_normal_pp || null, day.vols.vol_special_pp || null,
+            day.vols.total_volumn || null
+          ]);
+
+          const pctRow = worksheet.addRow([
+            '',
+            day.pcts.vol_normal_ab > 0 ? (day.pcts.vol_normal_ab/100) : '', day.pcts.vol_special_ab > 0 ? (day.pcts.vol_special_ab/100) : '',
+            day.pcts.vol_normal_c > 0 ? (day.pcts.vol_normal_c/100) : '', day.pcts.vol_special_c > 0 ? (day.pcts.vol_special_c/100) : '',
+            day.pcts.vol_normal_p > 0 ? (day.pcts.vol_normal_p/100) : '', day.pcts.vol_special_p > 0 ? (day.pcts.vol_special_p/100) : '',
+            day.pcts.vol_normal_pp > 0 ? (day.pcts.vol_normal_pp/100) : '', day.pcts.vol_special_pp > 0 ? (day.pcts.vol_special_pp/100) : '',
+            day.pcts.total_volumn > 0 ? (day.pcts.total_volumn/100) : ''
+          ]);
+
+          worksheet.mergeCells(`A${volRow.number}:A${pctRow.number}`);
+          volRow.getCell(1).alignment = { vertical: 'middle' };
+
+          for(let i=2; i<=10; i++) {
+            volRow.getCell(i).numFmt = '#,##0.00';
+            pctRow.getCell(i).numFmt = '0.00%';
+            pctRow.getCell(i).font = { color: { argb: 'FF808080' } };
+          }
+          volRow.getCell(10).font = { bold: true };
+          pctRow.getCell(10).font = { bold: true, color: { argb: 'FF808080' } };
+        });
+
+        const mVolRow = worksheet.addRow([`รวมรายเดือน : ${month.month_label}`, month.monthly_total.vol_normal_ab, month.monthly_total.vol_special_ab, month.monthly_total.vol_normal_c, month.monthly_total.vol_special_c, month.monthly_total.vol_normal_p, month.monthly_total.vol_special_p, month.monthly_total.vol_normal_pp, month.monthly_total.vol_special_pp, month.monthly_total.total_volumn]);
+        const mPctRow = worksheet.addRow(['', month.monthly_pcts.vol_normal_ab/100, month.monthly_pcts.vol_special_ab/100, month.monthly_pcts.vol_normal_c/100, month.monthly_pcts.vol_special_c/100, month.monthly_pcts.vol_normal_p/100, month.monthly_pcts.vol_special_p/100, month.monthly_pcts.vol_normal_pp/100, month.monthly_pcts.vol_special_pp/100, month.monthly_pcts.total_volumn/100]);
+        
+        worksheet.mergeCells(`A${mVolRow.number}:A${mPctRow.number}`);
+        mVolRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'center' };
+        mVolRow.getCell(1).font = { bold: true };
+        
+        for(let i=2; i<=10; i++) {
+          mVolRow.getCell(i).numFmt = '#,##0.00'; mVolRow.getCell(i).font = { bold: true };
+          mPctRow.getCell(i).numFmt = '0.00%'; mPctRow.getCell(i).font = { bold: true, color: { argb: 'FF808080' } };
+        }
+        mVolRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+        mPctRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+      });
+
+      if (grandTotal) {
+        const gtRow = worksheet.addRow(['รวมทั้งหมด', grandTotal.vols.vol_normal_ab, grandTotal.vols.vol_special_ab, grandTotal.vols.vol_normal_c, grandTotal.vols.vol_special_c, grandTotal.vols.vol_normal_p, grandTotal.vols.vol_special_p, grandTotal.vols.vol_normal_pp, grandTotal.vols.vol_special_pp, grandTotal.vols.total_volumn]);
+        gtRow.font = { bold: true };
+        gtRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
+        gtRow.getCell(1).alignment = { horizontal: 'center' };
+        for(let i=2; i<=10; i++) gtRow.getCell(i).numFmt = '#,##0.00';
+      }
+
+      worksheet.eachRow({ includeEmpty: true }, row => {
+        row.eachCell({ includeEmpty: true }, cell => {
+          if (!cell.border) cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+        });
+      });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=daily_production.xlsx');
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error generating Excel' });
+    }
+  },
+
+  // --- ฟังก์ชัน สร้างไฟล์ PDF ---
+  exportDailyProductionPDF: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, branch_name } = req.query;
+      const { formattedData, grandTotal } = await reportController.fetchDailyProductionDataHelper(branch_id, start_date, end_date);
+
+      const fs = require('fs');
+      const path = require('path');
+      const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
+      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+
+      let rowsHtml = '';
+      formattedData.forEach((month) => {
+        month.days.forEach(day => {
+          const dDate = new Date(day.date);
+          const dateStr = `${String(dDate.getDate()).padStart(2, '0')}/${String(dDate.getMonth()+1).padStart(2, '0')}/${dDate.getFullYear()}`;
+          
+          rowsHtml += `
+            <tr class="bg-white">
+              <td rowspan="2" class="left pl">${dateStr}</td>
+              <td class="text-blue">${day.vols.vol_normal_ab > 0 ? day.vols.vol_normal_ab.toFixed(2) : ''}</td>
+              <td class="text-blue">${day.vols.vol_special_ab > 0 ? day.vols.vol_special_ab.toFixed(2) : ''}</td>
+              <td class="text-green">${day.vols.vol_normal_c > 0 ? day.vols.vol_normal_c.toFixed(2) : ''}</td>
+              <td class="text-green">${day.vols.vol_special_c > 0 ? day.vols.vol_special_c.toFixed(2) : ''}</td>
+              <td class="text-orange">${day.vols.vol_normal_p > 0 ? day.vols.vol_normal_p.toFixed(2) : ''}</td>
+              <td class="text-orange">${day.vols.vol_special_p > 0 ? day.vols.vol_special_p.toFixed(2) : ''}</td>
+              <td class="text-purple">${day.vols.vol_normal_pp > 0 ? day.vols.vol_normal_pp.toFixed(2) : ''}</td>
+              <td class="text-purple">${day.vols.vol_special_pp > 0 ? day.vols.vol_special_pp.toFixed(2) : ''}</td>
+              <td class="bg-gray-light bold">${day.vols.total_volumn > 0 ? day.vols.total_volumn.toFixed(2) : ''}</td>
+            </tr>
+            <tr class="bg-white text-gray">
+              <td>${day.pcts.vol_normal_ab > 0 ? day.pcts.vol_normal_ab.toFixed(2) + '%' : ''}</td>
+              <td>${day.pcts.vol_special_ab > 0 ? day.pcts.vol_special_ab.toFixed(2) + '%' : ''}</td>
+              <td>${day.pcts.vol_normal_c > 0 ? day.pcts.vol_normal_c.toFixed(2) + '%' : ''}</td>
+              <td>${day.pcts.vol_special_c > 0 ? day.pcts.vol_special_c.toFixed(2) + '%' : ''}</td>
+              <td>${day.pcts.vol_normal_p > 0 ? day.pcts.vol_normal_p.toFixed(2) + '%' : ''}</td>
+              <td>${day.pcts.vol_special_p > 0 ? day.pcts.vol_special_p.toFixed(2) + '%' : ''}</td>
+              <td>${day.pcts.vol_normal_pp > 0 ? day.pcts.vol_normal_pp.toFixed(2) : ''}</td>
+              <td>${day.pcts.vol_special_pp > 0 ? day.pcts.vol_special_pp.toFixed(2) + '%' : ''}</td>
+              <td class="bg-gray-light">${day.pcts.total_volumn > 0 ? day.pcts.total_volumn.toFixed(2) + '%' : ''}</td>
+            </tr>
+          `;
+        });
+
+        rowsHtml += `
+          <tr class="bg-gray-mid bold border-t">
+            <td rowspan="2" class="center tracking">รวมรายเดือน : ${month.month_label}</td>
+            <td class="text-blue">${month.monthly_total.vol_normal_ab > 0 ? month.monthly_total.vol_normal_ab.toFixed(2) : ''}</td>
+            <td class="text-blue">${month.monthly_total.vol_special_ab > 0 ? month.monthly_total.vol_special_ab.toFixed(2) : ''}</td>
+            <td class="text-green">${month.monthly_total.vol_normal_c > 0 ? month.monthly_total.vol_normal_c.toFixed(2) : ''}</td>
+            <td class="text-green">${month.monthly_total.vol_special_c > 0 ? month.monthly_total.vol_special_c.toFixed(2) : ''}</td>
+            <td class="text-orange">${month.monthly_total.vol_normal_p > 0 ? month.monthly_total.vol_normal_p.toFixed(2) : ''}</td>
+            <td class="text-orange">${month.monthly_total.vol_special_p > 0 ? month.monthly_total.vol_special_p.toFixed(2) : ''}</td>
+            <td class="text-purple">${month.monthly_total.vol_normal_pp > 0 ? month.monthly_total.vol_normal_pp.toFixed(2) : ''}</td>
+            <td class="text-purple">${month.monthly_total.vol_special_pp > 0 ? month.monthly_total.vol_special_pp.toFixed(2) : ''}</td>
+            <td class="bg-gray-dark">${month.monthly_total.total_volumn > 0 ? month.monthly_total.total_volumn.toFixed(2) : ''}</td>
+          </tr>
+          <tr class="bg-gray-mid bold text-gray">
+            <td>${month.monthly_pcts.vol_normal_ab > 0 ? month.monthly_pcts.vol_normal_ab.toFixed(2) + '%' : ''}</td>
+            <td>${month.monthly_pcts.vol_special_ab > 0 ? month.monthly_pcts.vol_special_ab.toFixed(2) + '%' : ''}</td>
+            <td>${month.monthly_pcts.vol_normal_c > 0 ? month.monthly_pcts.vol_normal_c.toFixed(2) + '%' : ''}</td>
+            <td>${month.monthly_pcts.vol_special_c > 0 ? month.monthly_pcts.vol_special_c.toFixed(2) + '%' : ''}</td>
+            <td>${month.monthly_pcts.vol_normal_p > 0 ? month.monthly_pcts.vol_normal_p.toFixed(2) + '%' : ''}</td>
+            <td>${month.monthly_pcts.vol_special_p > 0 ? month.monthly_pcts.vol_special_p.toFixed(2) + '%' : ''}</td>
+            <td>${month.monthly_pcts.vol_normal_pp > 0 ? month.monthly_pcts.vol_normal_pp.toFixed(2) + '%' : ''}</td>
+            <td>${month.monthly_pcts.vol_special_pp > 0 ? month.monthly_pcts.vol_special_pp.toFixed(2) + '%' : ''}</td>
+            <td class="bg-gray-dark text-gray">${month.monthly_pcts.total_volumn > 0 ? month.monthly_pcts.total_volumn.toFixed(2) + '%' : ''}</td>
+          </tr>
+        `;
+      });
+
+      if (grandTotal && formattedData.length > 0) {
+        rowsHtml += `
+          <tr class="bg-gray-darker bold border-t text-sm">
+            <td class="center tracking">รวมทั้งหมด</td>
+            <td>${grandTotal.vols.vol_normal_ab > 0 ? grandTotal.vols.vol_normal_ab.toFixed(2) : ''}</td>
+            <td>${grandTotal.vols.vol_special_ab > 0 ? grandTotal.vols.vol_special_ab.toFixed(2) : ''}</td>
+            <td>${grandTotal.vols.vol_normal_c > 0 ? grandTotal.vols.vol_normal_c.toFixed(2) : ''}</td>
+            <td>${grandTotal.vols.vol_special_c > 0 ? grandTotal.vols.vol_special_c.toFixed(2) : ''}</td>
+            <td>${grandTotal.vols.vol_normal_p > 0 ? grandTotal.vols.vol_normal_p.toFixed(2) : ''}</td>
+            <td>${grandTotal.vols.vol_special_p > 0 ? grandTotal.vols.vol_special_p.toFixed(2) : ''}</td>
+            <td>${grandTotal.vols.vol_normal_pp > 0 ? grandTotal.vols.vol_normal_pp.toFixed(2) : ''}</td>
+            <td>${grandTotal.vols.vol_special_pp > 0 ? grandTotal.vols.vol_special_pp.toFixed(2) : ''}</td>
+            <td style="color: #000; background-color: #9ca3af;">${grandTotal.vols.total_volumn > 0 ? grandTotal.vols.total_volumn.toFixed(2) : ''}</td>
+          </tr>
+        `;
+      }
+
+      const htmlContent = `
+        <html><head><style>
+          @font-face { font-family: 'THSarabun'; src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype'); }
+          body { font-family: 'THSarabun', sans-serif; font-size: 13px; margin: 0; padding: 20px; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #555; padding: 4px; text-align: right; }
+          th { font-weight: bold; text-align: center; background-color: #f3f4f6; }
+          .left { text-align: left; } .center { text-align: center; } .pl { padding-left: 6px; } 
+          .bold { font-weight: bold; } .tracking { letter-spacing: 1px; }
+          .bg-white { background-color: #ffffff; }
+          .bg-gray-light { background-color: #f9fafb; }
+          .bg-gray-mid { background-color: #e5e7eb; }
+          .bg-gray-dark { background-color: #d1d5db; }
+          .bg-gray-darker { background-color: #9ca3af; color: #fff; }
+          .text-gray { color: #6b7280; }
+          .text-blue { color: #1e40af; }
+          .text-green { color: #166534; }
+          .text-orange { color: #9a3412; }
+          .text-purple { color: #6b21a8; }
+          .border-t { border-top: 2px solid #333; }
+        </style></head><body>
+          <div style="text-align:center; margin-bottom:15px;">
+            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปผลผลิตไม้รายวันและประจำเดือน</h2>
+            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>วันที่ผลิต</th>
+                <th>AB</th><th>AB พิเศษ</th>
+                <th>C</th><th>C พิเศษ</th>
+                <th>P ปกติ</th><th>P พิเศษ</th>
+                <th>PP ปกติ</th><th>PP พิเศษ</th>
+                <th>รวม</th>
+              </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </body></html>
+      `;
+
+      // const puppeteer = require('puppeteer');
+      // 💡 โค้ดใหม่ (ใช้ Browser ตัวเดิม แต่เปิด Tab ใหม่)
+      const browser = await getBrowser();
+      const page = await browser.newPage();
+
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      const pdfBuffer = await page.pdf({ 
+        format: 'A4', 
+        landscape: true, 
+        printBackground: true,
+        margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
+      });
+
+      // 💡 สำคัญมาก: เปลี่ยนจาก browser.close() เป็น page.close() เพื่อปิดแค่ Tab ไม่ปิดโปรแกรมหลัก
+      await page.close();
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="daily_production.pdf"');
       res.send(pdfBuffer);
     } catch (error) {
       console.error(error);

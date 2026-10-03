@@ -44,7 +44,7 @@ const BranchModel = {
 
         if (accessLevel === 1) {
             // Level 1 (Admin): เห็นครบทุกสาขา
-            query = 'SELECT * FROM public.branches WHERE is_active = true ORDER BY id ASC';
+            query = 'SELECT * FROM public.branches WHERE is_active = true ORDER BY id DESC';
         } else if (accessLevel === 2) {
             // Level 2: สาขาตั้งต้น (Primary) + สาขาที่ Map สิทธิ์ไว้ใน user_branches
             query = `
@@ -53,7 +53,7 @@ const BranchModel = {
                 LEFT JOIN public.user_branches ub ON b.id = ub.branch_id AND ub.user_id = $1
                 WHERE b.is_active = true 
                   AND (b.id = $2 OR ub.branch_id IS NOT NULL)
-                ORDER BY b.id ASC
+                ORDER BY b.id DESC
             `;
             params = [userId, primaryBranchId];
         } else {

@@ -26,4 +26,8 @@ router.get('/sawer-performance', verifyToken, reportController.getSawerPerforman
 router.get('/sawer-performance/pdf', verifyToken, reportController.exportSawerPerformancePDF);
 router.get('/sawer-performance/excel', verifyToken, reportController.exportSawerPerformanceExcel);
 
+router.get('/daily-production', verifyToken, reportController.getDailyProduction);
+router.get('/daily-production/pdf', verifyToken, reportController.exportDailyProductionPDF);
+router.get('/daily-production/excel', verifyToken, reportController.exportDailyProductionExcel);
+
 module.exports = router;

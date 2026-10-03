@@ -3,12 +3,11 @@ import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
 import useMasterOptions from '../hooks/useMasterOptions';
 
-// 💡 1. นำเข้าไลบรารีปฏิทินและ react-select
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { th } from 'date-fns/locale';
 import { format, parseISO } from 'date-fns';
-import Select from 'react-select'; // นำเข้า react-select
+import Select from 'react-select'; 
 
 export default function CheckSawWood() {
   const [branches, setBranches] = useState([]);
@@ -27,6 +26,9 @@ export default function CheckSawWood() {
     saw_time_id: '',
     saw_wood_types_code: ''
   });
+
+  // 💡 1. State สำหรับจับข้อความค้นหาในช่องเจ้าหนี้ (รถไม้)
+  const [truckSearchText, setTruckSearchText] = useState('');
 
   const { options, isLoadingOptions } = useMasterOptions(filters.branch_id);
 
@@ -138,14 +140,18 @@ export default function CheckSawWood() {
     }
   };
 
-  // 💡 2. จัดโครงสร้างข้อมูลเจ้าหนี้ (รถไม้) สำหรับ react-select
-  const truckOptions = options.truckCompanies ? options.truckCompanies.map(item => ({
+  // 💡 2. จัดโครงสร้างและตัดข้อมูล (Slice) เฉพาะ 50 รายการแรก เพื่อไม่ให้ระบบอืด
+  const allTruckOptions = options.truckCompanies ? options.truckCompanies.map(item => ({
     value: item.id,
     label: `${item.code} - ${item.name}`
   })) : [];
   
-  // ค้นหาค่าเริ่มต้นที่เลือกอยู่
-  const selectedTruck = truckOptions.find(opt => String(opt.value) === String(filters.ws_customer_id)) || null;
+  // ใช้ Filter ควบคู่กับ Slice(0, 50) กรองเฉพาะตอนพิมพ์ค้นหา
+  const displayTruckOptions = allTruckOptions
+    .filter(opt => opt.label.toLowerCase().includes(truckSearchText.toLowerCase()))
+    .slice(0, 50);
+
+  const selectedTruck = allTruckOptions.find(opt => String(opt.value) === String(filters.ws_customer_id)) || null;
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto flex flex-col min-h-[80vh]">
@@ -218,22 +224,27 @@ export default function CheckSawWood() {
             </select>
           </div>
           
-          {/* 💡 3. เปลี่ยน Dropdown เจ้าหนี้ เป็นแบบค้นหาได้ (react-select) */}
           <div className="flex flex-col z-20">
             <label className="block text-xs font-semibold text-gray-600 mb-1">เจ้าหนี้ (รถไม้)</label>
             <Select
-              options={truckOptions}
+              // 💡 3. นำตัวแปรที่ตัดแค่ 50 รายการมาใส่
+              options={displayTruckOptions}
               value={selectedTruck}
-              // จับคู่ event กลับไปให้ handleFilterChange
+              // จับคู่ event การพิมพ์ค้นหา
+              onInputChange={(inputValue, { action }) => {
+                if (action === 'input-change') setTruckSearchText(inputValue);
+              }}
+              onMenuClose={() => setTruckSearchText('')} // คืนค่าตัวกรองเป็นค่าว่างตอนปิดเมนู
               onChange={(selected) => handleFilterChange({
                 target: { name: 'ws_customer_id', value: selected ? selected.value : '' }
               })}
+              filterOption={null} // 💡 ปิด Filter เดิมของ react-select เพราะเราเขียนกรองในข้อ 2 แล้ว
               isDisabled={isLoadingOptions}
               isClearable
               isSearchable
               placeholder="-- ค้นหา / ทั้งหมด --"
-              noOptionsMessage={() => "ไม่พบข้อมูล"}
-              menuPortalTarget={document.body} // 💡 บังคับให้ Dropdown ลอยอยู่หน้าสุดเสมอ
+              noOptionsMessage={() => "ไม่พบข้อมูล (หรือพิมพ์คำค้นหาเพิ่มเติม)"}
+              menuPortalTarget={document.body}
               styles={{
                 control: (base) => ({
                   ...base,
