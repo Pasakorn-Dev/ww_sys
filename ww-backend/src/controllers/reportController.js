@@ -2296,6 +2296,476 @@ const reportController = {
       console.error(error);
       res.status(500).json({ success: false, message: 'Error PDF' });
     }
+  },
+
+  // --- 💡 Helper Function สำหรับคำนวณรายงานความยาว ---
+  fetchSawerPerfLengthHelper: async (branch_id, start_date, end_date, grade_group, report_format) => {
+    const isFormat2 = String(report_format) === '2';
+
+    let rows;
+    if (isFormat2) {
+      rows = await ReportModel.getSawerPerformanceByLengthReportFormat2({ branch_id, start_date, end_date, grade_group });
+    } else {
+      rows = await ReportModel.getSawerPerformanceByLengthReport({ branch_id, start_date, end_date, grade_group });
+    }
+
+    const uniqueLengths = [...new Set(rows.map(r => r.length))].filter(l => l !== null).sort((a, b) => a - b);
+    const expectedGrades = grade_group === 'P_PP' ? ['P', 'PP'] : ['AB', 'C', 'C_F'];
+
+    const employeeMap = {};
+    const grandTotalMap = {};
+
+    expectedGrades.forEach(g => {
+      grandTotalMap[g] = { lengths: {}, total: 0 };
+      uniqueLengths.forEach(l => grandTotalMap[g].lengths[l] = 0);
+    });
+    grandTotalMap['ALL'] = { lengths: {}, total: 0 };
+    uniqueLengths.forEach(l => grandTotalMap['ALL'].lengths[l] = 0);
+
+    rows.forEach(row => {
+      const empKey = row.employee_code ? `${row.employee_code}_${row.employee_name}` : (row.employee_name || 'ไม่ระบุนายม้า');
+      const sawKey = isFormat2 ? (row.saw_name || 'ไม่ระบุ') : 'ALL';
+      const g = row.grade;
+      const l = row.length;
+      const vol = Number(row.total_volumn) || 0;
+
+      if (!employeeMap[empKey]) {
+        employeeMap[empKey] = {
+           employee_code: row.employee_code,
+           employee_name: row.employee_name || 'ไม่ระบุ',
+           saws: {},
+           summary: { grades: {}, total_all_grades: { lengths: {}, total: 0 } }
+        };
+        expectedGrades.forEach(eg => {
+          employeeMap[empKey].summary.grades[eg] = { lengths: {}, total: 0 };
+          uniqueLengths.forEach(ul => employeeMap[empKey].summary.grades[eg].lengths[ul] = 0);
+        });
+        uniqueLengths.forEach(ul => employeeMap[empKey].summary.total_all_grades.lengths[ul] = 0);
+      }
+
+      const emp = employeeMap[empKey];
+
+      if (!emp.saws[sawKey]) {
+        emp.saws[sawKey] = {
+           saw_name: sawKey,
+           grades: {},
+           total_all_grades: { lengths: {}, total: 0 }
+        };
+        expectedGrades.forEach(eg => {
+          emp.saws[sawKey].grades[eg] = { lengths: {}, total: 0 };
+          uniqueLengths.forEach(ul => emp.saws[sawKey].grades[eg].lengths[ul] = 0);
+        });
+        uniqueLengths.forEach(ul => emp.saws[sawKey].total_all_grades.lengths[ul] = 0);
+      }
+
+      const saw = emp.saws[sawKey];
+
+      if (saw.grades[g] && l) {
+        saw.grades[g].lengths[l] += vol; saw.grades[g].total += vol;
+        saw.total_all_grades.lengths[l] += vol; saw.total_all_grades.total += vol;
+        emp.summary.grades[g].lengths[l] += vol; emp.summary.grades[g].total += vol;
+        emp.summary.total_all_grades.lengths[l] += vol; emp.summary.total_all_grades.total += vol;
+        grandTotalMap[g].lengths[l] += vol; grandTotalMap[g].total += vol;
+        grandTotalMap['ALL'].lengths[l] += vol; grandTotalMap['ALL'].total += vol;
+      }
+    });
+
+    const formattedData = Object.values(employeeMap).map(emp => {
+      Object.values(emp.saws).forEach(saw => {
+        expectedGrades.forEach(g => {
+          saw.grades[g].pcts = {};
+          uniqueLengths.forEach(l => { saw.grades[g].pcts[l] = saw.grades[g].total > 0 ? (saw.grades[g].lengths[l] / saw.grades[g].total) * 100 : 0; });
+          saw.grades[g].pct_total = saw.grades[g].total > 0 ? 100 : 0;
+        });
+        saw.total_all_grades.pcts = {};
+        uniqueLengths.forEach(l => { saw.total_all_grades.pcts[l] = saw.total_all_grades.total > 0 ? (saw.total_all_grades.lengths[l] / saw.total_all_grades.total) * 100 : 0; });
+        saw.total_all_grades.pct_total = saw.total_all_grades.total > 0 ? 100 : 0;
+      });
+
+      expectedGrades.forEach(g => {
+        emp.summary.grades[g].pcts = {};
+        uniqueLengths.forEach(l => { emp.summary.grades[g].pcts[l] = emp.summary.grades[g].total > 0 ? (emp.summary.grades[g].lengths[l] / emp.summary.grades[g].total) * 100 : 0; });
+        emp.summary.grades[g].pct_total = emp.summary.grades[g].total > 0 ? 100 : 0;
+      });
+      emp.summary.total_all_grades.pcts = {};
+      uniqueLengths.forEach(l => { emp.summary.total_all_grades.pcts[l] = emp.summary.total_all_grades.total > 0 ? (emp.summary.total_all_grades.lengths[l] / emp.summary.total_all_grades.total) * 100 : 0; });
+      emp.summary.total_all_grades.pct_total = emp.summary.total_all_grades.total > 0 ? 100 : 0;
+
+      return emp;
+    });
+
+    expectedGrades.forEach(g => {
+      grandTotalMap[g].pcts = {};
+      uniqueLengths.forEach(l => { grandTotalMap[g].pcts[l] = grandTotalMap[g].total > 0 ? (grandTotalMap[g].lengths[l] / grandTotalMap[g].total) * 100 : 0; });
+      grandTotalMap[g].pct_total = grandTotalMap[g].total > 0 ? 100 : 0;
+    });
+
+    grandTotalMap['ALL'].pcts = {};
+    uniqueLengths.forEach(l => { grandTotalMap['ALL'].pcts[l] = grandTotalMap['ALL'].total > 0 ? (grandTotalMap['ALL'].lengths[l] / grandTotalMap['ALL'].total) * 100 : 0; });
+    grandTotalMap['ALL'].pct_total = grandTotalMap['ALL'].total > 0 ? 100 : 0;
+
+    return { formattedData, grandTotalMap, uniqueLengths, expectedGrades };
+  },
+
+  // --- API สำหรับหน้าเว็บ ---
+  getSawerPerformanceByLength: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, grade_group, report_format } = req.query;
+      if (!branch_id || !start_date || !end_date || !grade_group) return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+
+      const { formattedData, grandTotalMap, uniqueLengths, expectedGrades } = await reportController.fetchSawerPerfLengthHelper(branch_id, start_date, end_date, grade_group, report_format);
+
+      res.json({ success: true, data: formattedData, grandTotal: grandTotalMap, uniqueLengths, expectedGrades });
+    } catch (error) {
+      console.error('Report Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานแยกตามความยาว' });
+    }
+  },
+
+  // --- API สำหรับ Export Excel ---
+  exportSawerPerformanceLengthExcel: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, grade_group, report_format } = req.query;
+      const { formattedData, grandTotalMap, uniqueLengths, expectedGrades } = await reportController.fetchSawerPerfLengthHelper(branch_id, start_date, end_date, grade_group, report_format);
+      const isFormat2 = String(report_format) === '2';
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Report');
+
+      // 1. สร้าง Header 1 (กลุ่มเกรด)
+      const header1 = ['รหัส-ชื่อนายม้า'];
+      if (isFormat2) header1.push('รหัสแผนก');
+      expectedGrades.forEach(g => {
+        header1.push(`${g === 'C_F' ? 'C สด' : g} (ลูกบาศก์ฟุต)`);
+        uniqueLengths.forEach(() => header1.push('')); 
+      });
+      header1.push('รวม (ลูกบาศก์ฟุต)');
+      uniqueLengths.forEach(() => header1.push(''));
+
+      const h1Row = worksheet.addRow(header1);
+      h1Row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
+      h1Row.font = { bold: true };
+      h1Row.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      // 2. สร้าง Header 2 (ความยาว)
+      const header2 = [''];
+      if (isFormat2) header2.push('');
+      expectedGrades.forEach(() => {
+        uniqueLengths.forEach(l => header2.push(l));
+        header2.push('รวม');
+      });
+      uniqueLengths.forEach(l => header2.push(l));
+      header2.push('รวม');
+
+      const h2Row = worksheet.addRow(header2);
+      h2Row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+      h2Row.font = { bold: true };
+      h2Row.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      // Merge Cells ของ Header
+      worksheet.mergeCells(1, 1, 2, 1); 
+      let startCol = isFormat2 ? 3 : 2;
+      if (isFormat2) worksheet.mergeCells(1, 2, 2, 2); 
+
+      expectedGrades.forEach(() => {
+        worksheet.mergeCells(1, startCol, 1, startCol + uniqueLengths.length);
+        startCol += uniqueLengths.length + 1;
+      });
+      worksheet.mergeCells(1, startCol, 1, startCol + uniqueLengths.length); 
+
+      // 3. วนลูปใส่ข้อมูล
+      formattedData.forEach(emp => {
+        const empNameDisplay = emp.employee_code ? `${emp.employee_code} ${emp.employee_name}` : emp.employee_name;
+
+        if (isFormat2) {
+          const saws = Object.values(emp.saws);
+          saws.forEach((saw, sIdx) => {
+            const volRowData = sIdx === 0 ? [empNameDisplay, saw.saw_name] : ['', saw.saw_name];
+            const pctRowData = ['', ''];
+
+            expectedGrades.forEach(g => {
+              uniqueLengths.forEach(l => {
+                volRowData.push(saw.grades[g].lengths[l] || 0);
+                pctRowData.push(saw.grades[g].pcts[l] ? (saw.grades[g].pcts[l]/100) : 0);
+              });
+              volRowData.push(saw.grades[g].total || 0);
+              pctRowData.push(saw.grades[g].pct_total ? (saw.grades[g].pct_total/100) : 0);
+            });
+
+            uniqueLengths.forEach(l => {
+              volRowData.push(saw.total_all_grades.lengths[l] || 0);
+              pctRowData.push(saw.total_all_grades.pcts[l] ? (saw.total_all_grades.pcts[l]/100) : 0);
+            });
+            volRowData.push(saw.total_all_grades.total || 0);
+            pctRowData.push(saw.total_all_grades.pct_total ? (saw.total_all_grades.pct_total/100) : 0);
+
+            const vRow = worksheet.addRow(volRowData);
+            const pRow = worksheet.addRow(pctRowData);
+
+            // 💡 แก้ไข: ผสานเซลล์ชื่อนายม้า เฉพาะแถวที่เป็นข้อมูลของแผนกเท่านั้น ป้องกันการล้นไปทับแถว 'รวม'
+            if (sIdx === 0) {
+              worksheet.mergeCells(`A${vRow.number}:A${vRow.number + (saws.length * 2) - 1}`);
+            }
+
+            for(let i = 3; i <= volRowData.length; i++) {
+              vRow.getCell(i).numFmt = '#,##0.0000';
+              pRow.getCell(i).numFmt = '0.00%';
+              pRow.getCell(i).font = { color: { argb: 'FF808080' } };
+            }
+          });
+
+          // บรรทัดรวมพนักงาน (สีเขียว)
+          const sumVolRow = ['รวม', ''];
+          const sumPctRow = ['', ''];
+          expectedGrades.forEach(g => {
+            uniqueLengths.forEach(l => { sumVolRow.push(emp.summary.grades[g].lengths[l] || 0); sumPctRow.push(emp.summary.grades[g].pcts[l] ? (emp.summary.grades[g].pcts[l]/100) : 0); });
+            sumVolRow.push(emp.summary.grades[g].total || 0); sumPctRow.push(emp.summary.grades[g].pct_total ? (emp.summary.grades[g].pct_total/100) : 0);
+          });
+          uniqueLengths.forEach(l => { sumVolRow.push(emp.summary.total_all_grades.lengths[l] || 0); sumPctRow.push(emp.summary.total_all_grades.pcts[l] ? (emp.summary.total_all_grades.pcts[l]/100) : 0); });
+          sumVolRow.push(emp.summary.total_all_grades.total || 0); sumPctRow.push(emp.summary.total_all_grades.pct_total ? (emp.summary.total_all_grades.pct_total/100) : 0);
+
+          const svRow = worksheet.addRow(sumVolRow);
+          const spRow = worksheet.addRow(sumPctRow);
+          svRow.font = { bold: true };
+          
+          // 💡 ผสานเซลล์คำว่า "รวม" ให้ครอบคลุม 2 แถวและ 2 คอลัมน์
+          worksheet.mergeCells(`A${svRow.number}:B${spRow.number}`);
+          svRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+          svRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } };
+          spRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } };
+          
+          for(let i = 3; i <= sumVolRow.length; i++) {
+            svRow.getCell(i).numFmt = '#,##0.0000';
+            spRow.getCell(i).numFmt = '0.00%';
+            spRow.getCell(i).font = { color: { argb: 'FF808080' } };
+          }
+        } else {
+          // Format 1 (ไม่มีแผนก)
+          const volRowData = [empNameDisplay];
+          const pctRowData = [''];
+          expectedGrades.forEach(g => {
+            uniqueLengths.forEach(l => { volRowData.push(emp.summary.grades[g].lengths[l] || 0); pctRowData.push(emp.summary.grades[g].pcts[l] ? (emp.summary.grades[g].pcts[l]/100) : 0); });
+            volRowData.push(emp.summary.grades[g].total || 0); pctRowData.push(emp.summary.grades[g].pct_total ? (emp.summary.grades[g].pct_total/100) : 0);
+          });
+          uniqueLengths.forEach(l => { volRowData.push(emp.summary.total_all_grades.lengths[l] || 0); pctRowData.push(emp.summary.total_all_grades.pcts[l] ? (emp.summary.total_all_grades.pcts[l]/100) : 0); });
+          volRowData.push(emp.summary.total_all_grades.total || 0); pctRowData.push(emp.summary.total_all_grades.pct_total ? (emp.summary.total_all_grades.pct_total/100) : 0);
+
+          const vRow = worksheet.addRow(volRowData);
+          const pRow = worksheet.addRow(pctRowData);
+          worksheet.mergeCells(`A${vRow.number}:A${pRow.number}`);
+
+          for(let i = 2; i <= volRowData.length; i++) {
+            vRow.getCell(i).numFmt = '#,##0.0000';
+            pRow.getCell(i).numFmt = '0.00%';
+            pRow.getCell(i).font = { color: { argb: 'FF808080' } };
+          }
+        }
+      });
+
+      // 4. แถว Grand Total
+      if (grandTotalMap) {
+        const gtVolRow = ['รวมทั้งหมด']; if (isFormat2) gtVolRow.push('');
+        const gtPctRow = ['']; if (isFormat2) gtPctRow.push('');
+        
+        expectedGrades.forEach(g => {
+          uniqueLengths.forEach(l => { gtVolRow.push(grandTotalMap[g].lengths[l] || 0); gtPctRow.push(grandTotalMap[g].pcts[l] ? (grandTotalMap[g].pcts[l]/100) : 0); });
+          gtVolRow.push(grandTotalMap[g].total || 0); gtPctRow.push(grandTotalMap[g].pct_total ? (grandTotalMap[g].pct_total/100) : 0);
+        });
+        uniqueLengths.forEach(l => { gtVolRow.push(grandTotalMap['ALL'].lengths[l] || 0); gtPctRow.push(grandTotalMap['ALL'].pcts[l] ? (grandTotalMap['ALL'].pcts[l]/100) : 0); });
+        gtVolRow.push(grandTotalMap['ALL'].total || 0); gtPctRow.push(grandTotalMap['ALL'].pct_total ? (grandTotalMap['ALL'].pct_total/100) : 0);
+
+        const vRow = worksheet.addRow(gtVolRow);
+        const pRow = worksheet.addRow(gtPctRow);
+        vRow.font = { bold: true };
+        vRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
+        pRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
+        
+        if (isFormat2) {
+          worksheet.mergeCells(`A${vRow.number}:B${pRow.number}`);
+          vRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+        } else {
+          worksheet.mergeCells(`A${vRow.number}:A${pRow.number}`);
+        }
+
+        for(let i = isFormat2 ? 3 : 2; i <= gtVolRow.length; i++) {
+          vRow.getCell(i).numFmt = '#,##0.0000';
+          pRow.getCell(i).numFmt = '0.00%';
+          pRow.getCell(i).font = { color: { argb: 'FF808080' } };
+        }
+      }
+
+      // ตีเส้นขอบตาราง
+      worksheet.eachRow({ includeEmpty: true }, row => {
+        row.eachCell({ includeEmpty: true }, cell => {
+          if (!cell.border) cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+        });
+      });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=report.xlsx');
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error generating Excel' });
+    }
+  },
+
+  // --- API สำหรับ Export PDF ---
+  exportSawerPerformanceLengthPDF: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, grade_group, report_format, branch_name } = req.query;
+      const { formattedData, grandTotalMap, uniqueLengths, expectedGrades } = await reportController.fetchSawerPerfLengthHelper(branch_id, start_date, end_date, grade_group, report_format);
+      const isFormat2 = String(report_format) === '2';
+
+      const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
+      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+
+      const formatGradeLabel = (g) => g === 'C_F' ? 'C สด' : g;
+      const allGradesLabel = expectedGrades.map(formatGradeLabel).join('+');
+
+      let theadHtml = `
+        <tr style="background-color: #d1d5db;">
+          <th rowspan="2" style="width: 150px;">รหัส-ชื่อนายม้า</th>
+          ${isFormat2 ? '<th rowspan="2" style="width: 80px;">รหัสแผนก</th>' : ''}
+          ${expectedGrades.map(g => `<th colspan="${uniqueLengths.length + 1}">${formatGradeLabel(g)} (ลบ.ฟุต)</th>`).join('')}
+          <th colspan="${uniqueLengths.length + 1}" style="background-color: #9ca3af;">${allGradesLabel} (ลบ.ฟุต)</th>
+        </tr>
+        <tr style="background-color: #e5e7eb;">
+          ${expectedGrades.map(() => uniqueLengths.map(l => `<th>${l}</th>`).join('') + '<th>รวม</th>').join('')}
+          ${uniqueLengths.map(l => `<th style="background-color: #d1d5db;">${l}</th>`).join('')}
+          <th style="background-color: #9ca3af;">รวม</th>
+        </tr>
+      `;
+
+      let tbodyHtml = '';
+      formattedData.forEach((emp) => {
+        const empName = emp.employee_code ? `${emp.employee_code} ${emp.employee_name}` : emp.employee_name;
+        
+        if (isFormat2) {
+          const saws = Object.values(emp.saws);
+          saws.forEach((saw, sIdx) => {
+            let volRow = `<tr>`;
+            // 💡 แก้ไข: นับ rowSpan ให้พอดีกับจำนวนชุดเลื่อย ไม่เกินลงไปทับแถวรวม
+            if (sIdx === 0) volRow += `<td rowspan="${saws.length * 2}" class="left pl" style="background-color: #fefce8; vertical-align: middle;">${empName}</td>`;
+            volRow += `<td class="left pl">${saw.saw_name}</td>`;
+            expectedGrades.forEach(g => {
+              uniqueLengths.forEach(l => { volRow += `<td>${saw.grades[g].lengths[l] > 0 ? saw.grades[g].lengths[l].toFixed(4) : '0.0000'}</td>`; });
+              volRow += `<td class="bold bg-gray-light">${saw.grades[g].total > 0 ? saw.grades[g].total.toFixed(4) : '0.0000'}</td>`;
+            });
+            uniqueLengths.forEach(l => { volRow += `<td style="background-color: #eff6ff;">${saw.total_all_grades.lengths[l] > 0 ? saw.total_all_grades.lengths[l].toFixed(4) : '0.0000'}</td>`; });
+            volRow += `<td class="bold" style="background-color: #dbeafe;">${saw.total_all_grades.total > 0 ? saw.total_all_grades.total.toFixed(4) : '0.0000'}</td></tr>`;
+
+            let pctRow = `<tr class="text-gray text-xs"><td></td>`;
+            expectedGrades.forEach(g => {
+              uniqueLengths.forEach(l => { pctRow += `<td>${saw.grades[g].pcts[l] > 0 ? saw.grades[g].pcts[l].toFixed(2) + '%' : '0.00%'}</td>`; });
+              pctRow += `<td class="bold bg-gray-light">${saw.grades[g].pct_total > 0 ? saw.grades[g].pct_total.toFixed(2) + '%' : '0.00%'}</td>`;
+            });
+            uniqueLengths.forEach(l => { pctRow += `<td style="background-color: #eff6ff;">${saw.total_all_grades.pcts[l] > 0 ? saw.total_all_grades.pcts[l].toFixed(2) + '%' : '0.00%'}</td>`; });
+            pctRow += `<td class="bold" style="background-color: #dbeafe;">${saw.total_all_grades.pct_total > 0 ? saw.total_all_grades.pct_total.toFixed(2) + '%' : '0.00%'}</td></tr>`;
+
+            tbodyHtml += volRow + pctRow;
+          });
+
+          // 💡 แก้ไข: บรรทัดรวมพนักงาน ผสานเซลล์อย่างสมบูรณ์แบบ
+          let sumVol = `<tr class="bold" style="background-color: #e2efda; border-top: 1px solid #000;"><td colspan="2" rowspan="2" class="center" style="vertical-align: middle;">รวม</td>`;
+          let sumPct = `<tr class="text-xs" style="background-color: #e2efda; border-bottom: 2px solid #555;">`;
+          expectedGrades.forEach(g => {
+            uniqueLengths.forEach(l => { 
+              sumVol += `<td>${emp.summary.grades[g].lengths[l] > 0 ? emp.summary.grades[g].lengths[l].toFixed(4) : '0.0000'}</td>`; 
+              sumPct += `<td class="text-gray">${emp.summary.grades[g].pcts[l] > 0 ? emp.summary.grades[g].pcts[l].toFixed(2) + '%' : '0.00%'}</td>`;
+            });
+            sumVol += `<td style="background-color: #c6e0b4;">${emp.summary.grades[g].total > 0 ? emp.summary.grades[g].total.toFixed(4) : '0.0000'}</td>`;
+            sumPct += `<td class="text-gray" style="background-color: #c6e0b4;">${emp.summary.grades[g].pct_total > 0 ? emp.summary.grades[g].pct_total.toFixed(2) + '%' : '0.00%'}</td>`;
+          });
+          uniqueLengths.forEach(l => { 
+            sumVol += `<td style="background-color: #c6e0b4;">${emp.summary.total_all_grades.lengths[l] > 0 ? emp.summary.total_all_grades.lengths[l].toFixed(4) : '0.0000'}</td>`; 
+            sumPct += `<td class="text-gray" style="background-color: #c6e0b4;">${emp.summary.total_all_grades.pcts[l] > 0 ? emp.summary.total_all_grades.pcts[l].toFixed(2) + '%' : '0.00%'}</td>`;
+          });
+          sumVol += `<td style="background-color: #a9d08e; color: #14532d;">${emp.summary.total_all_grades.total > 0 ? emp.summary.total_all_grades.total.toFixed(4) : '0.0000'}</td></tr>`;
+          sumPct += `<td class="text-gray" style="background-color: #a9d08e;">${emp.summary.total_all_grades.pct_total > 0 ? emp.summary.total_all_grades.pct_total.toFixed(2) + '%' : '0.00%'}</td></tr>`;
+
+          tbodyHtml += sumVol + sumPct;
+
+        } else {
+          // Format 1
+          let volRow = `<tr><td rowspan="2" class="left pl" style="vertical-align: middle;">${empName}</td>`;
+          let pctRow = `<tr class="text-gray text-xs">`;
+          expectedGrades.forEach(g => {
+            uniqueLengths.forEach(l => { 
+              volRow += `<td>${emp.summary.grades[g].lengths[l] > 0 ? emp.summary.grades[g].lengths[l].toFixed(4) : '0.0000'}</td>`; 
+              pctRow += `<td>${emp.summary.grades[g].pcts[l] > 0 ? emp.summary.grades[g].pcts[l].toFixed(2) + '%' : '0.00%'}</td>`;
+            });
+            volRow += `<td class="bold bg-gray-light">${emp.summary.grades[g].total > 0 ? emp.summary.grades[g].total.toFixed(4) : '0.0000'}</td>`;
+            pctRow += `<td class="bold bg-gray-light">${emp.summary.grades[g].pct_total > 0 ? emp.summary.grades[g].pct_total.toFixed(2) + '%' : '0.00%'}</td>`;
+          });
+          uniqueLengths.forEach(l => { 
+            volRow += `<td style="background-color: #eff6ff;">${emp.summary.total_all_grades.lengths[l] > 0 ? emp.summary.total_all_grades.lengths[l].toFixed(4) : '0.0000'}</td>`; 
+            pctRow += `<td style="background-color: #eff6ff;">${emp.summary.total_all_grades.pcts[l] > 0 ? emp.summary.total_all_grades.pcts[l].toFixed(2) + '%' : '0.00%'}</td>`;
+          });
+          volRow += `<td class="bold" style="background-color: #dbeafe;">${emp.summary.total_all_grades.total > 0 ? emp.summary.total_all_grades.total.toFixed(4) : '0.0000'}</td></tr>`;
+          pctRow += `<td class="bold" style="background-color: #dbeafe;">${emp.summary.total_all_grades.pct_total > 0 ? emp.summary.total_all_grades.pct_total.toFixed(2) + '%' : '0.00%'}</td></tr>`;
+
+          tbodyHtml += volRow + pctRow;
+        }
+      });
+
+      // Grand Total
+      if (grandTotalMap) {
+        let gtVol = `<tr class="bold" style="background-color: #d1d5db; border-top: 2px solid #333;"><td colspan="${isFormat2 ? 2 : 1}" rowspan="2" class="center" style="vertical-align: middle;">รวมทั้งหมด</td>`;
+        let gtPct = `<tr class="text-xs" style="background-color: #e5e7eb; border-bottom: 2px solid #333;">`;
+        expectedGrades.forEach(g => {
+          uniqueLengths.forEach(l => { 
+            gtVol += `<td>${grandTotalMap[g].lengths[l] > 0 ? grandTotalMap[g].lengths[l].toFixed(4) : '0.0000'}</td>`; 
+            gtPct += `<td class="text-gray">${grandTotalMap[g].pcts[l] > 0 ? grandTotalMap[g].pcts[l].toFixed(2) + '%' : '0.00%'}</td>`;
+          });
+          gtVol += `<td style="background-color: #9ca3af;">${grandTotalMap[g].total > 0 ? grandTotalMap[g].total.toFixed(4) : '0.0000'}</td>`;
+          gtPct += `<td class="text-gray" style="background-color: #d1d5db;">${grandTotalMap[g].pct_total > 0 ? grandTotalMap[g].pct_total.toFixed(2) + '%' : '0.00%'}</td>`;
+        });
+        uniqueLengths.forEach(l => { 
+          gtVol += `<td style="background-color: #bfdbfe;">${grandTotalMap['ALL'].lengths[l] > 0 ? grandTotalMap['ALL'].lengths[l].toFixed(4) : '0.0000'}</td>`; 
+          gtPct += `<td class="text-gray" style="background-color: #dbeafe;">${grandTotalMap['ALL'].pcts[l] > 0 ? grandTotalMap['ALL'].pcts[l].toFixed(2) + '%' : '0.00%'}</td>`;
+        });
+        gtVol += `<td style="background-color: #93c5fd; color: #1e3a8a;">${grandTotalMap['ALL'].total > 0 ? grandTotalMap['ALL'].total.toFixed(4) : '0.0000'}</td></tr>`;
+        gtPct += `<td class="text-gray" style="background-color: #bfdbfe;">${grandTotalMap['ALL'].pct_total > 0 ? grandTotalMap['ALL'].pct_total.toFixed(2) + '%' : '0.00%'}</td></tr>`;
+
+        tbodyHtml += gtVol + gtPct;
+      }
+
+      const htmlContent = `
+        <html><head><style>
+          @font-face { font-family: 'THSarabun'; src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype'); }
+          body { font-family: 'THSarabun', sans-serif; font-size: 11px; margin: 0; padding: 15px; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #777; padding: 3px; text-align: right; }
+          th { font-weight: bold; text-align: center; }
+          .left { text-align: left; } .center { text-align: center; } .pl { padding-left: 6px; } 
+          .bold { font-weight: bold; } .bg-gray-light { background-color: #f9fafb; }
+          .text-gray { color: #6b7280; } .text-xs { font-size: 10px; }
+        </style></head><body>
+          <div style="text-align:center; margin-bottom:10px;">
+            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปผลงานนายม้า แยกตามความยาวไม้</h2>
+            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date} | กลุ่มเกรดไม้: ${grade_group === 'AB_C' ? 'AB, C' : 'P, PP'}</p>
+          </div>
+          <table><thead>${theadHtml}</thead><tbody>${tbodyHtml}</tbody></table>
+        </body></html>
+      `;
+
+      const browser = await getBrowser(); 
+      const page = await browser.newPage();
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      const pdfBuffer = await page.pdf({ format: 'Legal', landscape: true, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
+      await page.close();
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="sawer_length.pdf"');
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error PDF' });
+    }
   }
 };
 

@@ -343,6 +343,98 @@ const ReportModel = {
     const params = [branch_id, start_date, end_date];
     const { rows } = await pool.query(query, params);
     return rows;
+  },
+
+  // เพิ่มต่อท้ายฟังก์ชันใน ReportModel
+  getSawerPerformanceByLengthReport: async (filters) => {
+    const { branch_id, start_date, end_date, grade_group } = filters;
+
+    // กำหนดเงื่อนไขเกรดไม้ตามที่ User เลือก (AB_C หรือ P_PP)
+    let gradeCondition = `IN ('AB', 'C')`; 
+    if (grade_group === 'P_PP') {
+      gradeCondition = `IN ('P', 'PP')`;
+    }
+
+    const query = `
+      WITH BaseData AS (
+          SELECT
+              em.code AS employee_code,
+              em.name AS employee_name,
+              -- 💡 เช็คเงื่อนไข C สด (C_F)
+              CASE
+                  WHEN ws.grade = 'C' AND SUBSTRING(ws.wood_code FROM 6 FOR 4) IN ('0404', '0505')
+                  THEN 'C_F'
+                  ELSE ws.grade
+              END AS grade,
+              ws.length,
+              tsw.volumn
+          FROM transaction_saw_woods tsw
+          LEFT JOIN master_wood_sizes ws ON ws.old_id = tsw.wood_size_id AND ws.branch_id = tsw.branch_id
+          LEFT JOIN master_employees em ON em.old_id = tsw.sawer_id AND em.branch_id = tsw.branch_id
+          WHERE tsw.branch_id = $1
+            AND DATE(tsw.produce_date) BETWEEN $2 AND $3
+            AND ws.grade ${gradeCondition}
+      )
+      SELECT
+          employee_code,
+          employee_name,
+          grade,
+          length,
+          SUM(volumn) AS total_volumn
+      FROM BaseData
+      GROUP BY employee_code, employee_name, grade, length
+      ORDER BY employee_code ASC, grade ASC, length ASC;
+    `;
+
+    const params = [branch_id, start_date, end_date];
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
+
+  // เพิ่มต่อท้ายฟังก์ชันเดิม
+  getSawerPerformanceByLengthReportFormat2: async (filters) => {
+    const { branch_id, start_date, end_date, grade_group } = filters;
+
+    let gradeCondition = `IN ('AB', 'C')`; 
+    if (grade_group === 'P_PP') {
+      gradeCondition = `IN ('P', 'PP')`;
+    }
+
+    const query = `
+      WITH BaseData AS (
+          SELECT
+              em.code AS employee_code,
+              em.name AS employee_name,
+              tsw.saw_name,
+              CASE
+                  WHEN ws.grade = 'C' AND SUBSTRING(ws.wood_code FROM 6 FOR 4) IN ('0404', '0505')
+                  THEN 'C_F'
+                  ELSE ws.grade
+              END AS grade,
+              ws.length,
+              tsw.volumn
+          FROM transaction_saw_woods tsw
+          LEFT JOIN master_wood_sizes ws ON ws.old_id = tsw.wood_size_id AND ws.branch_id = tsw.branch_id
+          LEFT JOIN master_employees em ON em.old_id = tsw.sawer_id AND em.branch_id = tsw.branch_id
+          WHERE tsw.branch_id = $1
+            AND DATE(tsw.produce_date) BETWEEN $2 AND $3
+            AND ws.grade ${gradeCondition}
+      )
+      SELECT
+          employee_code,
+          employee_name,
+          saw_name,
+          grade,
+          length,
+          SUM(volumn) AS total_volumn
+      FROM BaseData
+      GROUP BY employee_code, employee_name, saw_name, grade, length
+      ORDER BY employee_code ASC, saw_name ASC, grade ASC, length ASC;
+    `;
+
+    const params = [branch_id, start_date, end_date];
+    const { rows } = await pool.query(query, params);
+    return rows;
   }
 };
 

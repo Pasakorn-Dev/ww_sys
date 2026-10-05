@@ -30,4 +30,8 @@ router.get('/daily-production', verifyToken, reportController.getDailyProduction
 router.get('/daily-production/pdf', verifyToken, reportController.exportDailyProductionPDF);
 router.get('/daily-production/excel', verifyToken, reportController.exportDailyProductionExcel);
 
+router.get('/sawer-performance-length', verifyToken, reportController.getSawerPerformanceByLength);
+router.get('/sawer-performance-length/pdf', verifyToken, reportController.exportSawerPerformanceLengthPDF);
+router.get('/sawer-performance-length/excel', verifyToken, reportController.exportSawerPerformanceLengthExcel);
+
 module.exports = router;

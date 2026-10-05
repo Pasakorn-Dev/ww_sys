@@ -16,6 +16,7 @@ import ProductionThickMilReport from './pages/ProductionThickMilReport';
 import SawerPerformanceReport from './pages/SawerPerformanceReport';
 import RecalculatePrice from './pages/RecalculatePrice';
 import DailyProductionReport from './pages/DailyProductionReport';
+import SawerPerformanceByLengthReport from './pages/SawerPerformanceByLengthReport';
 
 
 function App() {
@@ -40,6 +41,7 @@ function App() {
           <Route path="/sawer-performance" element={<SawerPerformanceReport />} />
           <Route path="/recalculate-price" element={<RecalculatePrice />} />
           <Route path="/daily-production" element={<DailyProductionReport />} />
+          <Route path="/sawer-performance-length" element={<SawerPerformanceByLengthReport />} />
         </Route>
       </Routes>
     </BrowserRouter>
