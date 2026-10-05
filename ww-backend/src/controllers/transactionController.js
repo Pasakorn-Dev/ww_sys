@@ -82,6 +82,55 @@ const transactionController = {
       console.error('Fetch Saw Woods Error:', error);
       res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงข้อมูล' });
     }
+  },
+
+  // เพิ่มต่อจาก getSawWoods: async (req, res) => { ... },
+  
+  // ─── สั่งประมวลผล Recalculate (Background Job) ───
+  recalculatePrices: async (req, res) => {
+    const { branch_id, produce_date } = req.body;
+    const user_id = req.user.id;
+
+    if (!branch_id || !produce_date) {
+      return res.status(400).json({ success: false, message: 'กรุณาระบุสาขาและวันที่ผลิต' });
+    }
+
+    try {
+      // 1. สร้างสถานะ "กำลังประมวลผล" ลง Database 
+      const logId = await TransactionModel.createRecalLog(branch_id, produce_date, user_id);
+
+      // 2. ⚡ ส่ง Response "สำเร็จ" กลับไปที่หน้าเว็บทันที เพื่อไม่ให้จอค้าง (Non-blocking)
+      res.json({ success: true, message: 'สั่งคำนวณใหม่สำเร็จ ระบบกำลังประมวลผลอยู่เบื้องหลัง' });
+
+      // 3. ปล่อยให้ฟังก์ชันนี้ทำงานของมันไปเบื้องหลัง
+      setTimeout(async () => {
+        try {
+          const updatedCount = await TransactionModel.executeRecalculation(branch_id, produce_date);
+          // ทำเสร็จก็อัปเดตสถานะเป็น Success
+          await TransactionModel.updateRecalLog(logId, 'Success', updatedCount);
+        } catch (bgError) {
+          console.error('Background Recalculation Error:', bgError);
+          // ถ้ามีพังระหว่างทาง ให้อัปเดตสถานะเป็น Error
+          await TransactionModel.updateRecalLog(logId, 'Error', 0, bgError.message);
+        }
+      }, 0);
+
+    } catch (error) {
+      console.error('Trigger Recalculation Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการสั่งงาน' });
+    }
+  },
+
+  // ─── ดึงประวัติการประมวลผล ───
+  getRecalLogs: async (req, res) => {
+    try {
+      const { branch_id } = req.query;
+      const logs = await TransactionModel.getRecalLogs(branch_id);
+      res.json({ success: true, data: logs });
+    } catch (error) {
+      console.error('Get Recal Logs Error:', error);
+      res.status(500).json({ success: false, message: 'ดึงข้อมูลประวัติไม่สำเร็จ' });
+    }
   }
 };
 

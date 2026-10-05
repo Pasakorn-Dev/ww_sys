@@ -9,4 +9,8 @@ router.post('/sync-saw-woods', verifyToken, checkPermission('/sync-saw-woods', '
 // ดึงข้อมูลนับไม้เลื่อย
 router.get('/saw-woods', verifyToken, checkPermission('/check-saw-woods', 'view'), transactionController.getSawWoods);
 
+// API สำหรับการคำนวณราคาย้อนหลัง
+router.post('/recalculate-prices', verifyToken, checkPermission('/recalculate-price', 'edit'), transactionController.recalculatePrices);
+router.get('/recal-logs', verifyToken, transactionController.getRecalLogs);
+
 module.exports = router;

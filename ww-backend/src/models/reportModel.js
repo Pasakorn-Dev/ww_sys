@@ -309,6 +309,40 @@ const ReportModel = {
     const params = [branch_id, start_date, end_date];
     const { rows } = await pool.query(query, params);
     return rows;
+  },
+
+  // เพิ่มต่อท้ายฟังก์ชันใน ReportModel
+  getDailyProductionReport: async (filters) => {
+    const { branch_id, start_date, end_date } = filters;
+
+    // ใช้ DATE() เพื่อให้ชัวร์ว่า Group By ตามวันได้อย่างถูกต้อง
+    const query = `
+      SELECT 
+        DATE(t.produce_date) AS produce_date,
+        SUM(CASE WHEN ws.is_special = false AND ws.grade = 'AB' THEN t.volumn ELSE 0 END) AS vol_normal_ab,
+        SUM(CASE WHEN ws.is_special = true AND ws.grade = 'AB' THEN t.volumn ELSE 0 END) AS vol_special_ab,
+        
+        SUM(CASE WHEN ws.is_special = false AND ws.grade = 'C' THEN t.volumn ELSE 0 END) AS vol_normal_c,
+        SUM(CASE WHEN ws.is_special = true AND ws.grade = 'C' THEN t.volumn ELSE 0 END) AS vol_special_c,
+        
+        SUM(CASE WHEN ws.is_special = false AND ws.grade = 'P' THEN t.volumn ELSE 0 END) AS vol_normal_p,
+        SUM(CASE WHEN ws.is_special = true AND ws.grade = 'P' THEN t.volumn ELSE 0 END) AS vol_special_p,
+        
+        SUM(CASE WHEN ws.is_special = false AND ws.grade = 'PP' THEN t.volumn ELSE 0 END) AS vol_normal_pp,
+        SUM(CASE WHEN ws.is_special = true AND ws.grade = 'PP' THEN t.volumn ELSE 0 END) AS vol_special_pp,
+        
+        SUM(t.volumn) AS total_volumn
+      FROM transaction_saw_woods t
+      INNER JOIN master_wood_sizes ws ON t.wood_size_id = ws.old_id AND t.branch_id = ws.branch_id
+      WHERE t.branch_id = $1
+        AND DATE(t.produce_date) BETWEEN $2 AND $3
+      GROUP BY DATE(t.produce_date)
+      ORDER BY DATE(t.produce_date) ASC
+    `;
+
+    const params = [branch_id, start_date, end_date];
+    const { rows } = await pool.query(query, params);
+    return rows;
   }
 };
 
