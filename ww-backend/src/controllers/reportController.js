@@ -2479,6 +2479,8 @@ const reportController = {
 
         if (isFormat2) {
           const saws = Object.values(emp.saws);
+          let startRowNumber = 0; // 💡 สร้างตัวแปรเก็บจุดเริ่มต้นของนายม้า
+
           saws.forEach((saw, sIdx) => {
             const volRowData = sIdx === 0 ? [empNameDisplay, saw.saw_name] : ['', saw.saw_name];
             const pctRowData = ['', ''];
@@ -2502,10 +2504,7 @@ const reportController = {
             const vRow = worksheet.addRow(volRowData);
             const pRow = worksheet.addRow(pctRowData);
 
-            // 💡 แก้ไข: ผสานเซลล์ชื่อนายม้า เฉพาะแถวที่เป็นข้อมูลของแผนกเท่านั้น ป้องกันการล้นไปทับแถว 'รวม'
-            if (sIdx === 0) {
-              worksheet.mergeCells(`A${vRow.number}:A${vRow.number + (saws.length * 2) - 1}`);
-            }
+            if (sIdx === 0) startRowNumber = vRow.number; // 💡 เก็บเลขบรรทัดเริ่มต้นไว้
 
             for(let i = 3; i <= volRowData.length; i++) {
               vRow.getCell(i).numFmt = '#,##0.0000';
@@ -2513,6 +2512,12 @@ const reportController = {
               pRow.getCell(i).font = { color: { argb: 'FF808080' } };
             }
           });
+
+          // 💡 สั่งผสานเซลล์ "รหัส-ชื่อนายม้า" หลังจากวาดข้อมูลย่อยครบแล้ว (ป้องกันช่องว่าง)
+          if (startRowNumber > 0) {
+            worksheet.mergeCells(`A${startRowNumber}:A${startRowNumber + (saws.length * 2) - 1}`);
+            worksheet.getCell(`A${startRowNumber}`).alignment = { vertical: 'top', horizontal: 'left' };
+          }
 
           // บรรทัดรวมพนักงาน (สีเขียว)
           const sumVolRow = ['รวม', ''];
@@ -2528,7 +2533,6 @@ const reportController = {
           const spRow = worksheet.addRow(sumPctRow);
           svRow.font = { bold: true };
           
-          // 💡 ผสานเซลล์คำว่า "รวม" ให้ครอบคลุม 2 แถวและ 2 คอลัมน์
           worksheet.mergeCells(`A${svRow.number}:B${spRow.number}`);
           svRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
 
@@ -2603,7 +2607,7 @@ const reportController = {
       });
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', 'attachment; filename=report.xlsx');
+      res.setHeader('Content-Disposition', 'attachment; filename=sawer_length.xlsx');
       await workbook.xlsx.write(res);
       res.end();
     } catch (error) {
