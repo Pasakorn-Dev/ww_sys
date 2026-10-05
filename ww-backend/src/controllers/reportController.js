@@ -44,7 +44,19 @@ const getBrowser = async () => {
   }
 };
 
-const fetchWoodTypeAbData = async (start_date, end_date, branch_id) => {
+// 💡 1. ปรับฟังก์ชัน Helper ให้รับ parameter 'grade' เข้ามาและตั้งเงื่อนไข
+const fetchWoodTypeAbData = async (start_date, end_date, branch_id, grade = 'AB') => {
+  let gradeCondition = "mws.grade = 'AB'";
+  const params = [start_date, end_date, branch_id];
+
+  // ตรวจสอบเงื่อนไขเกรด
+  if (grade && grade !== 'ALL') {
+    gradeCondition = "mws.grade = $4";
+    params.push(grade);
+  } else if (grade === 'ALL') {
+    gradeCondition = "mws.grade IN ('AB', 'C', 'P', 'PP')";
+  }
+
   const query = `
     WITH BaseData AS (
         SELECT 
@@ -57,7 +69,7 @@ const fetchWoodTypeAbData = async (start_date, end_date, branch_id) => {
         JOIN master_wood_sizes mws 
           on mws.old_id = tsw.wood_size_id 
           and tsw.branch_id = mws.branch_id
-        WHERE mws.grade = 'AB' 
+        WHERE ${gradeCondition}
           AND DATE(tsw.produce_date) BETWEEN $1 AND $2
           AND tsw.branch_id = $3
         GROUP BY tsw.saw_name, mws.thick, mws.length, RIGHT(mws.wood_code, 7)
@@ -74,9 +86,9 @@ const fetchWoodTypeAbData = async (start_date, end_date, branch_id) => {
     ORDER BY saw_name, thick, length, wood_code;
   `;
 
-  const { rows } = await pool.query(query, [start_date, end_date, branch_id]);
+  const { rows } = await pool.query(query, params);
 
-  // --- 1. คำนวณยอดรวมทั้งหมดทั้งรายงาน (Grand Total) ---
+  // --- คำนวณ Grand Total ---
   let gt_ab_volumn = 0, gt_ab_amount = 0, gt_spc_volumn = 0, gt_spc_amount = 0;
   
   rows.forEach(row => {
@@ -93,21 +105,15 @@ const fetchWoodTypeAbData = async (start_date, end_date, branch_id) => {
     ab_amt: gt_ab_amount,
     spc_volumn: gt_spc_volumn,
     spc_amt: gt_spc_amount,
-    
-    // % ความหนา รวมพิเศษ (เทียบปริมาตรรวมทั้งรายงาน)
     pct_all_ab: gt_all_volumn > 0 ? (gt_ab_volumn / gt_all_volumn) * 100 : 0,
     pct_all_spc: gt_all_volumn > 0 ? (gt_spc_volumn / gt_all_volumn) * 100 : 0,
-
-    // % ความหนา แยกปกติ,พิเศษ (จะเต็ม 100% เสมอเพราะเทียบกับตัวเอง)
     pct_sep_ab: gt_ab_volumn > 0 ? 100 : 0, 
     pct_sep_spc: gt_spc_volumn > 0 ? 100 : 0,
-
-    // ราคาเฉลี่ยรวมทั้งรายงาน
     avg_price_ab: gt_ab_volumn > 0 ? (gt_ab_amount / gt_ab_volumn) : 0,
     avg_price_spc: gt_spc_volumn > 0 ? (gt_spc_amount / gt_spc_volumn) : 0,
   };
 
-  // --- 2. จัดกลุ่มข้อมูล (Grouping) ---
+  // --- จัดกลุ่มข้อมูล (Grouping) ---
   const groupedData = rows.reduce((acc, row) => {
     const s = row.saw_name || 'ไม่ระบุชุดเลื่อย';
     const t = row.thick;
@@ -161,13 +167,12 @@ const fetchWoodTypeAbData = async (start_date, end_date, branch_id) => {
     return sawGroup;
   });
 
-  // ส่งกลับทั้งข้อมูลตารางและผลรวม
   return { finalData, grandTotal };
 };
 
 // --- Helper Function สำหรับดึงข้อมูลและคำนวณ (ลดความซ้ำซ้อน) ---
-const fetchProductionThickMilData = async (start_date, end_date, branch_id, store_code) => {
-  const rows = await ReportModel.getProductionThickMilReport({ branch_id, start_date, end_date, store_code });
+const fetchProductionThickMilData = async (start_date, end_date, branch_id, grade, store_code) => {
+  const rows = await ReportModel.getProductionThickMilReport({ branch_id, start_date, end_date, grade, store_code });
 
   let grand_total_volumn = 0;
   let grand_total_amount = 0;
@@ -362,11 +367,11 @@ const reportController = {
   // ฟังก์ชัน API เดิมของ JSON 
   getAbWoodReport: async (req, res) => {
     try {
-      const { start_date, end_date, branch_id } = req.query;
+      const { start_date, end_date, branch_id, grade} = req.query;
       if (!branch_id || !start_date || !end_date) return res.status(400).json({ success: false, message: 'Missing parameters' });
       
       // รับค่าทั้ง data และ grandTotal
-      const result = await fetchWoodTypeAbData(start_date, end_date, branch_id);
+      const result = await fetchWoodTypeAbData(start_date, end_date, branch_id ,grade);
       
       // แนบ grandTotal ไปใน JSON Response ด้วย
       res.status(200).json({ 
@@ -383,10 +388,10 @@ const reportController = {
   // --- 2. ฟังก์ชัน สร้างไฟล์ Excel (Blob) ---
   exportAbWoodReportExcel: async (req, res) => {
     try {
-      const { start_date, end_date, branch_id } = req.query;
+      const { start_date, end_date, branch_id, grade} = req.query;
       
       // 💡 แก้ไข: รับค่า finalData มาใส่ในตัวแปร data และรับ grandTotal มาด้วย
-      const { finalData: data, grandTotal } = await fetchWoodTypeAbData(start_date, end_date, branch_id);
+      const { finalData: data, grandTotal } = await fetchWoodTypeAbData(start_date, end_date, branch_id, grade);
 
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Wood Type Report');
@@ -395,12 +400,12 @@ const reportController = {
       worksheet.columns = [
         { header: 'ขนาดไม้', key: 'code1', width: 10 },
         { header: '', key: 'code2', width: 15 },
-        { header: 'AB', key: 'ab_vol', width: 12 },
+        { header: grade, key: 'ab_vol', width: 12 },
         { header: '% กว้าง', key: 'ab_pct_w', width: 10 },
         { header: '% ยาว', key: 'ab_pct_l', width: 10 },
         { header: 'ราคาเฉลี่ย', key: 'ab_price', width: 12 },
         { header: 'จำนวนเงิน', key: 'ab_amt', width: 15 },
-        { header: 'AB พิเศษ', key: 'spc_vol', width: 12 },
+        { header: `${grade}AB พิเศษ`, key: 'spc_vol', width: 12 },
         { header: '% กว้าง', key: 'spc_pct_w', width: 10 },
         { header: '% ยาว', key: 'spc_pct_l', width: 10 },
         { header: 'ราคาเฉลี่ย', key: 'spc_price', width: 12 },
@@ -482,10 +487,10 @@ const reportController = {
   // --- 3. ฟังก์ชัน สร้างไฟล์ PDF (Blob) ---
   exportAbWoodReportPDF: async (req, res) => {
     try {
-      const { start_date, end_date, branch_id } = req.query;
+      const { start_date, end_date, branch_id, grade } = req.query;
       
       // 💡 แก้ไข: รับค่า finalData และ grandTotal
-      const { finalData: data, grandTotal } = await fetchWoodTypeAbData(start_date, end_date, branch_id);
+      const { finalData: data, grandTotal } = await fetchWoodTypeAbData(start_date, end_date, branch_id, grade);
 
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
       let fontBase64 = '';
@@ -672,8 +677,8 @@ const reportController = {
               <thead>
                 <tr>
                   <th colspan="2">ขนาดไม้</th>
-                  <th>AB</th><th>% กว้าง</th><th>% ยาว</th><th>ราคาเฉลี่ย</th><th>จำนวนเงิน</th>
-                  <th>AB พิเศษ</th><th>% กว้าง</th><th>% ยาว</th><th>ราคาเฉลี่ย</th><th>จำนวนเงิน</th>
+                  <th>${grade}</th><th>% กว้าง</th><th>% ยาว</th><th>ราคาเฉลี่ย</th><th>จำนวนเงิน</th>
+                  <th>${grade} พิเศษ</th><th>% กว้าง</th><th>% ยาว</th><th>ราคาเฉลี่ย</th><th>จำนวนเงิน</th>
                 </tr>
               </thead>
               <tbody>
@@ -1163,13 +1168,13 @@ const reportController = {
   // เพิ่มเข้าไปใน reportController
   getProductionThickMil: async (req, res) => {
     try {
-      const { branch_id, start_date, end_date, store_code } = req.query;
+      const { branch_id, start_date, end_date, grade, store_code } = req.query;
 
       if (!branch_id || !start_date || !end_date) {
         return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
       }
 
-      const rows = await ReportModel.getProductionThickMilReport({ branch_id, start_date, end_date, store_code });
+      const rows = await ReportModel.getProductionThickMilReport({ branch_id, start_date, end_date, grade, store_code });
 
       // 1. คำนวณยอดรวมทั้งหมด (Grand Total) และ สรุปสัดส่วนความยาว
       let grand_total_volumn = 0;
@@ -1274,8 +1279,8 @@ const reportController = {
   // --- นำไปใส่ต่อท้ายใน reportController ---
   exportProductionThickMilExcel: async (req, res) => {
     try {
-      const { start_date, end_date, branch_id, store_code } = req.query;
-      const { formattedData, grandTotal, lengthSummary } = await fetchProductionThickMilData(start_date, end_date, branch_id, store_code);
+      const { start_date, end_date, branch_id, grade, store_code } = req.query;
+      const { formattedData, grandTotal, lengthSummary } = await fetchProductionThickMilData(start_date, end_date, branch_id, grade, store_code);
 
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Report');
@@ -1283,7 +1288,7 @@ const reportController = {
       worksheet.columns = [
         { header: 'ขนาดไม้', key: 'col1', width: 20 },
         { header: '', key: 'col2', width: 15 },
-        { header: 'AB', key: 'ab_vol', width: 15 },
+        { header: grade, key: 'ab_vol', width: 15 },
         { header: '% กว้าง', key: 'pct_w', width: 15 },
         { header: '% ยาว', key: 'pct_l', width: 15 },
         { header: 'ราคา', key: 'price', width: 15 },
@@ -1358,8 +1363,8 @@ const reportController = {
 
   exportProductionThickMilPDF: async (req, res) => {
     try {
-      const { start_date, end_date, branch_id, store_code, branch_name } = req.query;
-      const { formattedData, grandTotal, lengthSummary } = await fetchProductionThickMilData(start_date, end_date, branch_id, store_code);
+      const { start_date, end_date, branch_id, grade, store_code, branch_name } = req.query;
+      const { formattedData, grandTotal, lengthSummary } = await fetchProductionThickMilData(start_date, end_date, branch_id, grade, store_code);
 
       const fs = require('fs');
       const path = require('path');
@@ -1442,7 +1447,7 @@ const reportController = {
             <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
           </div>
           <table>
-            <thead><tr><th colspan="2">ขนาดไม้</th><th>AB</th><th>% กว้าง</th><th>% ยาว</th><th>ราคา</th><th>จำนวนเงิน</th></tr></thead>
+            <thead><tr><th colspan="2">ขนาดไม้</th><th>${grade}</th><th>% กว้าง</th><th>% ยาว</th><th>ราคา</th><th>จำนวนเงิน</th></tr></thead>
             <tbody>${rowsHtml}</tbody>
           </table>
           <div style="width:50%; margin-top:20px;">

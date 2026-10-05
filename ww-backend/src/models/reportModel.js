@@ -183,8 +183,9 @@ const ReportModel = {
 
   // เพิ่มต่อท้ายฟังก์ชันเดิมใน ReportModel
   getProductionThickMilReport: async (filters) => {
-    const { branch_id, start_date, end_date, store_code } = filters;
 
+    const { branch_id, start_date, end_date, grade, store_code } = filters;
+    
     let query = `
       SELECT 
           concat(SUBSTRING(mws.wood_code FROM 6 FOR 2),'-',SUBSTRING(mws.wood_code FROM 3 FOR 3)) as thick_mil
@@ -200,19 +201,27 @@ const ReportModel = {
       LEFT JOIN master_saw_wood_types swt 
         ON tsw.saw_wood_type_id = swt.old_id 
         AND tsw.branch_id = swt.branch_id
-      WHERE mws.grade = 'AB' 
+      WHERE 1=1 
         AND tsw.branch_id = $1
         AND DATE(tsw.produce_date) BETWEEN $2 AND $3
     `;
 
     const params = [branch_id, start_date, end_date];
 
-    // เพิ่มเงื่อนไขค้นหาสโตร์ ถ้ามีการส่งมา
-    if (store_code) {
-      query += ` AND swt.code = $4`;
-      params.push(store_code);
+    // ตรวจสอบเงื่อนไขเกรด
+    if (grade && grade !== 'ALL') {
+      query += ` and mws.grade = $4`;
+      params.push(grade);
+    } else if (grade === 'ALL') {
+      query += ` and mws.grade IN ('AB', 'C', 'P', 'PP')`;
     }
 
+    // เพิ่มเงื่อนไขค้นหาสโตร์ ถ้ามีการส่งมา
+    if (store_code) {
+      query += ` AND swt.code = $5`;
+      params.push(store_code);
+    }
+    
     query += `
       GROUP BY 
         concat(SUBSTRING(mws.wood_code FROM 6 FOR 2),'-',SUBSTRING(mws.wood_code FROM 3 FOR 3)), 

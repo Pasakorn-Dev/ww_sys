@@ -14,7 +14,8 @@ export default function ProductionThickMilReport() {
     branch_name: '',
     start_date: new Date().toISOString().split('T')[0],
     end_date: new Date().toISOString().split('T')[0],
-    store_code: ''
+    store_code: '',
+    grade: 'AB' // 💡 1. เพิ่มค่าเริ่มต้นของเกรดไม้
   });
 
   const [reportData, setReportData] = useState([]);
@@ -76,6 +77,7 @@ export default function ProductionThickMilReport() {
         start_date: filters.start_date,
         end_date: filters.end_date,
         branch_id: filters.branch_id,
+        grade: filters.grade,
         store_code: filters.store_code
       }).toString();
 
@@ -104,6 +106,7 @@ export default function ProductionThickMilReport() {
         start_date: filters.start_date,
         end_date: filters.end_date,
         branch_id: filters.branch_id,
+        grade: filters.grade,
         store_code: filters.store_code,
         branch_name: filters.branch_name
       }).toString();
@@ -145,6 +148,7 @@ export default function ProductionThickMilReport() {
         start_date: filters.start_date,
         end_date: filters.end_date,
         branch_id: filters.branch_id,
+        grade: filters.grade,
         store_code: filters.store_code
       }).toString();
 
@@ -185,7 +189,7 @@ export default function ProductionThickMilReport() {
           <i className="fas fa-layer-group text-blue-600"></i> รายงานการผลิต แยกตาม ความหนา-มิลไม้
         </h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="flex flex-col">
             <label className="text-xs font-semibold mb-1 text-gray-700">สาขา <span className="text-red-500">*</span></label>
             <select
@@ -222,6 +226,22 @@ export default function ProductionThickMilReport() {
               className="w-full border rounded-md p-2 text-sm outline-none bg-gray-50"
               wrapperClassName="w-full"
             />
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs font-semibold mb-1 text-gray-700">เกรดไม้</label>
+            <select
+              name="grade"
+              value={filters.grade}
+              onChange={handleFilterChange}
+              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-white"
+            >
+              <option value="AB">AB</option>
+              <option value="C">C</option>
+              <option value="P">P</option>
+              <option value="PP">PP</option>
+              <option value="ALL">รวมทุกเกรด</option>
+            </select>
           </div>
 
           <div className="flex flex-col">
@@ -273,13 +293,20 @@ export default function ProductionThickMilReport() {
             <p className="text-sm text-gray-600 mt-1">
               ตั้งแต่วันที่ {format(parseISO(filters.start_date), 'dd/MM/yyyy')} ถึง {format(parseISO(filters.end_date), 'dd/MM/yyyy')} 
             </p>
+            {/* 💡 2. เพิ่มข้อความระบุเงื่อนไข "เกรดไม้" บริเวณหัวรายงาน */}
+            <p className="text-sm text-gray-500 mt-1">
+              เกรดไม้: <span className="font-semibold text-blue-600">{filters.grade === 'ALL' ? 'รวมทุกเกรด' : (filters.grade || 'AB')}</span>
+            </p>
           </div>
 
           <table className="w-full text-xs border-collapse border border-gray-400 whitespace-nowrap min-w-max px-4 mx-4" style={{ width: 'calc(100% - 32px)' }}>
             <thead>
               <tr className="bg-[#b4c6e7] text-gray-800 font-semibold border-y-2 border-gray-500">
                 <th className="border border-gray-400 p-2 text-left" colSpan="2">ขนาดไม้</th>
-                <th className="border border-gray-400 p-2 text-right">AB</th>
+                {/* 💡 3. เปลี่ยนหัวคอลัมน์จาก "AB" ให้แสดงชื่อตามเกรดที่เลือก */}
+                <th className="border border-gray-400 p-2 text-right">
+                  {filters.grade === 'ALL' ? 'ทุกเกรด' : (filters.grade || 'AB')}
+                </th>
                 <th className="border border-gray-400 p-2 text-right">% กว้าง</th>
                 <th className="border border-gray-400 p-2 text-right">% ยาว</th>
                 <th className="border border-gray-400 p-2 text-right">ราคา</th>
