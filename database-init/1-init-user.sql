@@ -1,4 +1,4 @@
-SQL
+-- SQL
 -- สร้าง User ใหม่สำหรับแอปพลิเคชัน (ห้ามเป็น Superuser)
 CREATE USER superuser WITH PASSWORD 'p@ssw0rd';
 

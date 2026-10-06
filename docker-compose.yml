@@ -2,6 +2,8 @@ services:
   # 1. Database (PostgreSQL)
   postgres-db:
     image: postgres:15-alpine
+    ports:
+      - "5432:5432"  # เพิ่มบรรทัดนี้ เพื่อให้เครื่อง Notebook มองเห็น Database นี้
     restart: always
     environment:
       POSTGRES_USER: superuser      # Superuser สำหรับแอดมิน (เอาไว้ Backup)
@@ -14,7 +16,7 @@ services:
   # 2. Backend (Node.js + Express)
   backend:
     build: ./ww-backend
-    image: my-backend:v1.0.0
+    image: pasakorndev/my-backend:v1.0.0
     restart: always
     env_file:
       - ./ww-backend/.env     
@@ -24,7 +26,7 @@ services:
   # 3. Frontend (React + Vite)
   frontend:
     build: ./ww-frontend
-    image: my-frontend:v1.0.0
+    image: pasakorndev/my-frontend:v1.0.0
     restart: always
 
   # 4. Nginx (Gateway / Reverse Proxy หน้าสุด)

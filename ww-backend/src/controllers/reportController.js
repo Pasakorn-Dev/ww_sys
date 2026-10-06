@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const ReportModel = require('../models/reportModel');
-const puppeteer = require('puppeteer'); // หรือใช้ library ทำ PDF ที่ระบบคุณมีอยู่แล้ว
+// const puppeteer = require('puppeteer'); // หรือใช้ library ทำ PDF ที่ระบบคุณมีอยู่แล้ว
+// const { default: puppeteer } = await import('puppeteer');
 const ExcelJS = require('exceljs'); // <- ต้องมีบรรทัดนี้
 const fs = require('fs');      
 const path = require('path');  
@@ -21,10 +22,11 @@ const getBrowser = async () => {
         return browser;
       }
     }
-
+    const puppeteer = (await import('puppeteer')).default;
     // 2. ถ้ายังไม่เคยสร้าง หรือบราวเซอร์แครชไปแล้ว ให้สร้างขึ้นมาใหม่
     console.log("🚀 Starting new Chrome browser instance...");
-    browserPromise = puppeteer.launch({ 
+    browserPromise = await puppeteer.launch({ 
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null, // <--- 💡 เพิ่มบรรทัดนี้เข้าไปครับ
       args: [
         '--no-sandbox', 
         '--disable-setuid-sandbox', 
