@@ -1,0 +1,34 @@
+# 1. Environment variables (ความลับของระบบ)
+.env
+.env.*
+*.env
+
+# 2. Dependencies (ต้องให้ Docker รัน npm install ใหม่ข้างในตู้เสมอ)
+node_modules
+
+# 3. Logs และไฟล์ชั่วคราว
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+log_docker.txt
+
+# 4. ไฟล์ตั้งค่า Docker เอง (ไม่จำเป็นต้องแพ็คใส่ตู้ตัวเอง)
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# 5. Source Control และตั้งค่า Editor ส่วนตัว
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# 6. OS-specific files (ไฟล์ขยะของระบบปฏิบัติการ)
+.DS_Store
+Thumbs.db
+
+# 7. โฟลเดอร์ที่เกิดจากการ Build (ถ้ามี)
+build/
+dist/
+coverage/

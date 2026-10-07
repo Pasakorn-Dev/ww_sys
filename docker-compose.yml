@@ -11,7 +11,7 @@ services:
       POSTGRES_DB: ww_sys
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./database-init:/docker-entrypoint-initdb.d # สั่งรันสคริปต์สร้าง App User อัตโนมัติ
+      # - ./database-init:/docker-entrypoint-initdb.d # สั่งรันสคริปต์สร้าง App User อัตโนมัติ
 
   # 2. Backend (Node.js + Express)
   backend:
