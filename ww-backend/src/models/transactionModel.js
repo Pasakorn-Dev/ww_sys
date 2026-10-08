@@ -285,6 +285,133 @@ const TransactionModel = {
     
     // 💡 แก้ไข: ใช้ result.rowCount ในการส่งกลับจำนวนแถวที่ถูกอัปเดตจริงๆ
     return result.rowCount; 
+  },
+
+  // ==========================================
+  // ─── ส่วนที่เพิ่มใหม่สำหรับ นำเข้าข้อมูลไม้เปียก ───
+  // ==========================================
+
+  // 1. ดึงค่าแรง (wage) จาก PostgreSQL ของสาขานั้น
+  getUnitWagesByBranch: async (branchId) => {
+    const query = `
+      SELECT old_id, wage 
+      FROM master_wood_sizes 
+      WHERE branch_id = $1
+    `;
+    const { rows } = await pool.query(query, [branchId]);
+    
+    const wageMap = new Map();
+    rows.forEach(row => {
+      wageMap.set(row.old_id, Number(row.wage) || 0);
+    });
+    return wageMap;
+  },
+
+  // 2. ดึงข้อมูล Transaction ไม้เปียก จาก MySQL เก่า
+  getOldWetWoodTransactions: async (mysqlPool, startDate, endDate) => {
+    const mysqlQuery = `
+      SELECT 
+        wsa.id AS wood_size_amount_map_id,
+        bc.barcode_id,
+        DATE(bc.date_create) AS produce_date,
+        ws.id AS wood_size_id,
+        mwd.wet_wood_type_id,
+        wsa.amount,
+        em.id AS sorter_id,
+        mwd.truck_company_id AS ws_customer_id,
+        round(((MID(ws.wood_code,6,1)+MID(ws.wood_code,7,1)/8)*(IF(MID(ws.wood_code,8,1)="A",10,IF(MID(ws.wood_code,8,1)="B",11,IF(MID(ws.wood_code,8,1)="C",12,IF(MID(ws.wood_code,8,1)="D",13,IF(MID(ws.wood_code,8,1)="E",14,IF(MID(ws.wood_code,8,1)="F",15,IF(MID(ws.wood_code,8,1)="G",16,IF(MID(ws.wood_code,8,1)="H",17,IF(MID(ws.wood_code,8,1)="I",18,IF(MID(ws.wood_code,8,1)="J",19,IF(MID(ws.wood_code,8,1)="K",20,MID(ws.wood_code,8,1))))))))))))+MID(ws.wood_code,9,1)/8)*(RIGHT(ws.wood_code,3)/100)*0.0228 * wsa.amount),4) as volumn
+      FROM mobile_wet_wood_data mwd
+      LEFT JOIN mobile_wet_wood_data_sorter_info mwds ON mwds.mobile_wet_wood_data_sorter_info_list_id = mwd.id
+      LEFT JOIN sorter_info si ON si.id = mwds.sorter_info_id
+      LEFT JOIN sorter_info_wood_size_amount_map swsa ON swsa.sorter_info_amount_map_id = si.id
+      LEFT JOIN wood_size_amount_map wsa ON wsa.id = swsa.wood_size_amount_map_id 
+      LEFT JOIN wood_size ws ON ws.id = wsa.wood_size_id
+      LEFT JOIN barcode bc ON bc.id = mwd.barcode_id
+      LEFT JOIN user us ON us.id = si.sorter_id
+      LEFT JOIN employee em ON em.code = us.username
+      WHERE 1=1
+        AND mwd.time_created >= ? AND mwd.time_created <= ?
+        AND wsa.id IS NOT null
+      GROUP BY wsa.id
+    `;
+    
+    // แปลงวันที่ให้รวมเวลา เพื่อดึงจาก time_created ได้แม่นยำ
+    const startDateTime = `${startDate} 00:00:00`;
+    const endDateTime = `${endDate} 23:59:59`;
+    
+    const [oldData] = await mysqlPool.query(mysqlQuery, [startDateTime, endDateTime]);
+    return oldData;
+  },
+
+  // 3. อัปเดตข้อมูลแบบ Bulk ลง PostgreSQL
+  upsertWetWoodTransactions: async (insertValues) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      const chunkSize = 3000;
+      let totalSynced = 0;
+
+      for (let i = 0; i < insertValues.length; i += chunkSize) {
+        const chunk = insertValues.slice(i, i + chunkSize);
+        
+        const upsertQuery = format(`
+          INSERT INTO transaction_wet_woods (
+            wood_size_amount_map_id, branch_id, barcode_id, produce_date, 
+            wood_size_id, wet_wood_type_id, sorter_id, ws_customer_id, 
+            amount, volumn, unit_wage
+          ) 
+          VALUES %L 
+          ON CONFLICT (branch_id, wood_size_amount_map_id) 
+          DO UPDATE SET 
+            barcode_id = EXCLUDED.barcode_id,
+            produce_date = EXCLUDED.produce_date,
+            wood_size_id = EXCLUDED.wood_size_id,
+            wet_wood_type_id = EXCLUDED.wet_wood_type_id,
+            sorter_id = EXCLUDED.sorter_id,
+            ws_customer_id = EXCLUDED.ws_customer_id,
+            amount = EXCLUDED.amount,
+            volumn = EXCLUDED.volumn,
+            unit_wage = EXCLUDED.unit_wage
+        `, chunk);
+
+        await client.query(upsertQuery);
+        totalSynced += chunk.length;
+      }
+
+      await client.query('COMMIT');
+      return totalSynced;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
+
+  // 4. ลบข้อมูลไม้เปียกที่ถูกเคลียร์ในระบบเก่า (เพื่อให้ข้อมูลตรงกันทั้งสองฝั่ง)
+  cleanupDeletedWetWoodTransactions: async (branchId, startDate, endDate, activeIds) => {
+    let query;
+    let params;
+
+    if (activeIds && activeIds.length > 0) {
+      query = `
+        DELETE FROM transaction_wet_woods
+        WHERE branch_id = $1
+          AND produce_date BETWEEN $2 AND $3
+          AND wood_size_amount_map_id != ALL($4::bigint[])
+      `;
+      params = [branchId, startDate, endDate, activeIds];
+    } else {
+      query = `
+        DELETE FROM transaction_wet_woods
+        WHERE branch_id = $1
+          AND produce_date BETWEEN $2 AND $3
+      `;
+      params = [branchId, startDate, endDate];
+    }
+
+    await pool.query(query, params);
   }
 };
 

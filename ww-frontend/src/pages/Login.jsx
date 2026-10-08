@@ -1,9 +1,8 @@
 // src/pages/Login.jsx
 // ─────────────────────────────────────────────────────────────
-// หน้า Login สำหรับ PPOS System (Premium UI Version)
-// - ใช้ apiFetch แทน fetch ตรงๆ
-// - บันทึก token + user ลง localStorage
-// - Redirect ไป /dashboard เมื่อ login สำเร็จ
+// หน้า Login สำหรับ WW_Report (Enterprise UI Version - Green Theme)
+// - ดีไซน์แบบ Corporate เน้นความน่าเชื่อถือ สะอาดตา
+// - โครงสร้างแบบ Split Screen สำหรับ Desktop
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from 'react';
@@ -38,19 +37,17 @@ export default function Login() {
         body: JSON.stringify({ username, password }),
       });
 
-      console.log('Login Response:', data);
-
       if (data?.success && data?.token) {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.data));
 
         Swal.fire({
           icon: 'success',
-          title: 'เข้าสู่ระบบสำเร็จ!',
+          title: 'เข้าสู่ระบบสำเร็จ',
           timer: 1000,
           showConfirmButton: false,
           background: document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff',
-          color: document.documentElement.classList.contains('dark') ? '#f8fafc' : '#0f172a',
+          color: document.documentElement.classList.contains('dark') ? '#f8fafc' : '#111827',
         });
 
         setTimeout(() => {
@@ -59,20 +56,20 @@ export default function Login() {
       } else {
         Swal.fire({
           icon: 'error',
-          title: 'เข้าสู่ระบบไม่สำเร็จ',
-          text: data?.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง',
-          confirmButtonColor: '#4f46e5',
+          title: 'ไม่สามารถเข้าสู่ระบบได้',
+          text: data?.message || 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง',
+          confirmButtonColor: '#16a34a', // เปลี่ยนสีปุ่มแจ้งเตือนเป็นสีเขียว
           background: document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff',
-          color: document.documentElement.classList.contains('dark') ? '#f8fafc' : '#0f172a',
+          color: document.documentElement.classList.contains('dark') ? '#f8fafc' : '#111827',
         });
       }
     } catch (error) {
       console.error('Login error:', error);
       Swal.fire({
         icon: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        text: 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้',
-        confirmButtonColor: '#4f46e5',
+        title: 'เกิดข้อผิดพลาดของระบบ',
+        text: 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ในขณะนี้',
+        confirmButtonColor: '#16a34a', // เปลี่ยนสีปุ่มแจ้งเตือนเป็นสีเขียว
       });
     } finally {
       setLoading(false);
@@ -81,101 +78,131 @@ export default function Login() {
 
   // ─── Render ───────────────────────────────────────────────
   return (
-    <div className="relative flex items-center justify-center min-h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden selection:bg-indigo-500/30 transition-colors duration-500">
+    <div className="flex min-h-screen bg-gray-50 dark:bg-slate-900 font-sans">
       
-      {/* Background Decorative Elements (แสงวงกลมฟุ้งๆ ดูกระจายตัวแบบล้ำๆ) */}
-      <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-purple-500/30 dark:bg-purple-600/20 rounded-full blur-[100px] animate-pulse" style={{ animationDuration: '8s' }} />
-      <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-500/30 dark:bg-blue-600/20 rounded-full blur-[100px] animate-pulse" style={{ animationDuration: '10s' }} />
-
-      {/* Login Card (Glassmorphism) */}
-      <div className="relative w-full max-w-md p-8 sm:p-10 mx-4 bg-white/70 dark:bg-slate-900/70 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] border border-white/50 dark:border-slate-800/50 z-10 transform transition-all hover:-translate-y-1 hover:shadow-2xl duration-500">
-
-        {/* Header Section */}
-        <div className="text-center mb-10">
-          <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30 transform -rotate-3 transition-transform hover:rotate-0 duration-300">
-            <i className="fas fa-layer-group text-3xl text-white"></i>
+      {/* ─── ฝั่งซ้าย: Corporate Branding (แสดงเฉพาะจอใหญ่) ─── */}
+      <div className="hidden lg:flex lg:w-1/2 bg-green-900 relative items-center justify-center overflow-hidden">
+        {/* Pattern Background เบาๆ สำหรับองค์กร */}
+        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:20px_20px]"></div>
+        
+        <div className="relative z-10 px-12 lg:px-20 text-white max-w-2xl">
+          <div className="w-16 h-16 bg-white/10 rounded-lg flex items-center justify-center mb-8 border border-white/20">
+            <i className="fas fa-chart-line text-3xl text-green-300"></i>
           </div>
-          <h1 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 tracking-tight mb-2">
-            WW_Report
+          <h1 className="text-4xl lg:text-5xl font-bold tracking-tight mb-4 leading-tight">
+            ระบบจัดการคลัง <br/>และวิเคราะห์ข้อมูล
           </h1>
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-            ระบบจัดการคลังและวิเคราะห์ข้อมูลระดับองค์กร
+          <p className="text-lg text-green-200 mb-8 font-light">
+            WW_Report Enterprise System 
+            ยกระดับการตัดสินใจทางธุรกิจด้วยข้อมูลที่แม่นยำและรายงานแบบเรียลไทม์
           </p>
-        </div>
-
-        {/* Form Section */}
-        <form onSubmit={handleLogin} className="space-y-6">
-
-          {/* Username Input */}
-          <div className="relative group">
-            <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
-              <i className="fas fa-user text-sm"></i>
-            </div>
-            <input
-              type="text"
-              required
-              autoComplete="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full pl-11 pr-4 py-3.5 bg-slate-100/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 dark:focus:border-indigo-400 text-slate-700 dark:text-slate-200 text-sm font-medium transition-all duration-300 placeholder:text-slate-400"
-              placeholder="ชื่อผู้ใช้งาน (Username)"
-            />
+          <div className="flex items-center text-sm text-green-300/80 font-medium">
+            <i className="fas fa-shield-alt mr-2"></i>
+            Secure & Encrypted Connection
           </div>
-
-          {/* Password Input */}
-          <div className="relative group">
-            <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
-              <i className="fas fa-lock text-sm"></i>
-            </div>
-            <input
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full pl-11 pr-4 py-3.5 bg-slate-100/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 dark:focus:border-indigo-400 text-slate-700 dark:text-slate-200 text-sm font-medium transition-all duration-300 placeholder:text-slate-400"
-              placeholder="รหัสผ่าน (Password)"
-            />
-          </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="group relative w-full flex justify-center py-4 px-4 mt-2 border border-transparent rounded-2xl text-sm font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-slate-900 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed overflow-hidden"
-          >
-            {/* Hover Glare Effect */}
-            <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[glare_1s_ease-in-out]" />
-            
-            {loading ? (
-              <span className="flex items-center gap-2">
-                <i className="fas fa-circle-notch fa-spin"></i>
-                กำลังยืนยันตัวตน...
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                เข้าสู่ระบบ
-                <i className="fas fa-arrow-right transition-transform group-hover:translate-x-1"></i>
-              </span>
-            )}
-          </button>
-        </form>
-
-        {/* Footer */}
-        <div className="mt-8 text-center">
-          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 tracking-wide">
-            POWERED BY <span className="text-indigo-500 dark:text-indigo-400">AI</span> & MODERN WEB TECH
-          </p>
         </div>
-
       </div>
 
-      {/* CSS สำหรับ Glare Animation ของปุ่ม */}
-      <style>{`
-        @keyframes glare {
-          100% { transform: translateX(100%); }
-        }
-      `}</style>
+      {/* ─── ฝั่งขวา: Login Form ─── */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12">
+        <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-8 sm:p-10">
+          
+          {/* Header Mobile (กรณีจอเล็กที่มองไม่เห็นฝั่งซ้าย) */}
+          <div className="lg:hidden mb-8 text-center">
+            <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center mx-auto mb-4 text-green-700 dark:text-green-400">
+              <i className="fas fa-chart-line text-xl"></i>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">WW_Report</h2>
+          </div>
+
+          <div className="mb-8">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-1">เข้าสู่ระบบ</h3>
+            <p className="text-sm text-gray-500 dark:text-slate-400">
+              กรุณากรอกข้อมูลประจำตัวองค์กรเพื่อเข้าใช้งาน
+            </p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-5">
+            {/* Username Input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                ชื่อผู้ใช้งาน
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-gray-400">
+                  <i className="fas fa-user text-sm"></i>
+                </div>
+                <input
+                  type="text"
+                  required
+                  autoComplete="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600 dark:focus:ring-green-500 text-gray-900 dark:text-white text-sm transition-all"
+                  placeholder="Employee ID หรือ Username"
+                />
+              </div>
+            </div>
+
+            {/* Password Input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                รหัสผ่าน
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-gray-400">
+                  <i className="fas fa-lock text-sm"></i>
+                </div>
+                <input
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600 dark:focus:ring-green-500 text-gray-900 dark:text-white text-sm transition-all"
+                  placeholder="••••••••"
+                />
+              </div>
+            </div>
+
+            {/* Remember & Forgot Password */}
+            <div className="flex items-center justify-between mt-2">
+              <label className="flex items-center">
+                <input type="checkbox" className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-600" />
+                <span className="ml-2 text-sm text-gray-600 dark:text-slate-400">จดจำฉันไว้</span>
+              </label>
+              <a href="#" className="text-sm font-medium text-green-600 hover:text-green-500 dark:text-green-400">
+                ลืมรหัสผ่าน?
+              </a>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex justify-center py-2.5 px-4 mt-6 border border-transparent rounded-md text-sm font-semibold text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:bg-green-400 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <i className="fas fa-circle-notch fa-spin"></i>
+                  กำลังตรวจสอบ...
+                </span>
+              ) : (
+                "เข้าสู่ระบบ"
+              )}
+            </button>
+          </form>
+
+        </div>
+        
+        {/* Footer ด้านล่างฟอร์ม (Mobile & Desktop) */}
+        <div className="absolute bottom-6 text-center lg:w-1/2">
+          <p className="text-xs text-gray-400 dark:text-slate-500">
+            &copy; {new Date().getFullYear()} WW Corporation. All rights reserved.
+          </p>
+        </div>
+      </div>
+
     </div>
   );
 }

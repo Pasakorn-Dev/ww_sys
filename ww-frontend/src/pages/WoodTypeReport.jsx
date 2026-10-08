@@ -253,6 +253,13 @@ export default function WoodTypeReport() {
   };
 
   const handleExportPDF = async () => {
+    Swal.fire({
+      title: 'กำลังสร้างไฟล์ PDF...',
+      html: 'กรุณารอสักครู่ ระบบกำลังประมวลผลข้อมูล',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
     setIsExportingPDF(true);
     try {
       const q = new URLSearchParams({
@@ -269,6 +276,8 @@ export default function WoodTypeReport() {
       
       const blob = await res.blob();
       window.open(window.URL.createObjectURL(blob), '_blank'); 
+
+      Swal.close();
     } catch (error) {
       Swal.fire('ข้อผิดพลาด', 'ไม่สามารถสร้างไฟล์ PDF ได้', 'error');
     } finally {

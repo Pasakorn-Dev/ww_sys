@@ -131,6 +131,71 @@ const transactionController = {
       console.error('Get Recal Logs Error:', error);
       res.status(500).json({ success: false, message: 'ดึงข้อมูลประวัติไม่สำเร็จ' });
     }
+  },
+
+  // ─── ส่วนที่เพิ่มใหม่สำหรับ นำเข้าข้อมูลไม้เปียก ───
+  syncWetWoods: async (req, res) => {
+    const { branch_id, start_date, end_date } = req.body;
+
+    if (!branch_id || !start_date || !end_date) {
+      return res.status(400).json({ success: false, message: 'กรุณาระบุสาขา และช่วงวันที่ให้ครบถ้วน' });
+    }
+
+    try {
+      // 1. เชื่อมต่อ MySQL ของสาขานั้น
+      const mysqlPool = await getMysqlConnection(branch_id);
+
+      // 2. ดึงค่าแรง (wage) ปัจจุบันจาก Postgres มาเตรียมไว้
+      const wageMap = await TransactionModel.getUnitWagesByBranch(branch_id);
+
+      // 3. ดึงข้อมูลจาก MySQL เก่า
+      const oldData = await TransactionModel.getOldWetWoodTransactions(mysqlPool, start_date, end_date);
+
+      // 3.1 สกัดเฉพาะ ID ที่ยังมีอยู่จริงในระบบเก่า
+      const activeIds = [...new Set(oldData.map(row => row.wood_size_amount_map_id))];
+
+      // 3.2 สั่งเคลียร์ข้อมูลใน PostgreSQL ที่ถูกลบออกไปแล้ว
+      await TransactionModel.cleanupDeletedWetWoodTransactions(branch_id, start_date, end_date, activeIds);
+
+      if (oldData.length === 0) {
+        return res.json({ success: true, message: 'ไม่พบข้อมูลในระบบเก่าสำหรับช่วงเวลานี้', total_synced: 0 });
+      }
+
+      // 4. กรองข้อมูลซ้ำและเตรียมเข้า Postgres
+      const uniqueDataMap = new Map();
+      oldData.forEach(row => {
+        uniqueDataMap.set(row.wood_size_amount_map_id, row);
+      });
+      const uniqueOldData = Array.from(uniqueDataMap.values());
+
+      const insertValues = uniqueOldData.map(row => {
+        const prodDate = row.produce_date instanceof Date ? row.produce_date.toISOString().split('T')[0] : row.produce_date;
+        const unitWage = wageMap.get(row.wood_size_id) || 0; 
+        
+        return [
+          row.wood_size_amount_map_id,
+          branch_id,
+          row.barcode_id,
+          prodDate,
+          row.wood_size_id || null,
+          row.wet_wood_type_id || null,
+          row.sorter_id || null,
+          row.ws_customer_id || null,
+          row.amount || 0,
+          row.volumn || 0,
+          unitWage
+        ];
+      });
+
+      // 5. นำเข้าข้อมูล (Bulk Upsert)
+      const totalSynced = await TransactionModel.upsertWetWoodTransactions(insertValues);
+
+      res.json({ success: true, message: 'ซิงค์ข้อมูลไม้เปียกสำเร็จ', total_synced: totalSynced });
+
+    } catch (error) {
+      console.error('Wet Wood Sync Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการนำเข้าข้อมูลไม้เปียก' });
+    }
   }
 };
 
