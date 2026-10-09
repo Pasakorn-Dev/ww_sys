@@ -75,11 +75,13 @@ src/
     reportRoutes.js
     transactionRoutes.js
   server.js
+Dockerfile
+.dockerignore
 .env.example
 .gitignore
-.repomixignore
 package.json
 query_update.txt
+.repomixignore
 repomix-output.md
 repomix-output.xml
 </directory_structure>
@@ -1043,7 +1045,8 @@ module.exports = menuController;
 <file path="src/controllers/reportController.js">
 const pool = require('../config/db');
 const ReportModel = require('../models/reportModel');
-const puppeteer = require('puppeteer'); // หรือใช้ library ทำ PDF ที่ระบบคุณมีอยู่แล้ว
+// const puppeteer = require('puppeteer'); // หรือใช้ library ทำ PDF ที่ระบบคุณมีอยู่แล้ว
+// const { default: puppeteer } = await import('puppeteer');
 const ExcelJS = require('exceljs'); // <- ต้องมีบรรทัดนี้
 const fs = require('fs');      
 const path = require('path');  
@@ -1064,10 +1067,11 @@ const getBrowser = async () => {
         return browser;
       }
     }
-
+    const puppeteer = (await import('puppeteer')).default;
     // 2. ถ้ายังไม่เคยสร้าง หรือบราวเซอร์แครชไปแล้ว ให้สร้างขึ้นมาใหม่
     console.log("🚀 Starting new Chrome browser instance...");
-    browserPromise = puppeteer.launch({ 
+    browserPromise = await puppeteer.launch({ 
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null, // <--- 💡 เพิ่มบรรทัดนี้เข้าไปครับ
       args: [
         '--no-sandbox', 
         '--disable-setuid-sandbox', 
@@ -1087,7 +1091,19 @@ const getBrowser = async () => {
   }
 };
 
-const fetchWoodTypeAbData = async (start_date, end_date, branch_id) => {
+// 💡 1. ปรับฟังก์ชัน Helper ให้รับ parameter 'grade' เข้ามาและตั้งเงื่อนไข
+const fetchWoodTypeAbData = async (start_date, end_date, branch_id, grade = 'AB') => {
+  let gradeCondition = "mws.grade = 'AB'";
+  const params = [start_date, end_date, branch_id];
+
+  // ตรวจสอบเงื่อนไขเกรด
+  if (grade && grade !== 'ALL') {
+    gradeCondition = "mws.grade = $4";
+    params.push(grade);
+  } else if (grade === 'ALL') {
+    gradeCondition = "mws.grade IN ('AB', 'C', 'P', 'PP')";
+  }
+
   const query = `
     WITH BaseData AS (
         SELECT 
@@ -1100,7 +1116,7 @@ const fetchWoodTypeAbData = async (start_date, end_date, branch_id) => {
         JOIN master_wood_sizes mws 
           on mws.old_id = tsw.wood_size_id 
           and tsw.branch_id = mws.branch_id
-        WHERE mws.grade = 'AB' 
+        WHERE ${gradeCondition}
           AND DATE(tsw.produce_date) BETWEEN $1 AND $2
           AND tsw.branch_id = $3
         GROUP BY tsw.saw_name, mws.thick, mws.length, RIGHT(mws.wood_code, 7)
@@ -1117,9 +1133,9 @@ const fetchWoodTypeAbData = async (start_date, end_date, branch_id) => {
     ORDER BY saw_name, thick, length, wood_code;
   `;
 
-  const { rows } = await pool.query(query, [start_date, end_date, branch_id]);
+  const { rows } = await pool.query(query, params);
 
-  // --- 1. คำนวณยอดรวมทั้งหมดทั้งรายงาน (Grand Total) ---
+  // --- คำนวณ Grand Total ---
   let gt_ab_volumn = 0, gt_ab_amount = 0, gt_spc_volumn = 0, gt_spc_amount = 0;
   
   rows.forEach(row => {
@@ -1136,21 +1152,15 @@ const fetchWoodTypeAbData = async (start_date, end_date, branch_id) => {
     ab_amt: gt_ab_amount,
     spc_volumn: gt_spc_volumn,
     spc_amt: gt_spc_amount,
-    
-    // % ความหนา รวมพิเศษ (เทียบปริมาตรรวมทั้งรายงาน)
     pct_all_ab: gt_all_volumn > 0 ? (gt_ab_volumn / gt_all_volumn) * 100 : 0,
     pct_all_spc: gt_all_volumn > 0 ? (gt_spc_volumn / gt_all_volumn) * 100 : 0,
-
-    // % ความหนา แยกปกติ,พิเศษ (จะเต็ม 100% เสมอเพราะเทียบกับตัวเอง)
     pct_sep_ab: gt_ab_volumn > 0 ? 100 : 0, 
     pct_sep_spc: gt_spc_volumn > 0 ? 100 : 0,
-
-    // ราคาเฉลี่ยรวมทั้งรายงาน
     avg_price_ab: gt_ab_volumn > 0 ? (gt_ab_amount / gt_ab_volumn) : 0,
     avg_price_spc: gt_spc_volumn > 0 ? (gt_spc_amount / gt_spc_volumn) : 0,
   };
 
-  // --- 2. จัดกลุ่มข้อมูล (Grouping) ---
+  // --- จัดกลุ่มข้อมูล (Grouping) ---
   const groupedData = rows.reduce((acc, row) => {
     const s = row.saw_name || 'ไม่ระบุชุดเลื่อย';
     const t = row.thick;
@@ -1204,13 +1214,12 @@ const fetchWoodTypeAbData = async (start_date, end_date, branch_id) => {
     return sawGroup;
   });
 
-  // ส่งกลับทั้งข้อมูลตารางและผลรวม
   return { finalData, grandTotal };
 };
 
 // --- Helper Function สำหรับดึงข้อมูลและคำนวณ (ลดความซ้ำซ้อน) ---
-const fetchProductionThickMilData = async (start_date, end_date, branch_id, store_code) => {
-  const rows = await ReportModel.getProductionThickMilReport({ branch_id, start_date, end_date, store_code });
+const fetchProductionThickMilData = async (start_date, end_date, branch_id, grade, store_code) => {
+  const rows = await ReportModel.getProductionThickMilReport({ branch_id, start_date, end_date, grade, store_code });
 
   let grand_total_volumn = 0;
   let grand_total_amount = 0;
@@ -1405,11 +1414,11 @@ const reportController = {
   // ฟังก์ชัน API เดิมของ JSON 
   getAbWoodReport: async (req, res) => {
     try {
-      const { start_date, end_date, branch_id } = req.query;
+      const { start_date, end_date, branch_id, grade} = req.query;
       if (!branch_id || !start_date || !end_date) return res.status(400).json({ success: false, message: 'Missing parameters' });
       
       // รับค่าทั้ง data และ grandTotal
-      const result = await fetchWoodTypeAbData(start_date, end_date, branch_id);
+      const result = await fetchWoodTypeAbData(start_date, end_date, branch_id ,grade);
       
       // แนบ grandTotal ไปใน JSON Response ด้วย
       res.status(200).json({ 
@@ -1426,10 +1435,10 @@ const reportController = {
   // --- 2. ฟังก์ชัน สร้างไฟล์ Excel (Blob) ---
   exportAbWoodReportExcel: async (req, res) => {
     try {
-      const { start_date, end_date, branch_id } = req.query;
+      const { start_date, end_date, branch_id, grade} = req.query;
       
       // 💡 แก้ไข: รับค่า finalData มาใส่ในตัวแปร data และรับ grandTotal มาด้วย
-      const { finalData: data, grandTotal } = await fetchWoodTypeAbData(start_date, end_date, branch_id);
+      const { finalData: data, grandTotal } = await fetchWoodTypeAbData(start_date, end_date, branch_id, grade);
 
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Wood Type Report');
@@ -1438,12 +1447,12 @@ const reportController = {
       worksheet.columns = [
         { header: 'ขนาดไม้', key: 'code1', width: 10 },
         { header: '', key: 'code2', width: 15 },
-        { header: 'AB', key: 'ab_vol', width: 12 },
+        { header: grade, key: 'ab_vol', width: 12 },
         { header: '% กว้าง', key: 'ab_pct_w', width: 10 },
         { header: '% ยาว', key: 'ab_pct_l', width: 10 },
         { header: 'ราคาเฉลี่ย', key: 'ab_price', width: 12 },
         { header: 'จำนวนเงิน', key: 'ab_amt', width: 15 },
-        { header: 'AB พิเศษ', key: 'spc_vol', width: 12 },
+        { header: `${grade}AB พิเศษ`, key: 'spc_vol', width: 12 },
         { header: '% กว้าง', key: 'spc_pct_w', width: 10 },
         { header: '% ยาว', key: 'spc_pct_l', width: 10 },
         { header: 'ราคาเฉลี่ย', key: 'spc_price', width: 12 },
@@ -1525,10 +1534,10 @@ const reportController = {
   // --- 3. ฟังก์ชัน สร้างไฟล์ PDF (Blob) ---
   exportAbWoodReportPDF: async (req, res) => {
     try {
-      const { start_date, end_date, branch_id } = req.query;
+      const { start_date, end_date, branch_id, grade } = req.query;
       
       // 💡 แก้ไข: รับค่า finalData และ grandTotal
-      const { finalData: data, grandTotal } = await fetchWoodTypeAbData(start_date, end_date, branch_id);
+      const { finalData: data, grandTotal } = await fetchWoodTypeAbData(start_date, end_date, branch_id, grade);
 
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
       let fontBase64 = '';
@@ -1715,8 +1724,8 @@ const reportController = {
               <thead>
                 <tr>
                   <th colspan="2">ขนาดไม้</th>
-                  <th>AB</th><th>% กว้าง</th><th>% ยาว</th><th>ราคาเฉลี่ย</th><th>จำนวนเงิน</th>
-                  <th>AB พิเศษ</th><th>% กว้าง</th><th>% ยาว</th><th>ราคาเฉลี่ย</th><th>จำนวนเงิน</th>
+                  <th>${grade}</th><th>% กว้าง</th><th>% ยาว</th><th>ราคาเฉลี่ย</th><th>จำนวนเงิน</th>
+                  <th>${grade} พิเศษ</th><th>% กว้าง</th><th>% ยาว</th><th>ราคาเฉลี่ย</th><th>จำนวนเงิน</th>
                 </tr>
               </thead>
               <tbody>
@@ -2206,13 +2215,13 @@ const reportController = {
   // เพิ่มเข้าไปใน reportController
   getProductionThickMil: async (req, res) => {
     try {
-      const { branch_id, start_date, end_date, store_code } = req.query;
+      const { branch_id, start_date, end_date, grade, store_code } = req.query;
 
       if (!branch_id || !start_date || !end_date) {
         return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
       }
 
-      const rows = await ReportModel.getProductionThickMilReport({ branch_id, start_date, end_date, store_code });
+      const rows = await ReportModel.getProductionThickMilReport({ branch_id, start_date, end_date, grade, store_code });
 
       // 1. คำนวณยอดรวมทั้งหมด (Grand Total) และ สรุปสัดส่วนความยาว
       let grand_total_volumn = 0;
@@ -2317,8 +2326,8 @@ const reportController = {
   // --- นำไปใส่ต่อท้ายใน reportController ---
   exportProductionThickMilExcel: async (req, res) => {
     try {
-      const { start_date, end_date, branch_id, store_code } = req.query;
-      const { formattedData, grandTotal, lengthSummary } = await fetchProductionThickMilData(start_date, end_date, branch_id, store_code);
+      const { start_date, end_date, branch_id, grade, store_code } = req.query;
+      const { formattedData, grandTotal, lengthSummary } = await fetchProductionThickMilData(start_date, end_date, branch_id, grade, store_code);
 
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Report');
@@ -2326,7 +2335,7 @@ const reportController = {
       worksheet.columns = [
         { header: 'ขนาดไม้', key: 'col1', width: 20 },
         { header: '', key: 'col2', width: 15 },
-        { header: 'AB', key: 'ab_vol', width: 15 },
+        { header: grade, key: 'ab_vol', width: 15 },
         { header: '% กว้าง', key: 'pct_w', width: 15 },
         { header: '% ยาว', key: 'pct_l', width: 15 },
         { header: 'ราคา', key: 'price', width: 15 },
@@ -2401,8 +2410,8 @@ const reportController = {
 
   exportProductionThickMilPDF: async (req, res) => {
     try {
-      const { start_date, end_date, branch_id, store_code, branch_name } = req.query;
-      const { formattedData, grandTotal, lengthSummary } = await fetchProductionThickMilData(start_date, end_date, branch_id, store_code);
+      const { start_date, end_date, branch_id, grade, store_code, branch_name } = req.query;
+      const { formattedData, grandTotal, lengthSummary } = await fetchProductionThickMilData(start_date, end_date, branch_id, grade, store_code);
 
       const fs = require('fs');
       const path = require('path');
@@ -2485,7 +2494,7 @@ const reportController = {
             <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
           </div>
           <table>
-            <thead><tr><th colspan="2">ขนาดไม้</th><th>AB</th><th>% กว้าง</th><th>% ยาว</th><th>ราคา</th><th>จำนวนเงิน</th></tr></thead>
+            <thead><tr><th colspan="2">ขนาดไม้</th><th>${grade}</th><th>% กว้าง</th><th>% ยาว</th><th>ราคา</th><th>จำนวนเงิน</th></tr></thead>
             <tbody>${rowsHtml}</tbody>
           </table>
           <div style="width:50%; margin-top:20px;">
@@ -4469,8 +4478,9 @@ const ReportModel = {
 
   // เพิ่มต่อท้ายฟังก์ชันเดิมใน ReportModel
   getProductionThickMilReport: async (filters) => {
-    const { branch_id, start_date, end_date, store_code } = filters;
 
+    const { branch_id, start_date, end_date, grade, store_code } = filters;
+    
     let query = `
       SELECT 
           concat(SUBSTRING(mws.wood_code FROM 6 FOR 2),'-',SUBSTRING(mws.wood_code FROM 3 FOR 3)) as thick_mil
@@ -4486,19 +4496,27 @@ const ReportModel = {
       LEFT JOIN master_saw_wood_types swt 
         ON tsw.saw_wood_type_id = swt.old_id 
         AND tsw.branch_id = swt.branch_id
-      WHERE mws.grade = 'AB' 
+      WHERE 1=1 
         AND tsw.branch_id = $1
         AND DATE(tsw.produce_date) BETWEEN $2 AND $3
     `;
 
     const params = [branch_id, start_date, end_date];
 
-    // เพิ่มเงื่อนไขค้นหาสโตร์ ถ้ามีการส่งมา
-    if (store_code) {
-      query += ` AND swt.code = $4`;
-      params.push(store_code);
+    // ตรวจสอบเงื่อนไขเกรด
+    if (grade && grade !== 'ALL') {
+      query += ` and mws.grade = $4`;
+      params.push(grade);
+    } else if (grade === 'ALL') {
+      query += ` and mws.grade IN ('AB', 'C', 'P', 'PP')`;
     }
 
+    // เพิ่มเงื่อนไขค้นหาสโตร์ ถ้ามีการส่งมา
+    if (store_code) {
+      query += ` AND swt.code = $5`;
+      params.push(store_code);
+    }
+    
     query += `
       GROUP BY 
         concat(SUBSTRING(mws.wood_code FROM 6 FOR 2),'-',SUBSTRING(mws.wood_code FROM 3 FOR 3)), 
@@ -5362,6 +5380,76 @@ app.listen(PORT, () => {
 });
 </file>
 
+<file path="Dockerfile">
+FROM node:18-alpine
+
+# กำหนดพื้นที่ทำงาน
+WORKDIR /app
+
+# 1. ปิดไม่ให้ Puppeteer โหลด Chromium เอง (เพราะมักจะพังใน Docker) และชี้เป้าไปที่ตัวที่เราจะติดตั้ง
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+# 2. ติดตั้ง Chromium และไลบรารีที่จำเป็นสำหรับการเรนเดอร์ PDF
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+# คัดลอกไฟล์ package.json ไปติดตั้งไลบรารีก่อน (เพื่อใช้ Cache)
+COPY package*.json ./
+RUN npm install
+
+# คัดลอกโค้ดที่เหลือทั้งหมด
+COPY . .
+
+# แจ้งเตือนว่า Container นี้ทำงานที่พอร์ต 5000
+EXPOSE 3000
+
+# คำสั่งรัน Server (เช่น node server.js หรือ npm start)
+CMD ["npm", "start"]
+</file>
+
+<file path=".dockerignore">
+# 1. Environment variables (ความลับของระบบ)
+.env
+.env.*
+*.env
+
+# 2. Dependencies (ต้องให้ Docker รัน npm install ใหม่ข้างในตู้เสมอ)
+node_modules/
+
+# 3. Logs และไฟล์ชั่วคราว
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+log_docker.txt
+
+# 4. ไฟล์ตั้งค่า Docker เอง (ไม่จำเป็นต้องแพ็คใส่ตู้ตัวเอง)
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# 5. Source Control และตั้งค่า Editor ส่วนตัว
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# 6. OS-specific files (ไฟล์ขยะของระบบปฏิบัติการ)
+.DS_Store
+Thumbs.db
+
+# 7. โฟลเดอร์ที่เกิดจากการ Build (ถ้ามี)
+build/
+dist/
+coverage/
+</file>
+
 <file path=".env.example">
 PORT=3000
 # ==========================================
@@ -5475,6 +5563,58 @@ temp/
 repomix-backend-output.xml
 </file>
 
+<file path="package.json">
+{
+  "name": "ww-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.34.5",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "html2pdf.js": "^0.14.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.4.0",
+    "mysql2": "^3.24.4",
+    "pg": "^8.23.0",
+    "pg-format": "^1.0.4",
+    "puppeteer": "19.11.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
+</file>
+
+<file path="query_update.txt">
+INSERT INTO public.menus(
+	id, menu_name, link, icon, sort_order, parent_id)
+	VALUES (14, 'รายงานราคาเฉลี่ย', '/average-price', 'fas fa-chart-line', 3, 11);
+
+INSERT INTO public.menus(
+	id, menu_name, link, icon, sort_order, parent_id)
+	VALUES (15, 'รายงานไม้เลื่อย แยกตาม ความหนา มิล', '/production-thick-mil-report', 'fas fa-chart-line', 4, 11);
+
+INSERT INTO public.group_permissions(
+	id, group_id, menu_id, can_view, can_rpt, can_add, can_edit, can_delete, access_level)
+	VALUES (20, 1, 15, true, true, true, true, true, 2);
+
+
+add column transaction_saw_woods.sawer_id
+</file>
+
 <file path=".repomixignore">
 # Logs
 logs
@@ -5552,58 +5692,6 @@ temp/
 *.njsproj
 *.sln
 *.sw?
-</file>
-
-<file path="package.json">
-{
-  "name": "ww-backend",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "packageManager": "pnpm@10.34.5",
-  "dependencies": {
-    "bcrypt": "^6.0.0",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "exceljs": "^4.4.0",
-    "express": "^5.2.1",
-    "html2pdf.js": "^0.14.0",
-    "jsonwebtoken": "^9.0.3",
-    "multer": "^2.4.0",
-    "mysql2": "^3.24.4",
-    "pg": "^8.23.0",
-    "pg-format": "^1.0.4",
-    "puppeteer": "^25.11.0",
-    "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.14"
-  }
-}
-</file>
-
-<file path="query_update.txt">
-INSERT INTO public.menus(
-	id, menu_name, link, icon, sort_order, parent_id)
-	VALUES (14, 'รายงานราคาเฉลี่ย', '/average-price', 'fas fa-chart-line', 3, 11);
-
-INSERT INTO public.menus(
-	id, menu_name, link, icon, sort_order, parent_id)
-	VALUES (15, 'รายงานไม้เลื่อย แยกตาม ความหนา มิล', '/production-thick-mil-report', 'fas fa-chart-line', 4, 11);
-
-INSERT INTO public.group_permissions(
-	id, group_id, menu_id, can_view, can_rpt, can_add, can_edit, can_delete, access_level)
-	VALUES (20, 1, 15, true, true, true, true, true, 2);
-
-
-add column transaction_saw_woods.sawer_id
 </file>
 
 <file path="repomix-output.md">

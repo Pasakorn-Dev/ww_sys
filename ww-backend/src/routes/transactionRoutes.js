@@ -13,4 +13,7 @@ router.get('/saw-woods', verifyToken, checkPermission('/check-saw-woods', 'view'
 router.post('/recalculate-prices', verifyToken, checkPermission('/recalculate-price', 'edit'), transactionController.recalculatePrices);
 router.get('/recal-logs', verifyToken, transactionController.getRecalLogs);
 
+// API ซิงค์ข้อมูลไม้เปียก (ต้องการสิทธิ์แอดมินหรือเพิ่มข้อมูล)
+router.post('/sync-wet-woods', verifyToken, checkPermission('/sync-wet-woods', 'add'), transactionController.syncWetWoods);
+
 module.exports = router;
