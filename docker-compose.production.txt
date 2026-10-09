@@ -1,0 +1,42 @@
+services:
+  # 1. Database (PostgreSQL)
+  postgres-db:
+    image: postgres:15-alpine
+    restart: always
+    # ⚠️ ปิด Port 5432 ไม่ให้เข้าถึงจากภายนอกเพื่อความปลอดภัย
+    # (Backend และ Frontend ในตู้ยังสามารถเชื่อมต่อผ่านชื่อ 'postgres-db' ได้ปกติ)
+    ports:
+       - "5432:5432"
+    env_file:
+      - .env  # ดึงรหัสผ่านจากไฟล์ .env (ความลับ) บน Server
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # 2. Backend (Node.js + Express)
+  backend:
+    image: pasakorndev/my-backend:v1.0.0
+    restart: always
+    env_file:
+      - .env  # ใช้งานไฟล์ .env ความลับไฟล์เดียวกับ Database
+    depends_on:
+      - postgres-db
+
+  # 3. Frontend (React + Vite)
+  frontend:
+    image: pasakorndev/my-frontend:v1.0.0
+    restart: always
+
+  # 4. Nginx (Gateway / Reverse Proxy หน้าสุด)
+  nginx-gateway:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"  # เปิดเฉพาะ Port 80 ให้ผู้ใช้งานเข้าเว็บได้
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  pgdata:

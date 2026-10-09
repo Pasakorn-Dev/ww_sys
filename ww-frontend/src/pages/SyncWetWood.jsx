@@ -129,7 +129,6 @@ export default function SyncWetWood() {
       addLog('❌ FATAL ERROR: Server connection lost.');
     }
   };
-
   // กรองเฉพาะสาขาจริง
   const validBranches = branches.filter(b => b.id !== 0);
 
@@ -146,7 +145,6 @@ export default function SyncWetWood() {
             <h2 className="text-xl font-bold text-gray-800 dark:text-white">นำเข้ายอดไม้เปียก</h2>
             <p className="text-sm text-gray-500 mt-1">ดึงข้อมูลการผลิตและคำนวณราคาอัตโนมัติ</p>
           </div>
-
           <div className="p-6 flex-1 space-y-5">
             <div>
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">เลือกสาขา</label>

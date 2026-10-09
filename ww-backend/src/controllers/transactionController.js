@@ -160,8 +160,6 @@ const transactionController = {
       if (oldData.length === 0) {
         return res.json({ success: true, message: 'ไม่พบข้อมูลในระบบเก่าสำหรับช่วงเวลานี้', total_synced: 0 });
       }
-
-      // 4. กรองข้อมูลซ้ำและเตรียมเข้า Postgres
       const uniqueDataMap = new Map();
       oldData.forEach(row => {
         uniqueDataMap.set(row.wood_size_amount_map_id, row);
