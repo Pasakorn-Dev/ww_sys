@@ -2,30 +2,40 @@ services:
   # 1. Database (PostgreSQL)
   postgres-db:
     image: postgres:15-alpine
-    ports:
-      - "5432:5432"  # เพิ่มบรรทัดนี้ เพื่อให้เครื่อง Notebook มองเห็น Database นี้
     restart: always
-    environment:
-      POSTGRES_USER: superuser      # Superuser สำหรับแอดมิน (เอาไว้ Backup)
-      POSTGRES_PASSWORD: p@sswo=0rd  # รหัสผ่าน Superuser
-      POSTGRES_DB: ww_sys
+    # ⚠️ ปิด Port 5432 ไม่ให้เข้าถึงจากภายนอกเพื่อความปลอดภัย
+    # (Backend และ Frontend ในตู้ยังสามารถเชื่อมต่อผ่านชื่อ 'postgres-db' ได้ปกติ)
+    ports:
+       - "5432:5432"
+    env_file:
+      - .env  # ดึงรหัสผ่านจากไฟล์ .env (ความลับ) บน Server
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # - ./database-init:/docker-entrypoint-initdb.d # สั่งรันสคริปต์สร้าง App User อัตโนมัติ
+      # 👇 เพิ่มบรรทัดนี้กลับมา เพื่อให้ระบบดึงไฟล์ .sql ไปรันอัตโนมัติในครั้งแรก
+      - ./database-init:/docker-entrypoint-initdb.d
+  # ตู้ Web UI สำหรับจัดการฐานข้อมูล (pgAdmin 4)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@mail.com   # อีเมลสำหรับล็อกอินเข้าหน้าเว็บ
+      PGADMIN_DEFAULT_PASSWORD: p@ssword   # รหัสผ่านสำหรับล็อกอินเข้าหน้าเว็บ
+    ports:
+      - "5050:80"   # เรียกใช้งานผ่านพอร์ต 5050 บนบราวเซอร์
+    depends_on:
+      - postgres-db
 
   # 2. Backend (Node.js + Express)
   backend:
-    build: ./ww-backend
     image: pasakorndev/my-backend:v1.0.0
     restart: always
     env_file:
-      - ./ww-backend/.env     
+      - .env  # ใช้งานไฟล์ .env ความลับไฟล์เดียวกับ Database
     depends_on:
       - postgres-db
 
   # 3. Frontend (React + Vite)
   frontend:
-    build: ./ww-frontend
     image: pasakorndev/my-frontend:v1.0.0
     restart: always
 
@@ -34,7 +44,7 @@ services:
     image: nginx:alpine
     restart: always
     ports:
-      - "80:80"
+      - "80:80"  # เปิดเฉพาะ Port 80 ให้ผู้ใช้งานเข้าเว็บได้
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:

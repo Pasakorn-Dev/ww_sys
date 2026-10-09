@@ -1,7 +1,7 @@
 # 1. Environment variables (ความลับของระบบ)
 .env
-.env.*
-*.env
+.env.example
+
 
 # 2. Dependencies (ต้องให้ Docker รัน npm install ใหม่ข้างในตู้เสมอ)
 node_modules

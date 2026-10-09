@@ -1,5 +1,5 @@
 -- สร้าง User ใหม่สำหรับแอปพลิเคชัน
-CREATE USER app_user WITH PASSWORD 'รหัสผ่านของแอป';
+CREATE USER app_user WITH PASSWORD 'p@ssword';
 
 -- ให้สิทธิ์เชื่อมต่อ Database ชื่อ ww_sys
 GRANT CONNECT ON DATABASE ww_sys TO app_user;
