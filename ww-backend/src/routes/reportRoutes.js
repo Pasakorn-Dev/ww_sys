@@ -34,4 +34,14 @@ router.get('/sawer-performance-length', verifyToken, reportController.getSawerPe
 router.get('/sawer-performance-length/pdf', verifyToken, reportController.exportSawerPerformanceLengthPDF);
 router.get('/sawer-performance-length/excel', verifyToken, reportController.exportSawerPerformanceLengthExcel);
 
+router.get('/wet-wood-cover', verifyToken, reportController.getWetWoodCover);
+router.get('/wet-wood-cover-format2', verifyToken, reportController.getWetWoodCoverFormat2);
+router.get('/wet-wood-cover/pdf', verifyToken, reportController.exportWetWoodCoverPDF);
+router.get('/wet-wood-cover/excel', verifyToken, reportController.exportWetWoodCoverExcel);
+
+router.get('/dry-wood-cover', verifyToken, reportController.getDryWoodCover);
+router.get('/dry-wood-cover-format2', verifyToken, reportController.getDryWoodCoverFormat2);
+router.get('/dry-wood-cover/pdf', verifyToken, reportController.exportDryWoodCoverPDF);
+router.get('/dry-wood-cover/excel', verifyToken, reportController.exportDryWoodCoverExcel);
+
 module.exports = router;

@@ -18,6 +18,10 @@ import RecalculatePrice from './pages/RecalculatePrice';
 import DailyProductionReport from './pages/DailyProductionReport';
 import SawerPerformanceByLengthReport from './pages/SawerPerformanceByLengthReport';
 import SyncWetWood from './pages/SyncWetWood';
+import SyncDryWood from './pages/SyncDryWood';
+import WetWoodCoverReport from './pages/WetWoodCoverReport';
+import DryWoodCoverReport from './pages/DryWoodCoverReport';
+
 
 
 function App() {
@@ -44,6 +48,9 @@ function App() {
           <Route path="/daily-production" element={<DailyProductionReport />} />
           <Route path="/sawer-performance-length" element={<SawerPerformanceByLengthReport />} />
           <Route path="/sync-wet-woods" element={<SyncWetWood />} />
+          <Route path="/sync-dry-woods" element={<SyncDryWood />} />
+          <Route path="/wet-wood-cover" element={<WetWoodCoverReport />} />
+          <Route path="/dry-wood-cover" element={<DryWoodCoverReport />} />
         </Route>
       </Routes>
     </BrowserRouter>

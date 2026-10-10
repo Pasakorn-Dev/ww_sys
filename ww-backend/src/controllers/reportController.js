@@ -2777,6 +2777,641 @@ const reportController = {
       console.error(error);
       res.status(500).json({ success: false, message: 'Error PDF' });
     }
+  },
+
+  getWetWoodCover: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, wet_wood_type } = req.query;
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      const rows = await ReportModel.getWetWoodCoverReport({ branch_id, start_date, end_date, wet_wood_type });
+
+      // จัดกลุ่มข้อมูลตาม ประเภท (ปกติ/พิเศษ) และ เกรดไม้
+      const groupedData = {};
+      
+      rows.forEach(row => {
+        const typeName = row.is_special ? 'พิเศษ' : 'ปกติ';
+        const groupKey = `ไม้ ${row.grade || 'ไม่ระบุเกรด'} ${typeName}`;
+
+        if (!groupedData[groupKey]) {
+          groupedData[groupKey] = {
+            groupName: groupKey,
+            items: [],
+            sumAmount: 0,
+            sumVolumn: 0,
+            sumNetWage: 0
+          };
+        }
+
+        groupedData[groupKey].items.push(row);
+        groupedData[groupKey].sumAmount += Number(row.amount);
+        groupedData[groupKey].sumVolumn += Number(row.volumn);
+        groupedData[groupKey].sumNetWage += Number(row.net_wage);
+      });
+
+      res.json({
+        success: true,
+        data: {
+          header: {
+            start_date,
+            end_date,
+            wet_wood_type: wet_wood_type || 'ทั้งหมด'
+          },
+          groups: Object.values(groupedData)
+        }
+      });
+    } catch (error) {
+      console.error('Report Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานค่าแรงไม้เปียก' });
+    }
+  },
+
+  getWetWoodCoverFormat2: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, wet_wood_type } = req.query;
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      const rows = await ReportModel.getWetWoodCoverReportFormat2({ branch_id, start_date, end_date, wet_wood_type });
+      const groupedData = {};
+      
+      rows.forEach(row => {
+        const typeName = row.is_special ? 'พิเศษ' : 'ปกติ';
+        const empName = row.employee_code ? `${row.employee_code} - ${row.employee_name}` : 'ไม่ระบุพนักงาน';
+        
+        // ตัดส่วนของวันที่ออกไป จัดกลุ่มแค่พนักงานและเกรดไม้
+        const groupKey = `พนักงาน: ${empName} (ไม้ ${row.grade || 'ไม่ระบุเกรด'} ${typeName})`;
+
+        if (!groupedData[groupKey]) {
+          groupedData[groupKey] = {
+            groupName: groupKey,
+            items: [],
+            sumAmount: 0,
+            sumVolumn: 0,
+            sumNetWage: 0
+          };
+        }
+
+        groupedData[groupKey].items.push(row);
+        groupedData[groupKey].sumAmount += Number(row.amount);
+        groupedData[groupKey].sumVolumn += Number(row.volumn);
+        groupedData[groupKey].sumNetWage += Number(row.net_wage);
+      });
+
+      res.json({
+        success: true,
+        data: {
+          header: {
+            start_date,
+            end_date,
+            wet_wood_type: wet_wood_type || 'ทั้งหมด'
+          },
+          groups: Object.values(groupedData)
+        }
+      });
+    } catch (error) {
+      console.error('Report Error Format 2:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานค่าแรงไม้เปียกรูปแบบที่ 2' });
+    }
+  },
+
+  // --- ฟังก์ชันช่วยเหลือ (Helper) สำหรับดึงข้อมูลรายงานค่าแรงไม้เปียก ---
+  fetchWetWoodCoverDataHelper: async (branch_id, start_date, end_date, wet_wood_type, report_format) => {
+    let rows;
+    if (String(report_format) === '2') {
+      rows = await ReportModel.getWetWoodCoverReportFormat2({ branch_id, start_date, end_date, wet_wood_type });
+    } else {
+      rows = await ReportModel.getWetWoodCoverReport({ branch_id, start_date, end_date, wet_wood_type });
+    }
+
+    const groupedData = {};
+    let grandTotalAmount = 0;
+    let grandTotalVolumn = 0;
+    let grandTotalNetWage = 0;
+    
+    rows.forEach(row => {
+      const typeName = row.is_special ? 'พิเศษ' : 'ปกติ';
+      let groupKey;
+
+      if (String(report_format) === '2') {
+        const empName = row.employee_code ? `${row.employee_code} - ${row.employee_name}` : 'ไม่ระบุพนักงาน';
+        groupKey = `พนักงาน: ${empName} (ไม้ ${row.grade || 'ไม่ระบุเกรด'} ${typeName})`;
+      } else {
+        groupKey = `ไม้ ${row.grade || 'ไม่ระบุเกรด'} ${typeName}`;
+      }
+
+      if (!groupedData[groupKey]) {
+        groupedData[groupKey] = {
+          groupName: groupKey,
+          items: [],
+          sumAmount: 0,
+          sumVolumn: 0,
+          sumNetWage: 0
+        };
+      }
+
+      groupedData[groupKey].items.push(row);
+      groupedData[groupKey].sumAmount += Number(row.amount);
+      groupedData[groupKey].sumVolumn += Number(row.volumn);
+      groupedData[groupKey].sumNetWage += Number(row.net_wage);
+
+      grandTotalAmount += Number(row.amount);
+      grandTotalVolumn += Number(row.volumn);
+      grandTotalNetWage += Number(row.net_wage);
+    });
+
+    return { 
+        groups: Object.values(groupedData), 
+        grandTotal: { amount: grandTotalAmount, volumn: grandTotalVolumn, net_wage: grandTotalNetWage }
+    };
+  },
+
+  // --- Export Excel ---
+  exportWetWoodCoverExcel: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, wet_wood_type, report_format, branch_name } = req.query;
+      const { groups, grandTotal } = await reportController.fetchWetWoodCoverDataHelper(branch_id, start_date, end_date, wet_wood_type, report_format);
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Report');
+
+      worksheet.columns = [
+        { key: 'col1', width: 30 },
+        { key: 'col2', width: 15 },
+        { key: 'col3', width: 15 },
+        { key: 'col4', width: 20 }
+      ];
+
+      worksheet.addRow([branch_name || 'บริษัท วู้ดเวิร์ค จำกัด']).font = { bold: true, size: 14 };
+      worksheet.addRow(['รายงานค่าแรงไม้เปียก ใบปะหน้า']).font = { bold: true, size: 12 };
+      worksheet.addRow([`ตั้งแต่วันที่ ${start_date} ถึง ${end_date}`]);
+      worksheet.addRow([`ประเภทไม้ : ${wet_wood_type || 'ทั้งหมด'}`]);
+      worksheet.addRow([]);
+
+      const headerRow = worksheet.addRow(['รหัสสินค้า', 'จำนวนท่อน', 'ปริมาตร(ลบฟ)', 'ค่าแรง']);
+      headerRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
+        cell.font = { bold: true };
+        cell.alignment = { horizontal: 'center' };
+        cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+      });
+
+      groups.forEach(group => {
+        const groupRow = worksheet.addRow([group.groupName]);
+        groupRow.font = { bold: true };
+        worksheet.mergeCells(`A${groupRow.number}:D${groupRow.number}`);
+
+        group.items.forEach(item => {
+          const row = worksheet.addRow([
+            item.wood_code,
+            Number(item.amount),
+            Number(item.volumn),
+            Number(item.net_wage)
+          ]);
+          row.getCell(2).numFmt = '#,##0';
+          row.getCell(3).numFmt = '#,##0.0000';
+          row.getCell(4).numFmt = '#,##0.00';
+        });
+
+        const sumRow = worksheet.addRow([
+          `รวม ${group.groupName}`,
+          group.sumAmount,
+          group.sumVolumn,
+          group.sumNetWage
+        ]);
+        sumRow.font = { bold: true, color: { argb: 'FF4B5563' } };
+        sumRow.getCell(2).numFmt = '#,##0';
+        sumRow.getCell(3).numFmt = '#,##0.0000';
+        sumRow.getCell(4).numFmt = '#,##0.00';
+        
+        worksheet.addRow([]); 
+      });
+
+      if (grandTotal) {
+        const gtRow = worksheet.addRow(['รวมทั้งหมด', grandTotal.amount, grandTotal.volumn, grandTotal.net_wage]);
+        gtRow.font = { bold: true };
+        gtRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+        gtRow.getCell(2).numFmt = '#,##0';
+        gtRow.getCell(3).numFmt = '#,##0.0000';
+        gtRow.getCell(4).numFmt = '#,##0.00';
+      }
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=wet_wood_cover.xlsx');
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error Excel' });
+    }
+  },
+
+  // --- Export PDF ---
+  exportWetWoodCoverPDF: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, wet_wood_type, report_format, branch_name } = req.query;
+      const { groups, grandTotal } = await reportController.fetchWetWoodCoverDataHelper(branch_id, start_date, end_date, wet_wood_type, report_format);
+
+      const fs = require('fs');
+      const path = require('path');
+      const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
+      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+
+      let rowsHtml = '';
+      groups.forEach(group => {
+        rowsHtml += `<tr><td colspan="4" class="left pl bold" style="background-color: #f9fafb;">${group.groupName}</td></tr>`;
+        
+        group.items.forEach(item => {
+          rowsHtml += `
+            <tr>
+              <td class="left pl" style="padding-left: 20px;">${item.wood_code}</td>
+              <td>${Number(item.amount).toLocaleString()}</td>
+              <td>${Number(item.volumn).toFixed(4)}</td>
+              <td>${Number(item.net_wage).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+            </tr>`;
+        });
+        
+        rowsHtml += `
+          <tr class="bold text-gray border-b">
+            <td class="left pl">รวม ${group.groupName}</td>
+            <td>${group.sumAmount.toLocaleString()}</td>
+            <td>${group.sumVolumn.toFixed(4)}</td>
+            <td>${group.sumNetWage.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+          </tr>
+          <tr><td colspan="4" style="border: none; padding: 5px;"></td></tr>
+        `;
+      });
+
+      if (grandTotal) {
+        rowsHtml += `
+          <tr class="bold border-t" style="background-color: #f3f4f6; font-size: 14px;">
+            <td class="left pl">รวมทั้งหมด</td>
+            <td>${grandTotal.amount.toLocaleString()}</td>
+            <td>${grandTotal.volumn.toFixed(4)}</td>
+            <td>${grandTotal.net_wage.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+          </tr>
+        `;
+      }
+
+      const htmlContent = `
+        <html><head><style>
+          @font-face { font-family: 'THSarabun'; src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype'); }
+          body { font-family: 'THSarabun', sans-serif; font-size: 14px; margin: 0; padding: 20px; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #777; padding: 5px; text-align: right; }
+          th { font-weight: bold; text-align: center; background-color: #d1d5db; }
+          .left { text-align: left; } .pl { padding-left: 10px; } .bold { font-weight: bold; }
+          .text-gray { color: #4b5563; }
+          .border-b { border-bottom: 2px dotted #9ca3af; } .border-t { border-top: 2px solid #333; }
+        </style></head><body>
+          <div style="text-align:center; margin-bottom:20px;">
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานค่าแรงไม้เปียก ใบปะหน้า</h2>
+            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
+            <p style="margin:0;">ประเภทไม้: ${wet_wood_type || 'ทั้งหมด'}</p>
+          </div>
+          <table>
+            <thead><tr><th>รหัสสินค้า</th><th>จำนวนท่อน</th><th>ปริมาตร(ลบฟ)</th><th>ค่าแรง</th></tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+          <div style="margin-top:60px; width:100%; display:flex; justify-content:space-around; text-align:center;">
+            <div>........................................................<br/><br/>ผู้รายงาน</div>
+            <div>........................................................<br/><br/>ผู้จัดการโรงงาน</div>
+          </div>
+        </body></html>
+      `;
+
+      const browser = await getBrowser(); 
+      const page = await browser.newPage();
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
+      await page.close();
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="wet_wood_cover.pdf"');
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error PDF' });
+    }
+  },
+
+  // ─── Controller สำหรับรายงานค่าแรงไม้แห้ง ───
+  getDryWoodCover: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code } = req.query; // 💡 เพิ่ม store_code
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      const rows = await ReportModel.getDryWoodCoverReport({ branch_id, start_date, end_date, store_code }); // 💡 ส่ง store_code ให้ Model
+
+      const groupedData = {};
+      
+      rows.forEach(row => {
+        const typeName = row.is_special ? 'พิเศษ' : 'ปกติ';
+        const groupKey = `ไม้ ${row.grade || 'ไม่ระบุเกรด'} ${typeName}`;
+
+        if (!groupedData[groupKey]) {
+          groupedData[groupKey] = {
+            groupName: groupKey,
+            items: [],
+            sumAmount: 0,
+            sumVolumn: 0,
+            sumNetWage: 0
+          };
+        }
+
+        groupedData[groupKey].items.push(row);
+        groupedData[groupKey].sumAmount += Number(row.amount);
+        groupedData[groupKey].sumVolumn += Number(row.volumn);
+        groupedData[groupKey].sumNetWage += Number(row.net_wage);
+      });
+
+      res.json({
+        success: true,
+        data: {
+          header: { start_date, end_date, store_code: store_code || '104%' }, // 💡 แนบกลับไปแสดงผล
+          groups: Object.values(groupedData)
+        }
+      });
+    } catch (error) {
+      console.error('Report Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานค่าแรงไม้แห้ง' });
+    }
+  },
+
+  getDryWoodCoverFormat2: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code } = req.query; // 💡 เพิ่ม store_code
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      const rows = await ReportModel.getDryWoodCoverReportFormat2({ branch_id, start_date, end_date, store_code }); // 💡 ส่ง store_code ให้ Model
+      const groupedData = {};
+      
+      rows.forEach(row => {
+        const typeName = row.is_special ? 'พิเศษ' : 'ปกติ';
+        const empName = row.employee_code ? `${row.employee_code} - ${row.employee_name}` : 'ไม่ระบุพนักงาน';
+        const groupKey = `พนักงาน: ${empName} (ไม้ ${row.grade || 'ไม่ระบุเกรด'} ${typeName})`;
+
+        if (!groupedData[groupKey]) {
+          groupedData[groupKey] = {
+            groupName: groupKey,
+            items: [],
+            sumAmount: 0,
+            sumVolumn: 0,
+            sumNetWage: 0
+          };
+        }
+
+        groupedData[groupKey].items.push(row);
+        groupedData[groupKey].sumAmount += Number(row.amount);
+        groupedData[groupKey].sumVolumn += Number(row.volumn);
+        groupedData[groupKey].sumNetWage += Number(row.net_wage);
+      });
+
+      res.json({
+        success: true,
+        data: {
+          header: { start_date, end_date, store_code: store_code || '104%' }, // 💡 แนบกลับไปแสดงผล
+          groups: Object.values(groupedData)
+        }
+      });
+    } catch (error) {
+      console.error('Report Error Format 2:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานค่าแรงไม้แห้งรูปแบบที่ 2' });
+    }
+  },
+
+  // --- ฟังก์ชันช่วยเหลือ (Helper) สำหรับรายงานค่าแรงไม้แห้ง ---
+  fetchDryWoodCoverDataHelper: async (branch_id, start_date, end_date, store_code, report_format) => {
+    let rows;
+    if (String(report_format) === '2') {
+      rows = await ReportModel.getDryWoodCoverReportFormat2({ branch_id, start_date, end_date, store_code });
+    } else {
+      rows = await ReportModel.getDryWoodCoverReport({ branch_id, start_date, end_date, store_code });
+    }
+
+    const groupedData = {};
+    let grandTotalAmount = 0;
+    let grandTotalVolumn = 0;
+    let grandTotalNetWage = 0;
+    
+    rows.forEach(row => {
+      const typeName = row.is_special ? 'พิเศษ' : 'ปกติ';
+      let groupKey;
+
+      if (String(report_format) === '2') {
+        const empName = row.employee_code ? `${row.employee_code} - ${row.employee_name}` : 'ไม่ระบุพนักงาน';
+        groupKey = `พนักงาน: ${empName} (ไม้ ${row.grade || 'ไม่ระบุเกรด'} ${typeName})`;
+      } else {
+        groupKey = `ไม้ ${row.grade || 'ไม่ระบุเกรด'} ${typeName}`;
+      }
+
+      if (!groupedData[groupKey]) {
+        groupedData[groupKey] = {
+          groupName: groupKey,
+          items: [],
+          sumAmount: 0,
+          sumVolumn: 0,
+          sumNetWage: 0
+        };
+      }
+
+      groupedData[groupKey].items.push(row);
+      groupedData[groupKey].sumAmount += Number(row.amount);
+      groupedData[groupKey].sumVolumn += Number(row.volumn);
+      groupedData[groupKey].sumNetWage += Number(row.net_wage);
+
+      grandTotalAmount += Number(row.amount);
+      grandTotalVolumn += Number(row.volumn);
+      grandTotalNetWage += Number(row.net_wage);
+    });
+
+    return { 
+        groups: Object.values(groupedData), 
+        grandTotal: { amount: grandTotalAmount, volumn: grandTotalVolumn, net_wage: grandTotalNetWage }
+    };
+  },
+
+  // --- Export Excel ไม้แห้ง ---
+  exportDryWoodCoverExcel: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code, report_format, branch_name } = req.query;
+      const { groups, grandTotal } = await reportController.fetchDryWoodCoverDataHelper(branch_id, start_date, end_date, store_code, report_format);
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Report');
+
+      worksheet.columns = [
+        { key: 'col1', width: 30 },
+        { key: 'col2', width: 15 },
+        { key: 'col3', width: 15 },
+        { key: 'col4', width: 20 }
+      ];
+
+      worksheet.addRow([branch_name || 'บริษัท วู้ดเวิร์ค จำกัด']).font = { bold: true, size: 14 };
+      worksheet.addRow(['รายงานค่าแรงไม้แห้ง ใบปะหน้า']).font = { bold: true, size: 12 };
+      worksheet.addRow([`ตั้งแต่วันที่ ${start_date} ถึง ${end_date}`]);
+      worksheet.addRow([`รหัสสโตร์ : ${store_code || '104%'}`]);
+      worksheet.addRow([]);
+
+      const headerRow = worksheet.addRow(['รหัสสินค้า', 'จำนวนท่อน', 'ปริมาตร(ลบฟ)', 'ค่าแรง']);
+      headerRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
+        cell.font = { bold: true };
+        cell.alignment = { horizontal: 'center' };
+        cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+      });
+
+      groups.forEach(group => {
+        const groupRow = worksheet.addRow([group.groupName]);
+        groupRow.font = { bold: true };
+        worksheet.mergeCells(`A${groupRow.number}:D${groupRow.number}`);
+
+        group.items.forEach(item => {
+          const row = worksheet.addRow([
+            item.wood_code,
+            Number(item.amount),
+            Number(item.volumn),
+            Number(item.net_wage)
+          ]);
+          row.getCell(2).numFmt = '#,##0';
+          row.getCell(3).numFmt = '#,##0.0000';
+          row.getCell(4).numFmt = '#,##0.00';
+        });
+
+        const sumRow = worksheet.addRow([
+          `รวม ${group.groupName}`,
+          group.sumAmount,
+          group.sumVolumn,
+          group.sumNetWage
+        ]);
+        sumRow.font = { bold: true, color: { argb: 'FF4B5563' } };
+        sumRow.getCell(2).numFmt = '#,##0';
+        sumRow.getCell(3).numFmt = '#,##0.0000';
+        sumRow.getCell(4).numFmt = '#,##0.00';
+        
+        worksheet.addRow([]); 
+      });
+
+      if (grandTotal) {
+        const gtRow = worksheet.addRow(['รวมทั้งหมด', grandTotal.amount, grandTotal.volumn, grandTotal.net_wage]);
+        gtRow.font = { bold: true };
+        gtRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEDD5' } }; // โทนสีส้มอ่อน
+        gtRow.getCell(2).numFmt = '#,##0';
+        gtRow.getCell(3).numFmt = '#,##0.0000';
+        gtRow.getCell(4).numFmt = '#,##0.00';
+      }
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=dry_wood_cover.xlsx');
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error Excel' });
+    }
+  },
+
+  // --- Export PDF ไม้แห้ง ---
+  exportDryWoodCoverPDF: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code, report_format, branch_name } = req.query;
+      const { groups, grandTotal } = await reportController.fetchDryWoodCoverDataHelper(branch_id, start_date, end_date, store_code, report_format);
+
+      const fs = require('fs');
+      const path = require('path');
+      const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
+      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+
+      let rowsHtml = '';
+      groups.forEach(group => {
+        rowsHtml += `<tr><td colspan="4" class="left pl bold" style="background-color: #f9fafb;">${group.groupName}</td></tr>`;
+        
+        group.items.forEach(item => {
+          rowsHtml += `
+            <tr>
+              <td class="left pl" style="padding-left: 20px;">${item.wood_code}</td>
+              <td>${Number(item.amount).toLocaleString()}</td>
+              <td>${Number(item.volumn).toFixed(4)}</td>
+              <td>${Number(item.net_wage).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+            </tr>`;
+        });
+        
+        rowsHtml += `
+          <tr class="bold text-gray border-b">
+            <td class="left pl">รวม ${group.groupName}</td>
+            <td>${group.sumAmount.toLocaleString()}</td>
+            <td>${group.sumVolumn.toFixed(4)}</td>
+            <td style="color: #c2410c;">${group.sumNetWage.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+          </tr>
+          <tr><td colspan="4" style="border: none; padding: 5px;"></td></tr>
+        `;
+      });
+
+      if (grandTotal) {
+        rowsHtml += `
+          <tr class="bold border-t" style="background-color: #ffedd5; font-size: 14px;">
+            <td class="left pl">รวมทั้งหมด</td>
+            <td>${grandTotal.amount.toLocaleString()}</td>
+            <td>${grandTotal.volumn.toFixed(4)}</td>
+            <td style="color: #9a3412;">${grandTotal.net_wage.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+          </tr>
+        `;
+      }
+
+      const htmlContent = `
+        <html><head><style>
+          @font-face { font-family: 'THSarabun'; src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype'); }
+          body { font-family: 'THSarabun', sans-serif; font-size: 14px; margin: 0; padding: 20px; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #777; padding: 5px; text-align: right; }
+          th { font-weight: bold; text-align: center; background-color: #fff7ed; }
+          .left { text-align: left; } .pl { padding-left: 10px; } .bold { font-weight: bold; }
+          .text-gray { color: #4b5563; }
+          .border-b { border-bottom: 2px dotted #9ca3af; } .border-t { border-top: 2px solid #333; }
+        </style></head><body>
+          <div style="text-align:center; margin-bottom:20px;">
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานค่าแรงไม้แห้ง ใบปะหน้า</h2>
+            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
+            <p style="margin:0;">รหัสสโตร์: ${store_code || '104%'}</p>
+          </div>
+          <table>
+            <thead><tr><th>รหัสสินค้า</th><th>จำนวนท่อน</th><th>ปริมาตร(ลบฟ)</th><th>ค่าแรง</th></tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+          <div style="margin-top:60px; width:100%; display:flex; justify-content:space-around; text-align:center;">
+            <div>........................................................<br/><br/>ผู้รายงาน</div>
+            <div>........................................................<br/><br/>ผู้จัดการโรงงาน</div>
+          </div>
+        </body></html>
+      `;
+
+      // 💡 ใช้ getBrowser แบบเดียวกับรายงานอื่นเพื่อไม่ให้กิน RAM[cite: 7]
+      const browser = await getBrowser(); 
+      const page = await browser.newPage();
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
+      await page.close();
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="dry_wood_cover.pdf"');
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error PDF' });
+    }
   }
 };
 

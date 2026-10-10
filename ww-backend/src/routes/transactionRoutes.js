@@ -16,4 +16,7 @@ router.get('/recal-logs', verifyToken, transactionController.getRecalLogs);
 // API ซิงค์ข้อมูลไม้เปียก (ต้องการสิทธิ์แอดมินหรือเพิ่มข้อมูล)
 router.post('/sync-wet-woods', verifyToken, checkPermission('/sync-wet-woods', 'add'), transactionController.syncWetWoods);
 
+// API ซิงค์ข้อมูลไม้แห้ง
+router.post('/sync-dry-woods', verifyToken, checkPermission('/sync-dry-woods', 'add'), transactionController.syncDryWoods);
+
 module.exports = router;

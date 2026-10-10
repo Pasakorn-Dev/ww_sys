@@ -142,32 +142,41 @@ const transactionController = {
     }
 
     try {
-      // 1. เชื่อมต่อ MySQL ของสาขานั้น
+      // 1. เชื่อมต่อ MySQL ของสาขาที่ระบุ
       const mysqlPool = await getMysqlConnection(branch_id);
 
-      // 2. ดึงค่าแรง (wage) ปัจจุบันจาก Postgres มาเตรียมไว้
+      // 2. ดึงค่าแรง (wage) ปัจจุบันจาก Postgres มาเตรียมไว้เพื่อคำนวณ
       const wageMap = await TransactionModel.getUnitWagesByBranch(branch_id);
 
-      // 3. ดึงข้อมูลจาก MySQL เก่า
+      // 3. ดึงข้อมูลดิบจาก MySQL เก่า
       const oldData = await TransactionModel.getOldWetWoodTransactions(mysqlPool, start_date, end_date);
 
-      // 3.1 สกัดเฉพาะ ID ที่ยังมีอยู่จริงในระบบเก่า
+      // 3.1 สกัดเฉพาะ ID ที่ยังมีอยู่จริง เพื่อป้องกันข้อมูลค้าง
       const activeIds = [...new Set(oldData.map(row => row.wood_size_amount_map_id))];
 
-      // 3.2 สั่งเคลียร์ข้อมูลใน PostgreSQL ที่ถูกลบออกไปแล้ว
+      // 3.2 สั่งเคลียร์ข้อมูลที่ไม่มีแล้วในระบบเก่า
       await TransactionModel.cleanupDeletedWetWoodTransactions(branch_id, start_date, end_date, activeIds);
 
       if (oldData.length === 0) {
-        return res.json({ success: true, message: 'ไม่พบข้อมูลในระบบเก่าสำหรับช่วงเวลานี้', total_synced: 0 });
+        return res.json({ success: true, message: 'ไม่พบข้อมูลไม้เปียกในระบบเก่าสำหรับช่วงเวลานี้', total_synced: 0 });
       }
+
+      // 4. กรองแถวที่ซ้ำซ้อนกันใน MySQL (ป้องกัน ON CONFLICT เออเร่อ) และเตรียมข้อมูลใส่ Array
       const uniqueDataMap = new Map();
       oldData.forEach(row => {
         uniqueDataMap.set(row.wood_size_amount_map_id, row);
       });
-      const uniqueOldData = Array.from(uniqueDataMap.values());
-
-      const insertValues = uniqueOldData.map(row => {
-        const prodDate = row.produce_date instanceof Date ? row.produce_date.toISOString().split('T')[0] : row.produce_date;
+      
+      const insertValues = Array.from(uniqueDataMap.values()).map(row => {
+        // จัดการวันที่ให้อยู่ในฟอร์แมต YYYY-MM-DD
+        let prodDate = row.produce_date;
+        if (prodDate instanceof Date) {
+          const year = prodDate.getFullYear();
+          const month = String(prodDate.getMonth() + 1).padStart(2, '0');
+          const day = String(prodDate.getDate()).padStart(2, '0');
+          prodDate = `${year}-${month}-${day}`;
+        }
+        
         const unitWage = wageMap.get(row.wood_size_id) || 0; 
         
         return [
@@ -185,7 +194,7 @@ const transactionController = {
         ];
       });
 
-      // 5. นำเข้าข้อมูล (Bulk Upsert)
+      // 5. นำเข้าข้อมูลลงตารางใหม่ (Bulk Upsert)
       const totalSynced = await TransactionModel.upsertWetWoodTransactions(insertValues);
 
       res.json({ success: true, message: 'ซิงค์ข้อมูลไม้เปียกสำเร็จ', total_synced: totalSynced });
@@ -193,6 +202,65 @@ const transactionController = {
     } catch (error) {
       console.error('Wet Wood Sync Error:', error);
       res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการนำเข้าข้อมูลไม้เปียก' });
+    }
+  },
+
+  // ─── ส่วนที่เพิ่มใหม่สำหรับ นำเข้าข้อมูลไม้แห้ง ───
+  syncDryWoods: async (req, res) => {
+    const { branch_id, start_date, end_date } = req.body;
+
+    if (!branch_id || !start_date || !end_date) {
+      return res.status(400).json({ success: false, message: 'กรุณาระบุสาขา และช่วงวันที่ให้ครบถ้วน' });
+    }
+
+    try {
+      const mysqlPool = await getMysqlConnection(branch_id);
+      
+      // ดึงเรทค่าแรงทั้ง 2 แบบจาก PostgreSQL ของสาขานั้น
+      const wageMap = await TransactionModel.getDryWagesByBranch(branch_id);
+      const oldData = await TransactionModel.getOldDryWoodTransactions(mysqlPool, start_date, end_date);
+
+      const activeIds = [...new Set(oldData.map(row => row.wood_size_amount_map_id))];
+      await TransactionModel.cleanupDeletedDryWoodTransactions(branch_id, start_date, end_date, activeIds);
+
+      if (oldData.length === 0) {
+        return res.json({ success: true, message: 'ไม่พบข้อมูลไม้แห้งในระบบเก่าสำหรับช่วงเวลานี้', total_synced: 0 });
+      }
+
+      const uniqueDataMap = new Map();
+      oldData.forEach(row => uniqueDataMap.set(row.wood_size_amount_map_id, row));
+      const uniqueOldData = Array.from(uniqueDataMap.values());
+
+      const insertValues = uniqueOldData.map(row => {
+        let prodDate = row.produce_date;
+        if (prodDate instanceof Date) {
+          prodDate = `${prodDate.getFullYear()}-${String(prodDate.getMonth() + 1).padStart(2, '0')}-${String(prodDate.getDate()).padStart(2, '0')}`;
+        }
+        
+        // 💡 ตรรกะคิดค่าแรงไม้แห้ง: ถ้าเป็นสโตร์ 104/13 ใช้เรทตัดสั้น ไม่งั้นใช้เรทปกติ
+        const rates = wageMap.get(row.wood_size_id) || { wage: 0, wage_cut: 0 };
+        const unitWage = row.store_code === '104/13' ? rates.wage_cut : rates.wage;
+        
+        return [
+          row.wood_size_amount_map_id,
+          branch_id,
+          row.barcode_id,
+          prodDate,
+          row.wood_size_id || null,
+          row.wood_store_id || null,
+          row.sorter_id || null,
+          row.amount || 0,
+          row.volumn || 0,
+          unitWage
+        ];
+      });
+
+      const totalSynced = await TransactionModel.upsertDryWoodTransactions(insertValues);
+      res.json({ success: true, message: 'ซิงค์ข้อมูลไม้แห้งสำเร็จ', total_synced: totalSynced });
+
+    } catch (error) {
+      console.error('Dry Wood Sync Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการนำเข้าข้อมูลไม้แห้ง' });
     }
   }
 };

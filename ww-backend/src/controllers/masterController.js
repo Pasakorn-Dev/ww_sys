@@ -385,7 +385,7 @@ const masterController = {
             
             const [oldWetWoodTypes] = await mysqlPool.query(`
                 SELECT 
-                    id AS id_old, name, is_buy_wood, ax_location, ax_warehouse 
+                    id AS id_old, name, is_buy_wood, ax_location, ax_warehouse ,code
                 FROM wet_wood_type
             `);
 
@@ -396,7 +396,8 @@ const masterController = {
                     row.name || null,                      
                     cleanBool(row.is_buy_wood, false),     
                     row.ax_location || null,               
-                    row.ax_warehouse || null               
+                    row.ax_warehouse || null,
+                    row.code || null             
                 ]);
 
                 const chunkWetSize = 4000;
@@ -405,7 +406,7 @@ const masterController = {
                     
                     const upsertWetWoodQuery = format(`
                         INSERT INTO master_wet_wood_types (
-                            old_id, branch_id, name, is_buy_wood, ax_location, ax_warehouse
+                            old_id, branch_id, name, is_buy_wood, ax_location, ax_warehouse, code
                         ) 
                         VALUES %L 
                         ON CONFLICT (branch_id, old_id) 
@@ -414,6 +415,7 @@ const masterController = {
                             is_buy_wood = EXCLUDED.is_buy_wood,
                             ax_location = EXCLUDED.ax_location,
                             ax_warehouse = EXCLUDED.ax_warehouse,
+                            code = EXCLUDED.code,
                             updated_at = CURRENT_TIMESTAMP;
                     `, chunk);
 
@@ -430,7 +432,7 @@ const masterController = {
             
             const [oldWoodStores] = await mysqlPool.query(`
                 SELECT 
-                    id AS id_old, description, allow_two_prefix, ax_location, ax_warehouse 
+                    id AS id_old, description, allow_two_prefix, ax_location, ax_warehouse ,code
                 FROM wood_store
             `);
 
@@ -441,7 +443,8 @@ const masterController = {
                     row.description || null,               
                     cleanBool(row.allow_two_prefix, false),
                     row.ax_location || null,               
-                    row.ax_warehouse || null               
+                    row.ax_warehouse || null,               
+                    row.code || null                        
                 ]);
 
                 const chunkStoreSize = 4000;
@@ -450,7 +453,7 @@ const masterController = {
                     
                     const upsertWoodStoreQuery = format(`
                         INSERT INTO master_wood_stores (
-                            old_id, branch_id, description, allow_two_prefix, ax_location, ax_warehouse
+                            old_id, branch_id, description, allow_two_prefix, ax_location, ax_warehouse, code
                         ) 
                         VALUES %L 
                         ON CONFLICT (branch_id, old_id) 
@@ -459,6 +462,7 @@ const masterController = {
                             allow_two_prefix = EXCLUDED.allow_two_prefix,
                             ax_location = EXCLUDED.ax_location,
                             ax_warehouse = EXCLUDED.ax_warehouse,
+                            code = EXCLUDED.code,
                             updated_at = CURRENT_TIMESTAMP;
                     `, chunk);
 

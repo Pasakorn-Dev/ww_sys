@@ -444,6 +444,201 @@ const ReportModel = {
     const params = [branch_id, start_date, end_date];
     const { rows } = await pool.query(query, params);
     return rows;
+  },
+
+  // ==========================================
+  // ─── ส่วนที่เพิ่มใหม่: รายงานค่าแรงไม้เปียก (ใบปะหน้า) ───
+  // ==========================================
+  getWetWoodCoverReport: async (filters) => {
+    const { branch_id, start_date, end_date, wet_wood_type } = filters;
+
+    // Query ดึงข้อมูลและรวมผลยอด amount, volumn, net_wage
+    let query = `
+      SELECT 
+        ws.grade
+        , ws.is_special
+        , ws.wood_code
+        , SUM(tww.amount) AS amount
+        , SUM(tww.volumn) AS volumn
+        , SUM(tww.net_wage) AS net_wage
+      FROM transaction_wet_woods tww
+      LEFT JOIN master_wet_wood_types wwt ON wwt.old_id = tww.wet_wood_type_id AND wwt.branch_id = tww.branch_id 
+      LEFT JOIN master_employees em ON em.old_id = tww.sorter_id AND em.branch_id = tww.branch_id
+      LEFT JOIN master_wood_sizes ws ON ws.old_id = tww.wood_size_id AND ws.branch_id = tww.branch_id
+      WHERE 1=1 
+        AND tww.branch_id = $1
+        AND tww.produce_date BETWEEN $2 AND $3
+    `;
+
+    const params = [branch_id, start_date, end_date];
+
+    // เพิ่มเงื่อนไขค้นหาประเภทไม้ (ถ้ามีการระบุ)
+    if (wet_wood_type) {
+        query += ` AND wwt.code = $4`;
+        params.push(wet_wood_type);
+    }
+
+    query += `
+      GROUP BY 
+        ws.grade
+        , ws.is_special
+        , ws.wood_code
+      ORDER BY 
+        ws.grade ASC, 
+        ws.is_special ASC, 
+        ws.wood_code ASC
+    `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
+
+  // รูปแบบที่ 2: จัดกลุ่มตาม พนักงานจัดเรียง (ไม่แยกรายวัน)
+  getWetWoodCoverReportFormat2: async (filters) => {
+    const { branch_id, start_date, end_date, wet_wood_type } = filters;
+
+    let query = `
+      SELECT 
+        em.code AS employee_code
+        , em.name AS employee_name
+        , ws.grade
+        , ws.is_special
+        , ws.wood_code
+        , SUM(tww.amount) AS amount
+        , SUM(tww.volumn) AS volumn
+        , SUM(tww.net_wage) AS net_wage
+      FROM transaction_wet_woods tww
+      LEFT JOIN master_wet_wood_types wwt ON wwt.old_id = tww.wet_wood_type_id AND wwt.branch_id = tww.branch_id 
+      LEFT JOIN master_employees em ON em.old_id = tww.sorter_id AND em.branch_id = tww.branch_id
+      LEFT JOIN master_wood_sizes ws ON ws.old_id = tww.wood_size_id AND ws.branch_id = tww.branch_id
+      WHERE 1=1 
+        AND tww.branch_id = $1
+        AND tww.produce_date BETWEEN $2 AND $3
+    `;
+
+    const params = [branch_id, start_date, end_date];
+
+    if (wet_wood_type) {
+        query += ` AND wwt.code = $4`;
+        params.push(wet_wood_type);
+    }
+
+    query += `
+      GROUP BY 
+        em.code
+        , em.name
+        , ws.grade
+        , ws.is_special
+        , ws.wood_code
+      ORDER BY 
+        em.code ASC,
+        ws.grade ASC, 
+        ws.is_special ASC, 
+        ws.wood_code ASC
+    `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
+
+  // ==========================================
+  // ─── ส่วนที่เพิ่มใหม่: รายงานค่าแรงไม้แห้ง (ใบปะหน้า) ───
+  // ==========================================
+
+  // รูปแบบที่ 1: แบบปกติ
+  getDryWoodCoverReport: async (filters) => {
+    const { branch_id, start_date, end_date, store_code } = filters;
+
+    let query = `
+      SELECT 
+        ws.grade
+        , ws.is_special
+        , ws.wood_code
+        , SUM(tdw.amount) AS amount
+        , SUM(tdw.volumn) AS volumn
+        , SUM(tdw.net_wage) AS net_wage
+      FROM transaction_dry_woods tdw
+      LEFT JOIN master_wood_stores wt ON wt.old_id = tdw.wood_store_id AND wt.branch_id = tdw.branch_id 
+      LEFT JOIN master_wood_sizes ws ON ws.old_id = tdw.wood_size_id AND ws.branch_id = tdw.branch_id
+      WHERE 1=1 
+        AND tdw.branch_id = $1
+        AND tdw.produce_date BETWEEN $2 AND $3
+    `;
+
+    const params = [branch_id, start_date, end_date];
+
+    // 💡 ค้นหารหัสสโตร์: ถ้ามีการส่งค่ามา ให้ค้นหาแบบ LIKE 'ค่าที่ส่งมา%' ถ้าไม่มีให้หาที่ขึ้นต้นด้วย 104
+    if (store_code && store_code.trim() !== '') {
+        query += ` AND wt.code LIKE $4`;
+        params.push(`${store_code}%`);
+    } else {
+        query += ` AND wt.code LIKE '104%'`;
+    }
+
+    query += `
+      GROUP BY 
+        ws.grade
+        , ws.is_special
+        , ws.wood_code
+      ORDER BY 
+        ws.is_special ASC, 
+        ws.grade ASC, 
+        ws.wood_code ASC
+    `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
+
+  // รูปแบบที่ 2: แยกตามพนักงาน
+  getDryWoodCoverReportFormat2: async (filters) => {
+    const { branch_id, start_date, end_date, store_code } = filters;
+
+    let query = `
+      SELECT 
+        em.code AS employee_code
+        , em.name AS employee_name
+        , ws.grade
+        , ws.is_special
+        , ws.wood_code
+        , SUM(tdw.amount) AS amount
+        , SUM(tdw.volumn) AS volumn
+        , SUM(tdw.net_wage) AS net_wage
+      FROM transaction_dry_woods tdw
+      LEFT JOIN master_wood_stores wt ON wt.old_id = tdw.wood_store_id AND wt.branch_id = tdw.branch_id 
+      LEFT JOIN master_employees em ON em.old_id = tdw.sorter_id AND em.branch_id = tdw.branch_id
+      LEFT JOIN master_wood_sizes ws ON ws.old_id = tdw.wood_size_id AND ws.branch_id = tdw.branch_id
+      WHERE 1=1 
+        AND tdw.branch_id = $1
+        AND tdw.produce_date BETWEEN $2 AND $3
+    `;
+
+    const params = [branch_id, start_date, end_date];
+
+    // 💡 ค้นหารหัสสโตร์
+    if (store_code && store_code.trim() !== '') {
+        query += ` AND wt.code LIKE $4`;
+        params.push(`${store_code}%`);
+    } else {
+        query += ` AND wt.code LIKE '104%'`;
+    }
+
+    query += `
+      GROUP BY 
+        em.code
+        , em.name
+        , ws.grade
+        , ws.is_special
+        , ws.wood_code
+      ORDER BY 
+        em.code ASC,
+        ws.is_special ASC, 
+        ws.grade ASC, 
+        ws.wood_code ASC
+    `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
   }
 };
 
