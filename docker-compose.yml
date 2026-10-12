@@ -1,7 +1,7 @@
 services:
   # 1. Database (PostgreSQL)
   postgres-db:
-    image: postgres:15-alpine
+    image: postgres:18-alpine
     restart: always
     # ⚠️ ปิด Port 5432 ไม่ให้เข้าถึงจากภายนอกเพื่อความปลอดภัย
     # (Backend และ Frontend ในตู้ยังสามารถเชื่อมต่อผ่านชื่อ 'postgres-db' ได้ปกติ)
@@ -27,7 +27,7 @@ services:
 
   # 2. Backend (Node.js + Express)
   backend:
-    image: pasakorndev/my-backend:v1.0.0
+    image: pasakorndev/my-backend:v1.0.1
     restart: always
     env_file:
       - .env  # ใช้งานไฟล์ .env ความลับไฟล์เดียวกับ Database
@@ -36,7 +36,7 @@ services:
 
   # 3. Frontend (React + Vite)
   frontend:
-    image: pasakorndev/my-frontend:v1.0.0
+    image: pasakorndev/my-frontend:v1.0.1
     restart: always
 
   # 4. Nginx (Gateway / Reverse Proxy หน้าสุด)
