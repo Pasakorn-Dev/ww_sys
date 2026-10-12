@@ -29,7 +29,7 @@ export default function WoodPriceManager() {
 
   // ─── โหลดข้อมูลเริ่มต้น ───
   useEffect(() => {
-    let isMounted = true; // 💡 ตัวแปรดักจับเพื่อป้องกันการ Render เบิ้ล
+    let isMounted = true; 
 
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
@@ -40,11 +40,9 @@ export default function WoodPriceManager() {
 
     const fetchAllowedBranches = async () => {
       try {
-        // 💡 ดึง Path ปัจจุบันและส่งไปให้ Backend เพื่อเช็คสิทธิ์ (access_level)
         const currentPath = window.location.pathname;
         const data = await apiFetch(`/branches/allowed?menu=${currentPath}`);
         
-        // 💡 ถ้า Component ถูก Unmount ไปแล้ว (เช่น กดเปลี่ยนหน้าไวๆ) จะไม่เซ็ต State ต่อ
         if (!isMounted) return;
 
         if (data?.success) {
@@ -52,7 +50,7 @@ export default function WoodPriceManager() {
           setAccessLevel(data.access_level);
           
           if (data.access_level === 1) {
-            setSelectedBranch(0); // Admin: 0 = ดูภาพรวม (หรือต้องบังคับเลือกทีละสาขา)
+            setSelectedBranch(0); 
           } else if (data.data.length > 0) {
             setSelectedBranch(data.data[0].id);
           }
@@ -64,7 +62,6 @@ export default function WoodPriceManager() {
 
     fetchAllowedBranches();
 
-    // 💡 Cleanup function สำหรับจัดการการดึง API เบิ้ล
     return () => {
       isMounted = false; 
     };
@@ -72,31 +69,31 @@ export default function WoodPriceManager() {
 
   // ดึงข้อมูลสินค้าตาม Filter (เรียกเมื่อ Filter เปลี่ยน หรือ สาขาเปลี่ยน)
   const fetchProducts = async () => {
-    if (selectedBranch === '' || selectedBranch === 0) return; // บังคับเลือกสาขาก่อน
+    if (selectedBranch === '' || selectedBranch === 0) return; 
 
     setIsLoading(true);
     try {
-      // สร้าง Query String จาก Filters
       const queryParams = new URLSearchParams({
         branch_id: selectedBranch,
-        type_id: 1, // บังคับเฉพาะไม้เลื่อย
+        type_id: 1, 
         ...filters
       }).toString();
 
-      // (API นี้เราต้องไปเขียนเพิ่มใน Backend)
       const data = await apiFetch(`/master/wood-prices?${queryParams}`);
       if (data?.success) {
         setProducts(data.data);
-        setEditedPrices({}); // เคลียร์ของเก่าที่ยังไม่เซฟทิ้งเมื่อดึงข้อมูลใหม่
+        setEditedPrices({}); 
       }else {
-        // 💡 เพิ่มบล็อก else ตรงนี้ เพื่อจับ Error จาก Backend มาโชว์
         Swal.fire({
           icon: 'warning',
           title: 'ถูกปฏิเสธ',
           text: data?.message || 'ไม่สามารถดึงข้อมูลได้',
-          confirmButtonColor: '#3b82f6'
+          confirmButtonColor: '#3b82f6',
+          // เพิ่ม style รองรับ dark mode
+          background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#ffffff',
+          color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#111827'
         });
-        setProducts([]); // เคลียร์ตารางทิ้งถ้าไม่มีสิทธิ์
+        setProducts([]); 
       }
     } catch (error) {
       console.error('Fetch products error:', error);
@@ -113,7 +110,7 @@ export default function WoodPriceManager() {
     }
   }, [selectedBranch]);
 
-  // ─── Handlers สำหรับ Method 2: Inline Edit ───
+  // ─── Handlers ───
   const handleFilterChange = (e) => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
   };
@@ -129,7 +126,6 @@ export default function WoodPriceManager() {
     const editCount = Object.keys(editedPrices).length;
     if (editCount === 0) return;
 
-    // แปลง Object เป็น Array เพื่อส่งให้ Backend
     const payload = Object.entries(editedPrices).map(([id, price]) => ({
       id: Number(id),
       unit_price: Number(price)
@@ -142,8 +138,16 @@ export default function WoodPriceManager() {
       });
 
       if (data?.success) {
-        Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: `อัปเดตราคา ${editCount} รายการแล้ว`, timer: 2000, showConfirmButton: false });
-        fetchProducts(); // โหลดใหม่เพื่อให้ราคาเดิมเปลี่ยน
+        Swal.fire({ 
+          icon: 'success', 
+          title: 'บันทึกสำเร็จ', 
+          text: `อัปเดตราคา ${editCount} รายการแล้ว`, 
+          timer: 2000, 
+          showConfirmButton: false,
+          background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#ffffff',
+          color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#111827'
+        });
+        fetchProducts(); 
       } else {
         Swal.fire('ข้อผิดพลาด', data?.message || 'ไม่สามารถบันทึกได้', 'error');
       }
@@ -152,9 +156,7 @@ export default function WoodPriceManager() {
     }
   };
 
-  // ─── Handlers สำหรับ Method 1: Excel Import/Export ───
   const handleExportExcel = () => {
-    // นำทางไปที่ API โหลดไฟล์ตรงๆ
     window.open(`${import.meta.env.VITE_API_URL}/master/wood-prices/export?branch_id=${selectedBranch}&type_id=1`, '_blank');
   };
 
@@ -167,10 +169,15 @@ export default function WoodPriceManager() {
     formData.append('branch_id', selectedBranch);
 
     try {
-      Swal.fire({ title: 'กำลังนำเข้าข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      Swal.fire({ 
+        title: 'กำลังนำเข้าข้อมูล...', 
+        allowOutsideClick: false, 
+        didOpen: () => Swal.showLoading(),
+        background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#ffffff',
+        color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#111827'
+      });
       
       const token = localStorage.getItem('token');
-      // Import ใช้ FormData จึงใช้ fetch ตรงๆ (apiFetch เราตั้ง header เป็น application/json ไว้)
       const res = await fetch(`${import.meta.env.VITE_API_URL}/master/wood-prices/import`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
@@ -179,7 +186,14 @@ export default function WoodPriceManager() {
       const data = await res.json();
 
       if (data.success) {
-        Swal.fire({ icon: 'success', title: 'นำเข้าสำเร็จ!', text: `อัปเดตราคา ${data.updated_count} รายการ`, timer: 2500 });
+        Swal.fire({ 
+          icon: 'success', 
+          title: 'นำเข้าสำเร็จ!', 
+          text: `อัปเดตราคา ${data.updated_count} รายการ`, 
+          timer: 2500,
+          background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#ffffff',
+          color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#111827'
+        });
         fetchProducts();
       } else {
         Swal.fire('เกิดข้อผิดพลาด', data.message, 'error');
@@ -187,139 +201,179 @@ export default function WoodPriceManager() {
     } catch (error) {
       Swal.fire('ระบบขัดข้อง', 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้', 'error');
     } finally {
-      e.target.value = null; // Reset input
+      e.target.value = null; 
     }
   };
 
   const allowedBranches = isAdmin ? branches : branches.filter(b => b.id === currentUser?.branch_id);
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto flex flex-col gap-6 h-full">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto flex flex-col gap-6 h-full transition-colors duration-300">
       
       {/* Header & Controls */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 transition-colors duration-300">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
-            <h2 className="text-xl font-bold text-gray-800 dark:text-white">
-              <i className="fas fa-tags text-blue-600 mr-2"></i> จัดการราคาขายไม้เลื่อย
+            <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">
+              <i className="fas fa-tags text-blue-600 dark:text-blue-400 mr-2"></i> จัดการราคาขายไม้เลื่อย
             </h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               กำหนดราคาสินค้า (Unit Price) แยกตามสาขา สำหรับไม้เลื่อยเท่านั้น
             </p>
           </div>
           
-          <div className="flex items-center gap-3">
-            <button onClick={handleExportExcel} disabled={selectedBranch === 0 || selectedBranch === ''} className="px-4 py-2 bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+          <div className="flex flex-wrap items-center gap-3">
+            <button onClick={handleExportExcel} disabled={selectedBranch === 0 || selectedBranch === ''} 
+              className="px-4 py-2 bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-900/50 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               <i className="fas fa-file-excel mr-2"></i> โหลด Template
             </button>
             <input type="file" ref={fileInputRef} onChange={handleImportExcel} accept=".xlsx, .xls" className="hidden" />
-            <button onClick={() => fileInputRef.current?.click()} disabled={selectedBranch === 0 || selectedBranch === ''} className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-lg text-sm font-medium shadow-sm transition-colors disabled:opacity-50">
+            <button onClick={() => fileInputRef.current?.click()} disabled={selectedBranch === 0 || selectedBranch === ''} 
+              className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 dark:hover:bg-green-500 rounded-lg text-sm font-medium shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               <i className="fas fa-upload mr-2"></i> นำเข้า Excel
             </button>
           </div>
         </div>
 
         {/* สาขา & Filter */}
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-4 items-end">
           <div className="md:col-span-2">
-            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">สาขาที่จัดการ</label>
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">สาขาที่จัดการ</label>
             <select
               value={selectedBranch}
               onChange={(e) => setSelectedBranch(e.target.value)}
-              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
             >
               <option value="" disabled>-- กรุณาเลือกสาขา --</option>
               {allowedBranches.map(b => (
-                <option key={b.id} value={b.id}>{b.branch_code} - {b.branch_name}</option>
+                <option key={b.id} value={b.id} className="bg-white dark:bg-gray-800">{b.branch_code} - {b.branch_name}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">มิล</label>
-            <input type="text" name="mil" value={filters.mil} onChange={handleFilterChange} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm rounded-lg p-2.5" placeholder="มิล..." />
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">มิล</label>
+            <input type="text" name="mil" value={filters.mil} onChange={handleFilterChange} 
+              className="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 dark:placeholder-gray-500 transition-colors" placeholder="มิล..." />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">หนา</label>
-            <input type="text" name="thick" value={filters.thick} onChange={handleFilterChange} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm rounded-lg p-2.5" placeholder="หนา..." />
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">หนา</label>
+            <input type="text" name="thick" value={filters.thick} onChange={handleFilterChange} 
+              className="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 dark:placeholder-gray-500 transition-colors" placeholder="หนา..." />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">กว้าง</label>
-            <input type="text" name="width" value={filters.width} onChange={handleFilterChange} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm rounded-lg p-2.5" placeholder="กว้าง..." />
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">กว้าง</label>
+            <input type="text" name="width" value={filters.width} onChange={handleFilterChange} 
+              className="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 dark:placeholder-gray-500 transition-colors" placeholder="กว้าง..." />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">ยาว</label>
-            <input type="text" name="length" value={filters.length} onChange={handleFilterChange} className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm rounded-lg p-2.5" placeholder="ยาว..." />
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">ยาว</label>
+            <input type="text" name="length" value={filters.length} onChange={handleFilterChange} 
+              className="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 dark:placeholder-gray-500 transition-colors" placeholder="ยาว..." />
           </div>
-          <button onClick={fetchProducts} disabled={selectedBranch === '' || selectedBranch === 0} className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
-            <i className="fas fa-search mr-2"></i> ค้นหา
+          <button onClick={fetchProducts} disabled={selectedBranch === '' || selectedBranch === 0 || isLoading} 
+            className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            {isLoading ? <i className="fas fa-spinner fa-spin"></i> : <><i className="fas fa-search mr-2"></i> ค้นหา</>}
           </button>
         </div>
       </div>
 
       {/* ตารางข้อมูล */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 flex-1 flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 flex-1 flex flex-col overflow-hidden transition-colors duration-300">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-wrap justify-between items-center gap-3 bg-gray-50 dark:bg-gray-800/80 transition-colors duration-300">
           <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-            รายการสินค้า {products.length > 0 && `(${products.length} รายการ)`}
+            รายการสินค้า {products.length > 0 && <span className="text-blue-600 dark:text-blue-400 ml-1">({products.length} รายการ)</span>}
           </span>
           <button 
             onClick={handleSavePrices} 
             disabled={Object.keys(editedPrices).length === 0}
-            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex items-center gap-2"
+            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex items-center gap-2"
           >
             <i className="fas fa-save"></i> บันทึกราคาที่แก้ไข 
-            {Object.keys(editedPrices).length > 0 && <span className="bg-white text-blue-600 text-xs px-2 py-0.5 rounded-full ml-1">{Object.keys(editedPrices).length}</span>}
+            {Object.keys(editedPrices).length > 0 && <span className="bg-white text-blue-600 text-xs font-bold px-2 py-0.5 rounded-full ml-1">{Object.keys(editedPrices).length}</span>}
           </button>
         </div>
         
         <div className="overflow-auto flex-1 custom-scrollbar">
           <table className="w-full text-left border-collapse">
-            <thead className="bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400 text-xs uppercase sticky top-0 z-10 shadow-sm">
+            <thead className="bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400 text-xs uppercase sticky top-0 z-10 shadow-[0_1px_2px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.5)] transition-colors duration-300">
               <tr>
-                <th className="p-3 font-semibold w-32">บาร์โค้ด</th>
-                <th className="p-3 font-semibold">ขนาด (หนา x กว้าง x ยาว)</th>
-                <th className="p-3 font-semibold text-center w-24">มิล</th>
-                <th className="p-3 font-semibold text-right w-32">ราคาเดิม (฿)</th>
-                <th className="p-3 font-semibold w-40">ราคาใหม่ (฿)</th>
+                <th className="p-3 font-semibold w-32 border-b dark:border-gray-700">บาร์โค้ด</th>
+                <th className="p-3 font-semibold border-b dark:border-gray-700">ขนาด (หนา x กว้าง x ยาว)</th>
+                <th className="p-3 font-semibold text-center w-24 border-b dark:border-gray-700">มิล</th>
+                <th className="p-3 font-semibold text-right w-32 border-b dark:border-gray-700">ราคาเดิม (฿)</th>
+                <th className="p-3 font-semibold w-40 border-b dark:border-gray-700">ราคาใหม่ (฿)</th>
               </tr>
             </thead>
-            <tbody className="text-sm">
+            <tbody className="text-sm divide-y divide-gray-200">
               {isLoading ? (
-                <tr><td colSpan="5" className="p-8 text-center text-gray-500"><i className="fas fa-spinner fa-spin mr-2"></i> กำลังโหลดข้อมูล...</td></tr>
+                <tr>
+                  <td colSpan="5" className="p-12 text-center text-gray-500">
+                    <i className="fas fa-spinner fa-spin text-2xl mb-3 block text-blue-600"></i> 
+                    กำลังโหลดข้อมูล...
+                  </td>
+                </tr>
               ) : products.length === 0 ? (
-                <tr><td colSpan="5" className="p-8 text-center text-gray-500">กรุณาเลือกสาขา และกดค้นหาเพื่อแสดงข้อมูล</td></tr>
+                <tr>
+                  <td colSpan="5" className="p-12 text-center text-gray-500 font-medium">
+                    กรุณาเลือกสาขา และกดค้นหาเพื่อแสดงข้อมูล
+                  </td>
+                </tr>
               ) : (
                 products.map((item) => {
                   const isEdited = editedPrices[item.id] !== undefined;
                   return (
-                    <tr key={item.id} className={`border-b dark:border-gray-700 transition-colors ${isEdited ? 'bg-blue-50/50 dark:bg-blue-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-750'}`}>
-                      <td className="p-3 font-mono text-gray-600 dark:text-gray-400">{item.wood_code || '-'}</td>
-                      <td className="p-3 font-medium text-gray-800 dark:text-gray-200">
+                    <tr 
+                      key={item.id} 
+                      className={`transition-colors duration-150 ${
+                        isEdited 
+                          ? 'bg-blue-50/80 hover:bg-blue-100/60' 
+                          : 'bg-white hover:bg-gray-100/80'
+                      }`}
+                    >
+                      {/* บาร์โค้ด / รหัสไม้ */}
+                      <td className="p-3 font-mono font-medium text-gray-900 whitespace-nowrap">
+                        {item.wood_code || '-'}
+                      </td>
+
+                      {/* ขนาด */}
+                      <td className="p-3 font-semibold text-gray-900 whitespace-nowrap">
                         {item.thick} x {item.width} x {item.length}
                       </td>
-                      <td className="p-3 text-center text-gray-600 dark:text-gray-400">{item.mil}</td>
-                      <td className="p-3 text-right font-semibold text-gray-600 dark:text-gray-400">
+
+                      {/* มิล */}
+                      <td className="p-3 text-center font-medium text-gray-800">
+                        {item.mil}
+                      </td>
+
+                      {/* ราคาเดิม */}
+                      <td className="p-3 text-right font-bold text-gray-900">
                         {Number(item.unit_price).toFixed(2)}
                       </td>
+
+                      {/* ราคาใหม่ */}
                       <td className="p-3">
                         <div className="relative">
-                          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">฿</span>
+                          <span className={`absolute inset-y-0 left-0 flex items-center pl-3 text-sm font-bold ${
+                            isEdited ? 'text-blue-600' : 'text-gray-500'
+                          }`}>
+                            ฿
+                          </span>
                           <input
                             type="number"
                             step="0.01"
                             value={editedPrices[item.id] !== undefined ? editedPrices[item.id] : ''}
                             placeholder={Number(item.unit_price).toFixed(2)}
                             onChange={(e) => handlePriceChange(item.id, e.target.value)}
-                            className={`w-full pl-8 pr-3 py-1.5 text-sm rounded-md outline-none border transition-colors
-                              ${isEdited 
-                                ? 'bg-white border-blue-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:bg-gray-700 dark:text-white' 
-                                : 'bg-gray-50 border-gray-200 focus:bg-white focus:border-blue-400 focus:ring-1 focus:ring-blue-400 dark:bg-gray-800 dark:border-gray-600 dark:text-white'
-                              }`}
+                            className={`w-full pl-8 pr-3 py-1.5 text-sm font-semibold rounded-md outline-none border transition-all duration-200 ${
+                              isEdited 
+                                ? 'bg-white border-blue-500 text-blue-900 focus:ring-2 focus:ring-blue-500/20 shadow-sm' 
+                                : 'bg-gray-50/80 border-gray-300 text-gray-900 placeholder-gray-400 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 hover:border-gray-400'
+                            }`}
                           />
                         </div>
                       </td>
                     </tr>
-                  )
+                  );
                 })
               )}
             </tbody>
