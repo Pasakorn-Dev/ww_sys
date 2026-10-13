@@ -259,6 +259,145 @@ const fetchProductionThickMilData = async (start_date, end_date, branch_id, grad
   return { formattedData, grandTotal, lengthSummary };
 };
 
+// --- Helper Function สำหรับรายงานสรุปค่าแรงจัดเรียงไม้เปียก แยกรายคน ---
+const fetchWetWoodPerfDataHelper = async (branch_id, start_date, end_date, store_code) => {
+  const rows = await ReportModel.getWetWoodPerformanceReport({ branch_id, start_date, end_date, store_code });
+
+  // โครงสร้างเกรดที่เราต้องการแสดงเป็นคอลัมน์ (ตามรูปภาพ)
+  const expectedColumns = [
+    { grade: 'AB', is_special: false },
+    { grade: 'AB', is_special: true },
+    { grade: 'C', is_special: false },
+    { grade: 'C', is_special: true },
+    { grade: 'P', is_special: false },
+    { grade: 'PP', is_special: false }
+  ];
+
+  const employeeMap = {};
+  
+  // Grand Total แนวนอน (ยอดรวมทั้งรายงาน)
+  const grandTotal = { total_volumn: 0, total_net_wage: 0 };
+  expectedColumns.forEach(col => {
+    const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+    grandTotal[colKey] = { volumn: 0, net_wage: 0 };
+  });
+
+  // วนลูปจับกลุ่มตามพนักงาน
+  rows.forEach(row => {
+    const empCode = row.employee_code || '-';
+    const empName = row.employee_name || 'ไม่ระบุชื่อ';
+    const empKey = `${empCode}_${empName}`;
+
+    // ถ้าพนักงานคนนี้ยังไม่มีใน Map ให้สร้างใหม่
+    if (!employeeMap[empKey]) {
+      employeeMap[empKey] = {
+        employee_code: empCode,
+        employee_name: empName,
+        total_volumn: 0,
+        total_net_wage: 0,
+        grades: {}
+      };
+      // สร้างโครงสร้างย่อยเตรียมรับข้อมูลแต่ละเกรด
+      expectedColumns.forEach(col => {
+        const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+        employeeMap[empKey].grades[colKey] = { volumn: 0, net_wage: 0 };
+      });
+    }
+
+    // เอาข้อมูลใส่ช่อง (เกรด + พิเศษ/ปกติ) ที่ตรงกัน
+    const colKey = `${row.grade}_${row.is_special ? 'spc' : 'norm'}`;
+    const vol = Number(row.volumn) || 0;
+    const wage = Number(row.net_wage) || 0;
+
+    // ถ้ามีคอลัมน์นี้เตรียมไว้ ค่อยบวกค่าเข้าไป
+    if (employeeMap[empKey].grades[colKey] !== undefined) {
+      employeeMap[empKey].grades[colKey].volumn += vol;
+      employeeMap[empKey].grades[colKey].net_wage += wage;
+
+      // บวกเข้ายอดรวมรายคน (แถว)
+      employeeMap[empKey].total_volumn += vol;
+      employeeMap[empKey].total_net_wage += wage;
+
+      // บวกเข้ายอดรวมทั้งรายงาน (คอลัมน์)
+      grandTotal[colKey].volumn += vol;
+      grandTotal[colKey].net_wage += wage;
+      grandTotal.total_volumn += vol;
+      grandTotal.total_net_wage += wage;
+    }
+  });
+
+  return { 
+    formattedData: Object.values(employeeMap), 
+    grandTotal,
+    expectedColumns 
+  };
+};
+
+// --- Helper Function สำหรับรายงานสรุปค่าแรงจัดเรียงไม้แห้ง แยกรายคน ---
+const fetchDryWoodPerfDataHelper = async (branch_id, start_date, end_date, store_code) => {
+  const rows = await ReportModel.getDryWoodPerformanceReport({ branch_id, start_date, end_date, store_code });
+
+  const expectedColumns = [
+    { grade: 'AB', is_special: false },
+    { grade: 'AB', is_special: true },
+    { grade: 'C', is_special: false },
+    { grade: 'C', is_special: true },
+    { grade: 'P', is_special: false },
+    { grade: 'PP', is_special: false }
+  ];
+
+  const employeeMap = {};
+  
+  const grandTotal = { total_volumn: 0, total_net_wage: 0 };
+  expectedColumns.forEach(col => {
+    const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+    grandTotal[colKey] = { volumn: 0, net_wage: 0 };
+  });
+
+  rows.forEach(row => {
+    const empCode = row.employee_code || '-';
+    const empName = row.employee_name || 'ไม่ระบุชื่อ';
+    const empKey = `${empCode}_${empName}`;
+
+    if (!employeeMap[empKey]) {
+      employeeMap[empKey] = {
+        employee_code: empCode,
+        employee_name: empName,
+        total_volumn: 0,
+        total_net_wage: 0,
+        grades: {}
+      };
+      expectedColumns.forEach(col => {
+        const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+        employeeMap[empKey].grades[colKey] = { volumn: 0, net_wage: 0 };
+      });
+    }
+
+    const colKey = `${row.grade}_${row.is_special ? 'spc' : 'norm'}`;
+    const vol = Number(row.volumn) || 0;
+    const wage = Number(row.net_wage) || 0;
+
+    if (employeeMap[empKey].grades[colKey] !== undefined) {
+      employeeMap[empKey].grades[colKey].volumn += vol;
+      employeeMap[empKey].grades[colKey].net_wage += wage;
+
+      employeeMap[empKey].total_volumn += vol;
+      employeeMap[empKey].total_net_wage += wage;
+
+      grandTotal[colKey].volumn += vol;
+      grandTotal[colKey].net_wage += wage;
+      grandTotal.total_volumn += vol;
+      grandTotal.total_net_wage += wage;
+    }
+  });
+
+  return { 
+    formattedData: Object.values(employeeMap), 
+    grandTotal,
+    expectedColumns 
+  };
+};
+
 const reportController = {
   getProductionCover: async (req, res) => {
     try {
@@ -3412,7 +3551,517 @@ const reportController = {
       console.error(error);
       res.status(500).json({ success: false, message: 'Error PDF' });
     }
-  }
+  },
+
+  // ─── รายงานสรุปค่าแรงจัดเรียงไม้เปียก แยกรายคน ───
+  getWetWoodPerformance: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code } = req.query;
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      const result = await fetchWetWoodPerfDataHelper(branch_id, start_date, end_date, store_code);
+
+      res.json({
+        success: true,
+        data: result.formattedData,
+        grandTotal: result.grandTotal,
+        expectedColumns: result.expectedColumns,
+        header: {
+          start_date,
+          end_date,
+          store_code: store_code || '21/00 - 21/99'
+        }
+      });
+    } catch (error) {
+      console.error('Report Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานสรุปค่าแรงจัดเรียงไม้เปียก' });
+    }
+  },
+
+  // --- Export Excel สรุปค่าแรงจัดเรียงไม้เปียก แยกรายคน ---
+  exportWetWoodPerfExcel: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code, branch_name } = req.query;
+      const { formattedData, grandTotal, expectedColumns } = await fetchWetWoodPerfDataHelper(branch_id, start_date, end_date, store_code);
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Wet Wood Perf');
+
+      // หัวกระดาษ
+      worksheet.addRow([branch_name || 'บริษัท วู้ดเวิร์ค จำกัด']).font = { bold: true, size: 14 };
+      worksheet.addRow(['รายงานสรุปค่าแรงเรียงไม้ แยกรายคน']).font = { bold: true, size: 12 };
+      worksheet.addRow([`ตั้งแต่วันที่ ${start_date} ถึง ${end_date}`]);
+      worksheet.addRow([`รหัสสโตร์ : ${store_code || '21/00 - 21/99'}`]);
+      worksheet.addRow([]);
+
+      // ─── สร้าง Header ตาราง 2 ชั้น ───
+      const header1 = ['รหัส', 'ชื่อพนักงาน'];
+      expectedColumns.forEach(col => {
+        header1.push(`ไม้แปรรูปอบแห้ง ${col.grade}${col.is_special ? ' (พิเศษ)' : ''}`);
+        header1.push(''); // ช่องว่างสำหรับการ Merge
+      });
+      header1.push('รวม');
+      header1.push('');
+
+      const h1Row = worksheet.addRow(header1);
+      h1Row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+      h1Row.font = { bold: true };
+      h1Row.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      const header2 = ['', ''];
+      expectedColumns.forEach(() => {
+        header2.push('ปริมาตร', 'จำนวนเงิน');
+      });
+      header2.push('ปริมาตร', 'จำนวนเงิน');
+
+      const h2Row = worksheet.addRow(header2);
+      h2Row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+      h2Row.font = { bold: true };
+      h2Row.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      // สั่ง Merge Cells ให้ Header
+      const startRow = h1Row.number;
+      worksheet.mergeCells(startRow, 1, startRow + 1, 1); // รหัส
+      worksheet.mergeCells(startRow, 2, startRow + 1, 2); // ชื่อ
+      
+      let colIdx = 3;
+      expectedColumns.forEach(() => {
+        worksheet.mergeCells(startRow, colIdx, startRow, colIdx + 1);
+        colIdx += 2;
+      });
+      worksheet.mergeCells(startRow, colIdx, startRow, colIdx + 1); // รวม
+
+      // กำหนดความกว้างคอลัมน์
+      worksheet.getColumn(1).width = 15;
+      worksheet.getColumn(2).width = 25;
+      for(let i = 3; i <= colIdx + 1; i++) worksheet.getColumn(i).width = 12;
+
+      // ─── ใส่ข้อมูล (Data) ───
+      formattedData.forEach(emp => {
+        const rowData = [emp.employee_code, emp.employee_name];
+        
+        expectedColumns.forEach(col => {
+          const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+          const cell = emp.grades[colKey];
+          rowData.push(cell ? Number(cell.volumn) : null);
+          rowData.push(cell ? Number(cell.net_wage) : null);
+        });
+
+        rowData.push(Number(emp.total_volumn));
+        rowData.push(Number(emp.total_net_wage));
+
+        const dRow = worksheet.addRow(rowData);
+        
+        // Format ตัวเลข
+        for(let i = 3; i <= rowData.length; i += 2) dRow.getCell(i).numFmt = '#,##0.0000';
+        for(let i = 4; i <= rowData.length; i += 2) dRow.getCell(i).numFmt = '#,##0.00';
+      });
+
+      // ─── ใส่ข้อมูล Grand Total ───
+      if (grandTotal) {
+        const gtRowData = ['รวมทั้งหมด', ''];
+        expectedColumns.forEach(col => {
+          const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+          const cell = grandTotal[colKey];
+          gtRowData.push(cell ? Number(cell.volumn) : null);
+          gtRowData.push(cell ? Number(cell.net_wage) : null);
+        });
+        gtRowData.push(Number(grandTotal.total_volumn));
+        gtRowData.push(Number(grandTotal.total_net_wage));
+
+        const gtRow = worksheet.addRow(gtRowData);
+        gtRow.font = { bold: true };
+        gtRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
+        worksheet.mergeCells(`A${gtRow.number}:B${gtRow.number}`);
+        gtRow.getCell(1).alignment = { horizontal: 'center' };
+
+        for(let i = 3; i <= gtRowData.length; i += 2) gtRow.getCell(i).numFmt = '#,##0.0000';
+        for(let i = 4; i <= gtRowData.length; i += 2) gtRow.getCell(i).numFmt = '#,##0.00';
+      }
+
+      // ตีเส้นขอบตาราง
+      worksheet.eachRow({ includeEmpty: true }, row => {
+        if(row.number >= startRow) {
+          row.eachCell({ includeEmpty: true }, cell => {
+            if (!cell.border) cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+          });
+        }
+      });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=wet_wood_perf.xlsx');
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error Excel' });
+    }
+  },
+
+  // --- Export PDF สรุปค่าแรงจัดเรียงไม้เปียก แยกรายคน ---
+  exportWetWoodPerfPDF: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code, branch_name } = req.query;
+      const { formattedData, grandTotal, expectedColumns } = await fetchWetWoodPerfDataHelper(branch_id, start_date, end_date, store_code);
+
+      const fs = require('fs');
+      const path = require('path');
+      const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
+      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+
+      // ─── สร้าง HTML ───
+      const getColumnLabel = (col) => `ไม้แปรรูปอบแห้ง ${col.grade}${col.is_special ? '<br/>(พิเศษ)' : ''}`;
+
+      let theadHtml = `
+        <tr class="bg-gray">
+          <th rowspan="2" style="width: 60px;">รหัส</th>
+          <th rowspan="2" class="left pl" style="width: 150px;">ชื่อพนักงาน</th>
+          ${expectedColumns.map(col => `<th colspan="2">${getColumnLabel(col)}</th>`).join('')}
+          <th colspan="2" class="bg-teal-light text-teal">รวม</th>
+        </tr>
+        <tr class="bg-gray-light">
+          ${expectedColumns.map(() => `<th>ปริมาตร</th><th>จำนวนเงิน</th>`).join('')}
+          <th class="bg-teal-light text-teal">ปริมาตร</th><th class="bg-teal-light text-teal">จำนวนเงิน</th>
+        </tr>
+      `;
+
+      let tbodyHtml = '';
+      formattedData.forEach((emp) => {
+        tbodyHtml += `<tr>
+          <td class="center text-gray-dark">${emp.employee_code}</td>
+          <td class="left pl">${emp.employee_name}</td>`;
+        
+        expectedColumns.forEach(col => {
+          const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+          const cellData = emp.grades[colKey];
+          tbodyHtml += `
+            <td>${cellData && cellData.volumn > 0 ? Number(cellData.volumn).toFixed(4) : ''}</td>
+            <td class="text-gray-dark bold">${cellData && cellData.net_wage > 0 ? Number(cellData.net_wage).toLocaleString(undefined, {minimumFractionDigits: 2}) : ''}</td>
+          `;
+        });
+
+        tbodyHtml += `
+          <td class="bg-teal-lighter bold text-teal">${Number(emp.total_volumn).toFixed(4)}</td>
+          <td class="bg-teal-lighter bold text-teal-dark">${Number(emp.total_net_wage).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+        </tr>`;
+      });
+
+      if (grandTotal) {
+        tbodyHtml += `<tr class="bg-gray-mid bold border-t">
+          <td colspan="2" class="center">รวมทั้งหมด</td>`;
+        expectedColumns.forEach(col => {
+          const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+          const gtCell = grandTotal[colKey];
+          tbodyHtml += `
+            <td>${gtCell && gtCell.volumn > 0 ? Number(gtCell.volumn).toFixed(4) : ''}</td>
+            <td class="text-gray-darker">${gtCell && gtCell.net_wage > 0 ? Number(gtCell.net_wage).toLocaleString(undefined, {minimumFractionDigits: 2}) : ''}</td>
+          `;
+        });
+        tbodyHtml += `
+          <td class="bg-teal-light text-teal-dark">${Number(grandTotal.total_volumn).toFixed(4)}</td>
+          <td class="bg-teal-light text-teal-darker">${Number(grandTotal.total_net_wage).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+        </tr>`;
+      }
+
+      const htmlContent = `
+        <html><head><style>
+          @font-face { font-family: 'THSarabun'; src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype'); }
+          body { font-family: 'THSarabun', sans-serif; font-size: 13px; margin: 0; padding: 20px; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #9ca3af; padding: 4px; text-align: right; }
+          th { font-weight: bold; text-align: center; }
+          .left { text-align: left; } .center { text-align: center; } .pl { padding-left: 6px; } 
+          .bold { font-weight: bold; }
+          .bg-gray { background-color: #f3f4f6; } .bg-gray-light { background-color: #f9fafb; } .bg-gray-mid { background-color: #e5e7eb; }
+          .bg-teal-light { background-color: #ccfbf1; } .bg-teal-lighter { background-color: #f0fdfa; }
+          .text-teal { color: #0f766e; } .text-teal-dark { color: #115e59; } .text-teal-darker { color: #134e4a; }
+          .text-gray-dark { color: #4b5563; } .text-gray-darker { color: #1f2937; }
+          .border-t { border-top: 2px solid #4b5563; }
+        </style></head><body>
+          <div style="text-align:center; margin-bottom:15px;">
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปค่าแรงเรียงไม้ แยกรายคน (ไม้เปียก)</h2>
+            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
+            <p style="margin:0;">รหัสสโตร์: ${store_code || '21/00 - 21/99'}</p>
+          </div>
+          <table><thead>${theadHtml}</thead><tbody>${tbodyHtml}</tbody></table>
+          <div style="margin-top:50px; width:100%; display:flex; justify-content:space-between; text-align:center; padding:0 50px;">
+            <div style="width:30%; display:inline-block;">............................................<br/><br/>ผู้รายงาน</div>
+            <div style="width:30%; display:inline-block;">............................................<br/><br/>ฝ่ายข้อมูลโรงงาน</div>
+            <div style="width:30%; display:inline-block;">............................................<br/><br/>ผู้จัดการโรงงาน</div>
+          </div>
+        </body></html>
+      `;
+
+      // ใช้ Global Browser เพื่อลดการกิน RAM[cite: 12]
+      const browser = await getBrowser(); 
+      const page = await browser.newPage();
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      const pdfBuffer = await page.pdf({ format: 'Legal', landscape: true, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
+      await page.close();
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="wet_wood_perf.pdf"');
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error PDF' });
+    }
+  },
+  
+  // ─── รายงานสรุปค่าแรงจัดเรียงไม้แห้ง แยกรายคน ───
+  getDryWoodPerformance: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code } = req.query;
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      const result = await fetchDryWoodPerfDataHelper(branch_id, start_date, end_date, store_code);
+
+      res.json({
+        success: true,
+        data: result.formattedData,
+        grandTotal: result.grandTotal,
+        expectedColumns: result.expectedColumns,
+        header: {
+          start_date,
+          end_date,
+          store_code: store_code || '104%'
+        }
+      });
+    } catch (error) {
+      console.error('Report Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานสรุปค่าแรงจัดเรียงไม้แห้ง' });
+    }
+  },
+
+  // --- Export Excel สรุปค่าแรงจัดเรียงไม้แห้ง แยกรายคน ---
+  exportDryWoodPerfExcel: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code, branch_name } = req.query;
+      const { formattedData, grandTotal, expectedColumns } = await fetchDryWoodPerfDataHelper(branch_id, start_date, end_date, store_code);
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Dry Wood Perf');
+
+      worksheet.addRow([branch_name || 'บริษัท วู้ดเวิร์ค จำกัด']).font = { bold: true, size: 14 };
+      worksheet.addRow(['รายงานสรุปค่าแรงเรียงไม้แห้ง แยกรายคน']).font = { bold: true, size: 12 };
+      worksheet.addRow([`ตั้งแต่วันที่ ${start_date} ถึง ${end_date}`]);
+      worksheet.addRow([`รหัสสโตร์ : ${store_code || '104/00 - 104/99'}`]);
+      worksheet.addRow([]);
+
+      const header1 = ['รหัส', 'ชื่อพนักงาน'];
+      expectedColumns.forEach(col => {
+        header1.push(`ไม้แปรรูปอบแห้ง ${col.grade}${col.is_special ? ' (พิเศษ)' : ''}`);
+        header1.push(''); 
+      });
+      header1.push('รวม');
+      header1.push('');
+
+      const h1Row = worksheet.addRow(header1);
+      h1Row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+      h1Row.font = { bold: true };
+      h1Row.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      const header2 = ['', ''];
+      expectedColumns.forEach(() => {
+        header2.push('ปริมาตร', 'จำนวนเงิน');
+      });
+      header2.push('ปริมาตร', 'จำนวนเงิน');
+
+      const h2Row = worksheet.addRow(header2);
+      h2Row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+      h2Row.font = { bold: true };
+      h2Row.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      const startRow = h1Row.number;
+      worksheet.mergeCells(startRow, 1, startRow + 1, 1); 
+      worksheet.mergeCells(startRow, 2, startRow + 1, 2); 
+      
+      let colIdx = 3;
+      expectedColumns.forEach(() => {
+        worksheet.mergeCells(startRow, colIdx, startRow, colIdx + 1);
+        colIdx += 2;
+      });
+      worksheet.mergeCells(startRow, colIdx, startRow, colIdx + 1); 
+
+      worksheet.getColumn(1).width = 15;
+      worksheet.getColumn(2).width = 25;
+      for(let i = 3; i <= colIdx + 1; i++) worksheet.getColumn(i).width = 12;
+
+      formattedData.forEach(emp => {
+        const rowData = [emp.employee_code, emp.employee_name];
+        
+        expectedColumns.forEach(col => {
+          const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+          const cell = emp.grades[colKey];
+          rowData.push(cell ? Number(cell.volumn) : null);
+          rowData.push(cell ? Number(cell.net_wage) : null);
+        });
+
+        rowData.push(Number(emp.total_volumn));
+        rowData.push(Number(emp.total_net_wage));
+
+        const dRow = worksheet.addRow(rowData);
+        
+        for(let i = 3; i <= rowData.length; i += 2) dRow.getCell(i).numFmt = '#,##0.0000';
+        for(let i = 4; i <= rowData.length; i += 2) dRow.getCell(i).numFmt = '#,##0.00';
+      });
+
+      if (grandTotal) {
+        const gtRowData = ['รวมทั้งหมด', ''];
+        expectedColumns.forEach(col => {
+          const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+          const cell = grandTotal[colKey];
+          gtRowData.push(cell ? Number(cell.volumn) : null);
+          gtRowData.push(cell ? Number(cell.net_wage) : null);
+        });
+        gtRowData.push(Number(grandTotal.total_volumn));
+        gtRowData.push(Number(grandTotal.total_net_wage));
+
+        const gtRow = worksheet.addRow(gtRowData);
+        gtRow.font = { bold: true };
+        gtRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEDD5' } }; 
+        worksheet.mergeCells(`A${gtRow.number}:B${gtRow.number}`);
+        gtRow.getCell(1).alignment = { horizontal: 'center' };
+
+        for(let i = 3; i <= gtRowData.length; i += 2) gtRow.getCell(i).numFmt = '#,##0.0000';
+        for(let i = 4; i <= gtRowData.length; i += 2) gtRow.getCell(i).numFmt = '#,##0.00';
+      }
+
+      worksheet.eachRow({ includeEmpty: true }, row => {
+        if(row.number >= startRow) {
+          row.eachCell({ includeEmpty: true }, cell => {
+            if (!cell.border) cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+          });
+        }
+      });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=dry_wood_perf.xlsx');
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error Excel' });
+    }
+  },
+
+  // --- Export PDF สรุปค่าแรงจัดเรียงไม้แห้ง แยกรายคน ---
+  exportDryWoodPerfPDF: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code, branch_name } = req.query;
+      const { formattedData, grandTotal, expectedColumns } = await fetchDryWoodPerfDataHelper(branch_id, start_date, end_date, store_code);
+
+      const fs = require('fs');
+      const path = require('path');
+      const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
+      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+
+      const getColumnLabel = (col) => `ไม้แปรรูปอบแห้ง ${col.grade}${col.is_special ? '<br/>(พิเศษ)' : ''}`;
+
+      let theadHtml = `
+        <tr class="bg-gray">
+          <th rowspan="2" style="width: 60px;">รหัส</th>
+          <th rowspan="2" class="left pl" style="width: 150px;">ชื่อพนักงาน</th>
+          ${expectedColumns.map(col => `<th colspan="2">${getColumnLabel(col)}</th>`).join('')}
+          <th colspan="2" class="bg-orange-light text-orange">รวม</th>
+        </tr>
+        <tr class="bg-gray-light">
+          ${expectedColumns.map(() => `<th>ปริมาตร</th><th>จำนวนเงิน</th>`).join('')}
+          <th class="bg-orange-light text-orange">ปริมาตร</th><th class="bg-orange-light text-orange">จำนวนเงิน</th>
+        </tr>
+      `;
+
+      let tbodyHtml = '';
+      formattedData.forEach((emp) => {
+        tbodyHtml += `<tr>
+          <td class="center text-gray-dark">${emp.employee_code}</td>
+          <td class="left pl">${emp.employee_name}</td>`;
+        
+        expectedColumns.forEach(col => {
+          const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+          const cellData = emp.grades[colKey];
+          tbodyHtml += `
+            <td>${cellData && cellData.volumn > 0 ? Number(cellData.volumn).toFixed(4) : ''}</td>
+            <td class="text-gray-dark bold">${cellData && cellData.net_wage > 0 ? Number(cellData.net_wage).toLocaleString(undefined, {minimumFractionDigits: 2}) : ''}</td>
+          `;
+        });
+
+        tbodyHtml += `
+          <td class="bg-orange-lighter bold text-orange">${Number(emp.total_volumn).toFixed(4)}</td>
+          <td class="bg-orange-lighter bold text-orange-dark">${Number(emp.total_net_wage).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+        </tr>`;
+      });
+
+      if (grandTotal) {
+        tbodyHtml += `<tr class="bg-gray-mid bold border-t">
+          <td colspan="2" class="center">รวมทั้งหมด</td>`;
+        expectedColumns.forEach(col => {
+          const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+          const gtCell = grandTotal[colKey];
+          tbodyHtml += `
+            <td>${gtCell && gtCell.volumn > 0 ? Number(gtCell.volumn).toFixed(4) : ''}</td>
+            <td class="text-gray-darker">${gtCell && gtCell.net_wage > 0 ? Number(gtCell.net_wage).toLocaleString(undefined, {minimumFractionDigits: 2}) : ''}</td>
+          `;
+        });
+        tbodyHtml += `
+          <td class="bg-orange-light text-orange-dark">${Number(grandTotal.total_volumn).toFixed(4)}</td>
+          <td class="bg-orange-light text-orange-darker">${Number(grandTotal.total_net_wage).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+        </tr>`;
+      }
+
+      const htmlContent = `
+        <html><head><style>
+          @font-face { font-family: 'THSarabun'; src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype'); }
+          body { font-family: 'THSarabun', sans-serif; font-size: 13px; margin: 0; padding: 20px; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #9ca3af; padding: 4px; text-align: right; }
+          th { font-weight: bold; text-align: center; }
+          .left { text-align: left; } .center { text-align: center; } .pl { padding-left: 6px; } 
+          .bold { font-weight: bold; }
+          .bg-gray { background-color: #f3f4f6; } .bg-gray-light { background-color: #f9fafb; } .bg-gray-mid { background-color: #e5e7eb; }
+          .bg-orange-light { background-color: #ffedd5; } .bg-orange-lighter { background-color: #fff7ed; }
+          .text-orange { color: #c2410c; } .text-orange-dark { color: #9a3412; } .text-orange-darker { color: #7c2d12; }
+          .text-gray-dark { color: #4b5563; } .text-gray-darker { color: #1f2937; }
+          .border-t { border-top: 2px solid #4b5563; }
+        </style></head><body>
+          <div style="text-align:center; margin-bottom:15px;">
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปค่าแรงเรียงไม้ แยกรายคน (ไม้แห้ง)</h2>
+            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
+            <p style="margin:0;">รหัสสโตร์: ${store_code || '104/00 - 104/99'}</p>
+          </div>
+          <table><thead>${theadHtml}</thead><tbody>${tbodyHtml}</tbody></table>
+          <div style="margin-top:50px; width:100%; display:flex; justify-content:space-between; text-align:center; padding:0 50px;">
+            <div style="width:30%; display:inline-block;">............................................<br/><br/>ผู้รายงาน</div>
+            <div style="width:30%; display:inline-block;">............................................<br/><br/>ฝ่ายข้อมูลโรงงาน</div>
+            <div style="width:30%; display:inline-block;">............................................<br/><br/>ผู้จัดการโรงงาน</div>
+          </div>
+        </body></html>
+      `;
+
+      // ใช้ Global Browser เพื่อความรวดเร็วและป้องกันแรมเต็ม[cite: 12]
+      const browser = await getBrowser(); 
+      const page = await browser.newPage();
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      const pdfBuffer = await page.pdf({ format: 'Legal', landscape: true, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
+      await page.close();
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="dry_wood_perf.pdf"');
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error PDF' });
+    }
+  },
+  
 };
 
 module.exports = reportController;

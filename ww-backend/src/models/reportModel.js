@@ -639,7 +639,110 @@ const ReportModel = {
 
     const { rows } = await pool.query(query, params);
     return rows;
-  }
+  },
+
+  // ==========================================
+  // ─── รายงานสรุปค่าแรงจัดเรียงไม้เปียก แยกรายคน ───
+  // ==========================================
+  getWetWoodPerformanceReport: async (filters) => {
+    const { branch_id, start_date, end_date, store_code } = filters;
+
+    // ตรวจสอบ store_code (ถ้าไม่ได้ส่งมา หรือส่งมาแบบ Range ก็จัดการให้รองรับ)
+    // จากโจทย์: AND wwt.code BETWEEN '21/00' AND '21/99'
+    let storeCondition = "";
+    if (store_code) {
+        if (store_code.includes('-')) {
+            const [start, end] = store_code.split('-');
+            storeCondition = `AND wwt.code BETWEEN '${start.trim()}' AND '${end.trim()}'`;
+        } else {
+            storeCondition = `AND wwt.code = '${store_code.trim()}'`;
+        }
+    } else {
+        // ค่า Default ถ้าไม่ระบุ
+        storeCondition = `AND wwt.code BETWEEN '21/00' AND '21/99'`;
+    }
+
+    const query = `
+      SELECT 
+        em.code AS employee_code
+        , em.name AS employee_name
+        , ws.grade
+        , ws.is_special
+        , SUM(tww.volumn) AS volumn
+        , SUM(tww.net_wage) AS net_wage
+      FROM transaction_wet_woods tww
+      LEFT JOIN master_wet_wood_types wwt ON wwt.old_id = tww.wet_wood_type_id AND wwt.branch_id = tww.branch_id 
+      LEFT JOIN master_employees em ON em.old_id = tww.sorter_id AND em.branch_id = tww.branch_id
+      LEFT JOIN master_wood_sizes ws ON ws.old_id = tww.wood_size_id AND ws.branch_id = tww.branch_id
+      WHERE 1=1 
+        AND tww.branch_id = $1
+        AND tww.produce_date BETWEEN $2 AND $3
+        ${storeCondition}
+      GROUP BY 
+        em.code, em.name
+        , ws.grade
+        , ws.is_special
+      ORDER BY 
+        em.code ASC,
+        ws.grade ASC, 
+        ws.is_special ASC
+    `;
+
+    const params = [branch_id, start_date, end_date];
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
+
+  // ==========================================
+  // ─── รายงานสรุปค่าแรงจัดเรียงไม้แห้ง แยกรายคน ───
+  // ==========================================
+  getDryWoodPerformanceReport: async (filters) => {
+    const { branch_id, start_date, end_date, store_code } = filters;
+
+    // จัดการเงื่อนไขค้นหาสโตร์ไม้แห้ง (รองรับแบบช่วง - และแบบ LIKE)
+    let storeCondition = "";
+    if (store_code) {
+        if (store_code.includes('-')) {
+            const [start, end] = store_code.split('-');
+            storeCondition = `AND wst.code BETWEEN '${start.trim()}' AND '${end.trim()}'`;
+        } else {
+            storeCondition = `AND wst.code LIKE '${store_code.trim()}%'`;
+        }
+    } else {
+        // ค่า Default สำหรับไม้แห้ง
+        storeCondition = `AND wst.code LIKE '104%'`;
+    }
+
+    const query = `
+      SELECT 
+        em.code AS employee_code
+        , em.name AS employee_name
+        , ws.grade
+        , ws.is_special
+        , SUM(tdw.volumn) AS volumn
+        , SUM(tdw.net_wage) AS net_wage
+      FROM transaction_dry_woods tdw
+      LEFT JOIN master_wood_stores wst ON wst.old_id = tdw.wood_store_id AND wst.branch_id = tdw.branch_id 
+      LEFT JOIN master_employees em ON em.old_id = tdw.sorter_id AND em.branch_id = tdw.branch_id
+      LEFT JOIN master_wood_sizes ws ON ws.old_id = tdw.wood_size_id AND ws.branch_id = tdw.branch_id
+      WHERE 1=1 
+        AND tdw.branch_id = $1
+        AND tdw.produce_date BETWEEN $2 AND $3
+        ${storeCondition}
+      GROUP BY 
+        em.code, em.name
+        , ws.grade
+        , ws.is_special
+      ORDER BY 
+        em.code ASC,
+        ws.grade ASC, 
+        ws.is_special ASC
+    `;
+
+    const params = [branch_id, start_date, end_date];
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
 };
 
 module.exports = ReportModel;

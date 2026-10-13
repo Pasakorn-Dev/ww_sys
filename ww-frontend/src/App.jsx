@@ -21,6 +21,8 @@ import SyncWetWood from './pages/SyncWetWood';
 import SyncDryWood from './pages/SyncDryWood';
 import WetWoodCoverReport from './pages/WetWoodCoverReport';
 import DryWoodCoverReport from './pages/DryWoodCoverReport';
+import WetWoodPerformanceReport from './pages/WetWoodPerformanceReport';
+import DryWoodPerformanceReport from './pages/DryWoodPerformanceReport';
 
 
 
@@ -51,6 +53,8 @@ function App() {
           <Route path="/sync-dry-woods" element={<SyncDryWood />} />
           <Route path="/wet-wood-cover" element={<WetWoodCoverReport />} />
           <Route path="/dry-wood-cover" element={<DryWoodCoverReport />} />
+          <Route path="/wet-wood-perf" element={<WetWoodPerformanceReport />} />
+          <Route path="/dry-wood-perf" element={<DryWoodPerformanceReport />} />
         </Route>
       </Routes>
     </BrowserRouter>

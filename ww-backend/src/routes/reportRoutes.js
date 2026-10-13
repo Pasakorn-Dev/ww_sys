@@ -44,4 +44,14 @@ router.get('/dry-wood-cover-format2', verifyToken, reportController.getDryWoodCo
 router.get('/dry-wood-cover/pdf', verifyToken, reportController.exportDryWoodCoverPDF);
 router.get('/dry-wood-cover/excel', verifyToken, reportController.exportDryWoodCoverExcel);
 
+// รายงานสรุปค่าแรงจัดเรียงไม้เปียก แยกรายคน
+router.get('/wet-wood-perf', verifyToken, reportController.getWetWoodPerformance);
+router.get('/wet-wood-perf/pdf', verifyToken, reportController.exportWetWoodPerfPDF);
+router.get('/wet-wood-perf/excel', verifyToken, reportController.exportWetWoodPerfExcel);
+
+// รายงานสรุปค่าแรงจัดเรียงไม้แห้ง แยกรายคน
+router.get('/dry-wood-perf', verifyToken, reportController.getDryWoodPerformance);
+router.get('/dry-wood-perf/pdf', verifyToken, reportController.exportDryWoodPerfPDF);
+router.get('/dry-wood-perf/excel', verifyToken, reportController.exportDryWoodPerfExcel);
+
 module.exports = router;
