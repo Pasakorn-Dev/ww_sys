@@ -14,7 +14,6 @@ const ReportTable = React.memo(({ data, grandTotal, expectedColumns, showFooter 
 
   return (
     <div className="overflow-x-auto pb-4">
-      {/* 💡 บังคับใช้ font-sans เพื่อให้ดึง TH Sarabun มาแสดงผล */}
       <table className="w-full text-[11px] md:text-[12px] border-collapse border border-gray-400 whitespace-nowrap min-w-max text-center font-sans">
         <thead>
           <tr className="bg-gray-300 text-gray-800 font-bold border-y-2 border-gray-500">
@@ -46,7 +45,7 @@ const ReportTable = React.memo(({ data, grandTotal, expectedColumns, showFooter 
         <tbody>
           {data.length > 0 ? (
             data.map((emp, index) => (
-              <tr key={index} className="bg-white hover:bg-orange-50">
+              <tr key={index} className="bg-white hover:bg-orange-50 transition-colors">
                 <td className="border border-gray-400 p-1.5 text-center text-gray-600">{emp.employee_code}</td>
                 <td className="border border-gray-400 p-1.5 text-left font-medium text-gray-800">{emp.employee_name}</td>
                 
@@ -81,6 +80,7 @@ const ReportTable = React.memo(({ data, grandTotal, expectedColumns, showFooter 
              </tr>
           )}
 
+          {/* แถวสรุปรวมทั้งหมด (Grand Total) - โชว์เฉพาะหน้าสุดท้าย */}
           {showFooter && grandTotal && data.length > 0 && (
             <tr className="bg-gray-300 font-bold text-gray-900 border-t-2 border-gray-600 text-[12px]">
               <td colSpan="2" className="border border-gray-400 p-2 text-center align-middle tracking-wider">รวมทั้งหมด</td>
@@ -131,6 +131,7 @@ export default function DryWoodPerformanceReport() {
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
+  // ─── การจัดการหน้า (Pagination) ───
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 35; 
 
@@ -191,7 +192,6 @@ export default function DryWoodPerformanceReport() {
         store_code: filters.store_code
       }).toString();
 
-      // 💡 ชี้ไปที่ API ของไม้แห้ง
       const res = await apiFetch(`/reports/dry-wood-perf?${queryParams}`);
       if (res?.success) {
         if (res.data.length === 0) {
@@ -201,7 +201,7 @@ export default function DryWoodPerformanceReport() {
           setReportData(res.data);
           setExpectedColumns(res.expectedColumns || []);
           setGrandTotal(res.grandTotal);
-          setCurrentPage(1);
+          setCurrentPage(1); // รีเซ็ตหน้ากลับไปเป็นหน้าแรกเสมอเมื่อค้นหาใหม่
         }
       }
     } catch (error) {
@@ -301,6 +301,7 @@ export default function DryWoodPerformanceReport() {
     }
   };
 
+  // ─── คำนวณข้อมูลที่จะแสดงในหน้าปัจจุบัน (Client-Side Slicing) ───
   const totalPages = Math.ceil(reportData.length / itemsPerPage) || 1;
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
@@ -310,7 +311,6 @@ export default function DryWoodPerformanceReport() {
     <div className="p-4 md:p-6 mx-auto min-h-screen bg-gray-50 font-sans">
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6 print:hidden">
         <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-          {/* 💡 ไอคอนและสีส้ม สำหรับไม้แห้ง */}
           <i className="fas fa-fire-alt text-orange-600"></i> รายงานสรุปค่าแรงจัดเรียงไม้แห้ง แยกรายคน
         </h2>
         
@@ -375,13 +375,13 @@ export default function DryWoodPerformanceReport() {
           
           {reportData.length > 0 && (
             <div className="flex gap-2">
-              <button onClick={() => handleExportPDF(true)} disabled={isExportingPDF} className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2">
-                <i className="fas fa-search-plus"></i> {isExportingPDF ? 'กำลังสร้าง...' : 'ตัวอย่าง PDF'}
+              <button onClick={() => handleExportPDF(true)} disabled={isExportingPDF} className={`px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2 transition-all ${isExportingPDF ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-gray-600 hover:bg-gray-700 text-white'}`}>
+                <i className="fas fa-search-plus"></i> {isExportingPDF ? 'กำลังสร้าง PDF...' : 'ตัวอย่าง PDF'}
               </button>
-              <button onClick={() => handleExportPDF(false)} disabled={isExportingPDF} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2">
+              <button onClick={() => handleExportPDF(false)} disabled={isExportingPDF} className={`px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2 transition-all ${isExportingPDF ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 text-white'}`}>
                 <i className="fas fa-file-pdf"></i> โหลด PDF
               </button>
-              <button onClick={handleExportExcel} disabled={isExportingExcel} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2">
+              <button onClick={handleExportExcel} disabled={isExportingExcel} className={`px-4 py-2 rounded-md text-sm font-semibold shadow-sm flex items-center gap-2 transition-all ${isExportingExcel ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}>
                 <i className="fas fa-file-excel"></i> ส่งออก Excel
               </button>
             </div>
@@ -393,7 +393,7 @@ export default function DryWoodPerformanceReport() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 pb-6 print:border-none print:shadow-none min-h-[900px] flex flex-col justify-between">
           <div>
             <div className="text-center mb-6 pt-6">
-              <h1 className="text-lg font-bold text-gray-800">บริษัท วู้ดเวิร์ค จำกัด ({filters.branch_name})</h1>
+              <h1 className="text-lg font-bold text-gray-800">บริษัท วู้ดเวอร์ค จำกัด ({filters.branch_name})</h1>
               <h2 className="text-md font-semibold text-gray-700 mt-1">รายงานสรุปค่าแรงเรียงไม้แห้ง แยกรายคน</h2>
               <p className="text-sm text-gray-600 mt-1">
                 ตั้งแต่วันที่ {format(parseISO(filters.start_date), 'dd/MM/yyyy')} ถึง {format(parseISO(filters.end_date), 'dd/MM/yyyy')}
@@ -401,6 +401,7 @@ export default function DryWoodPerformanceReport() {
               <p className="text-sm text-gray-600 mt-1">รหัสสโตร์: <span className="font-semibold">{filters.store_code || '104/00 - 104/99'}</span></p>
             </div>
 
+            {/* ส่ง currentRows (ที่หั่นแล้ว 35 แถว) ไปแสดงผลแทนที่จะส่ง reportData ทั้งหมด */}
             <div className="px-4">
               <ReportTable 
                 data={currentRows} 
@@ -428,26 +429,27 @@ export default function DryWoodPerformanceReport() {
             </div>
           )}
 
+          {/* ─── Pagination Controls ─── */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 mt-4 mx-4 print:hidden">
               <div className="flex gap-2">
-                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm border hover:bg-gray-50 disabled:bg-gray-100 rounded-md">« หน้าแรก</button>
-                <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm border hover:bg-gray-50 disabled:bg-gray-100 rounded-md">‹ ก่อนหน้า</button>
+                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">« หน้าแรก</button>
+                <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">‹ ก่อนหน้า</button>
               </div>
 
               <div className="flex items-center gap-2">
                 <span className="text-sm">หน้า</span>
                 <select value={currentPage} onChange={(e) => setCurrentPage(Number(e.target.value))} className="border py-1 px-2 text-sm text-orange-700 font-bold rounded-md outline-none focus:ring-1 focus:ring-orange-500">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                    <option key={page} value={page}>{page}</option>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                    <option key={p} value={p}>{p}</option>
                   ))}
                 </select>
                 <span className="text-sm">จาก {totalPages}</span>
               </div>
 
               <div className="flex gap-2">
-                <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm border hover:bg-gray-50 disabled:bg-gray-100 rounded-md">ถัดไป ›</button>
-                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm border hover:bg-gray-50 disabled:bg-gray-100 rounded-md">หน้าสุดท้าย »</button>
+                <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">ถัดไป ›</button>
+                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">หน้าสุดท้าย »</button>
               </div>
             </div>
           )}

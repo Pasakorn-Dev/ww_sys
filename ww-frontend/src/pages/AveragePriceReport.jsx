@@ -9,7 +9,7 @@ import { th } from 'date-fns/locale';
 import { format, parseISO } from 'date-fns';
 
 // ─── Component ย่อยสำหรับตารางรายงาน ───
-const ReportTable = React.memo(({ data, grandTotal }) => {
+const ReportTable = React.memo(({ data, grandTotal, showFooter }) => {
   return (
     <div className="overflow-x-auto pb-4">
       <table className="w-full text-xs border-collapse border border-gray-400 whitespace-nowrap min-w-max">
@@ -85,8 +85,8 @@ const ReportTable = React.memo(({ data, grandTotal }) => {
             </tr>
           )}
 
-          {/* แถวสรุปรวมทั้งหมด (Grand Total) */}
-          {grandTotal && data.length > 0 && (
+          {/* แถวสรุปรวมทั้งหมด (Grand Total) - โชว์เฉพาะหน้าสุดท้าย */}
+          {showFooter && grandTotal && data.length > 0 && (
             <tr className="bg-gray-300 font-bold text-gray-900 border-t-2 border-gray-600">
               <td className="border border-gray-500 p-2 text-left bg-gray-400">รวมทั้งหมด</td>
               
@@ -135,15 +135,15 @@ export default function AveragePriceReport() {
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const { options } = useMasterOptions(filters.branch_id);
 
+  // ─── การจัดการหน้า (Pagination) ───
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 35; // ปรับจำนวนแถวต่อหน้าได้ตามต้องการ
+
   // ─── Effect: โหลดสาขาเริ่มต้น ───
   useEffect(() => {
     const fetchBranches = async () => {
       try {
-        // const res = await apiFetch('/branches/allowed');
-        // 💡 1. ดึงชื่อเมนูหน้าปัจจุบันจาก URL (เช่น '/average-price-report')
         const currentPath = window.location.pathname;
-        
-        // 💡 2. แนบ ?menu=... พ่วงไปกับ API เลย Backend จะได้รู้เป๊ะๆ
         const res = await apiFetch(`/branches/allowed?menu=${currentPath}`);
         
         if (res?.success && res.data.length > 0) {
@@ -198,6 +198,7 @@ export default function AveragePriceReport() {
       if (res?.success) {
         setReportData(res.data);
         setGrandTotalData(res.grandTotal);
+        setCurrentPage(1); // กลับไปหน้าแรกเสมอเมื่อค้นหาใหม่
         if (res.data.length === 0) {
           Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลในช่วงเวลาที่เลือก', 'info');
         }
@@ -288,6 +289,12 @@ export default function AveragePriceReport() {
       setIsExportingExcel(false);
     }
   };
+
+  // ─── คำนวณข้อมูลที่จะแสดงในหน้าปัจจุบัน ───
+  const totalPages = Math.ceil(reportData.length / itemsPerPage) || 1;
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentRows = reportData.slice(indexOfFirstItem, indexOfLastItem);
 
   return (
     <div className="p-4 md:p-6 mx-auto min-h-screen bg-gray-50">
@@ -408,8 +415,33 @@ export default function AveragePriceReport() {
 
           {/* ตารางข้อมูล */}
           <div className="px-4">
-            <ReportTable data={reportData} grandTotal={grandTotalData} />
+            <ReportTable 
+              data={currentRows} 
+              grandTotal={grandTotalData} 
+              showFooter={currentPage === totalPages || totalPages === 0} 
+            />
           </div>
+
+          {/* ─── Pagination ─── */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 mt-4 mx-4 print:hidden">
+              <div className="flex gap-2">
+                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">« หน้าแรก</button>
+                <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">‹ ก่อนหน้า</button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">หน้า</span>
+                <select value={currentPage} onChange={(e) => setCurrentPage(Number(e.target.value))} className="border rounded-md py-1 px-2 text-sm font-semibold text-blue-700 outline-none focus:ring-1 focus:ring-blue-500">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+                <span className="text-sm">จาก {totalPages}</span>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">ถัดไป ›</button>
+                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">หน้าสุดท้าย »</button>
+              </div>
+            </div>
+          )}
 
         </div>
       )}

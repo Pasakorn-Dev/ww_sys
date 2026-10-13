@@ -332,7 +332,7 @@ export default function WetWoodCoverReport() {
           
           <div>
             <div className="text-center mb-8">
-              <h1 className="text-xl font-bold">บริษัท วู้ดเวิร์ค จำกัด ({filters.branch_name})</h1>
+              <h1 className="text-xl font-bold">บริษัท วู้ดเวอร์ค จำกัด ({filters.branch_name})</h1>
               <h2 className="text-lg font-semibold mt-1">รายงานค่าแรงไม้เปียก ใบปะหน้า</h2>
               <p className="text-sm mt-1">ตั้งแต่วันที่ {new Date(reportData.header.start_date).toLocaleDateString('th-TH')} ถึง {new Date(reportData.header.end_date).toLocaleDateString('th-TH')}</p>
               <p className="text-sm mt-1">ประเภทไม้ : {reportData.header.wet_wood_type}</p>

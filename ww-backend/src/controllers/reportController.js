@@ -810,7 +810,7 @@ const reportController = {
           </head>
           <body>
             <div class="title-box">
-              <h1>บริษัท วู้ดเวิร์ค จำกัด</h1>
+              <h1>บริษัท วู้ดเวอร์ค จำกัด</h1>
               <h2>รายงานการเบิกจ่ายแยกตาม ประเภทไม้</h2>
               <p>ตั้งแต่วันที่ ${start_date} ถึงวันที่ ${end_date}</p>
             </div>
@@ -1255,7 +1255,7 @@ const reportController = {
           </head>
           <body>
             <div class="title-box">
-              <h1>บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+              <h1>บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
               <h2>รายงานเปรียบเทียบราคาขายเฉลี่ย ตามแผนกและเกรดไม้</h2>
               <p>ตั้งแต่วันที่ ${start_date} ถึงวันที่ ${end_date} สโตร์: ${store_code || 'รวมทุกสโตร์'}</p>
             </div>
@@ -1583,7 +1583,7 @@ const reportController = {
           .border-b { border-bottom: 2px solid #555; } .border-t { border-top: 2px solid #555; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
             <h2 style="font-size:16px; margin:0;">รายงานการผลิต แยกตาม ความหนา-มิลไม้</h2>
             <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
           </div>
@@ -1922,7 +1922,7 @@ const reportController = {
           .border-t { border-top: 2px solid #333; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปผลงานนายม้า แยกตามเกรดคุณภาพไม้ (AB, C, P, PP)</h2>
             <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date} สโตร์: ทั้งหมด</p>
             <p style="margin:0;">แหล่งที่มา: ทั้งหมด | ประเภทไม้: ทั้งหมด | กลุ่มไม้: ทั้งหมด</p>
@@ -2399,7 +2399,7 @@ const reportController = {
           .border-t { border-top: 2px solid #333; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปผลผลิตไม้รายวันและประจำเดือน</h2>
             <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
           </div>
@@ -2895,7 +2895,7 @@ const reportController = {
           .text-gray { color: #6b7280; } .text-xs { font-size: 10px; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:10px;">
-            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปผลงานนายม้า แยกตามความยาวไม้</h2>
             <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date} | กลุ่มเกรดไม้: ${grade_group === 'AB_C' ? 'AB, C' : 'P, PP'}</p>
           </div>
@@ -3086,7 +3086,7 @@ const reportController = {
         { key: 'col4', width: 20 }
       ];
 
-      worksheet.addRow([branch_name || 'บริษัท วู้ดเวิร์ค จำกัด']).font = { bold: true, size: 14 };
+      worksheet.addRow([branch_name || 'บริษัท วู้ดเวอร์ค จำกัด']).font = { bold: true, size: 14 };
       worksheet.addRow(['รายงานค่าแรงไม้เปียก ใบปะหน้า']).font = { bold: true, size: 12 };
       worksheet.addRow([`ตั้งแต่วันที่ ${start_date} ถึง ${end_date}`]);
       worksheet.addRow([`ประเภทไม้ : ${wet_wood_type || 'ทั้งหมด'}`]);
@@ -3209,7 +3209,7 @@ const reportController = {
           .border-b { border-bottom: 2px dotted #9ca3af; } .border-t { border-top: 2px solid #333; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:20px;">
-            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานค่าแรงไม้เปียก ใบปะหน้า</h2>
             <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
             <p style="margin:0;">ประเภทไม้: ${wet_wood_type || 'ทั้งหมด'}</p>
@@ -3398,7 +3398,7 @@ const reportController = {
         { key: 'col4', width: 20 }
       ];
 
-      worksheet.addRow([branch_name || 'บริษัท วู้ดเวิร์ค จำกัด']).font = { bold: true, size: 14 };
+      worksheet.addRow([branch_name || 'บริษัท วู้ดเวอร์ค จำกัด']).font = { bold: true, size: 14 };
       worksheet.addRow(['รายงานค่าแรงไม้แห้ง ใบปะหน้า']).font = { bold: true, size: 12 };
       worksheet.addRow([`ตั้งแต่วันที่ ${start_date} ถึง ${end_date}`]);
       worksheet.addRow([`รหัสสโตร์ : ${store_code || '104%'}`]);
@@ -3521,7 +3521,7 @@ const reportController = {
           .border-b { border-bottom: 2px dotted #9ca3af; } .border-t { border-top: 2px solid #333; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:20px;">
-            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานค่าแรงไม้แห้ง ใบปะหน้า</h2>
             <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
             <p style="margin:0;">รหัสสโตร์: ${store_code || '104%'}</p>
@@ -3591,7 +3591,7 @@ const reportController = {
       const worksheet = workbook.addWorksheet('Wet Wood Perf');
 
       // หัวกระดาษ
-      worksheet.addRow([branch_name || 'บริษัท วู้ดเวิร์ค จำกัด']).font = { bold: true, size: 14 };
+      worksheet.addRow([branch_name || 'บริษัท วู้ดเวอร์ค จำกัด']).font = { bold: true, size: 14 };
       worksheet.addRow(['รายงานสรุปค่าแรงเรียงไม้ แยกรายคน']).font = { bold: true, size: 12 };
       worksheet.addRow([`ตั้งแต่วันที่ ${start_date} ถึง ${end_date}`]);
       worksheet.addRow([`รหัสสโตร์ : ${store_code || '21/00 - 21/99'}`]);
@@ -3782,7 +3782,7 @@ const reportController = {
           .border-t { border-top: 2px solid #4b5563; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปค่าแรงเรียงไม้ แยกรายคน (ไม้เปียก)</h2>
             <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
             <p style="margin:0;">รหัสสโตร์: ${store_code || '21/00 - 21/99'}</p>
@@ -3849,7 +3849,7 @@ const reportController = {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Dry Wood Perf');
 
-      worksheet.addRow([branch_name || 'บริษัท วู้ดเวิร์ค จำกัด']).font = { bold: true, size: 14 };
+      worksheet.addRow([branch_name || 'บริษัท วู้ดเวอร์ค จำกัด']).font = { bold: true, size: 14 };
       worksheet.addRow(['รายงานสรุปค่าแรงเรียงไม้แห้ง แยกรายคน']).font = { bold: true, size: 12 };
       worksheet.addRow([`ตั้งแต่วันที่ ${start_date} ถึง ${end_date}`]);
       worksheet.addRow([`รหัสสโตร์ : ${store_code || '104/00 - 104/99'}`]);
@@ -4032,7 +4032,7 @@ const reportController = {
           .border-t { border-top: 2px solid #4b5563; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปค่าแรงเรียงไม้ แยกรายคน (ไม้แห้ง)</h2>
             <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
             <p style="margin:0;">รหัสสโตร์: ${store_code || '104/00 - 104/99'}</p>

@@ -368,7 +368,7 @@ export default function DailyProductionReport() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 pb-6 print:border-none print:shadow-none min-h-[900px] flex flex-col justify-between">
           <div>
             <div className="text-center mb-6 pt-6">
-              <h1 className="text-lg font-bold text-gray-800">บริษัท วู้ดเวิร์ค จำกัด ({filters.branch_name})</h1>
+              <h1 className="text-lg font-bold text-gray-800">บริษัท วู้ดเวอร์ค จำกัด ({filters.branch_name})</h1>
               <h2 className="text-md font-semibold text-gray-700 mt-1">รายงานสรุปผลผลิตไม้รายวันและประจำเดือน</h2>
               <p className="text-sm text-gray-600 mt-1">
                 ตั้งแต่วันที่ {format(parseISO(filters.start_date), 'dd/MM/yyyy')} ถึง {format(parseISO(filters.end_date), 'dd/MM/yyyy')}
