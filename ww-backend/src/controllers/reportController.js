@@ -263,62 +263,63 @@ const fetchProductionThickMilData = async (start_date, end_date, branch_id, grad
 const fetchWetWoodPerfDataHelper = async (branch_id, start_date, end_date, store_code) => {
   const rows = await ReportModel.getWetWoodPerformanceReport({ branch_id, start_date, end_date, store_code });
 
-  // โครงสร้างเกรดที่เราต้องการแสดงเป็นคอลัมน์ (ตามรูปภาพ)
+  // 1. ตั้งค่า Expected Columns ใหม่ 
   const expectedColumns = [
     { grade: 'AB', is_special: false },
     { grade: 'AB', is_special: true },
     { grade: 'C', is_special: false },
     { grade: 'C', is_special: true },
-    { grade: 'P', is_special: false },
-    { grade: 'PP', is_special: false }
+    { grade: 'P', is_special: false }, // 💡 P รวมทั้งหมด
+    { grade: 'PP', is_special: false } // 💡 PP รวมทั้งหมด
   ];
 
   const employeeMap = {};
   
-  // Grand Total แนวนอน (ยอดรวมทั้งรายงาน)
   const grandTotal = { total_volumn: 0, total_net_wage: 0 };
   expectedColumns.forEach(col => {
     const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
     grandTotal[colKey] = { volumn: 0, net_wage: 0 };
   });
 
-  // วนลูปจับกลุ่มตามพนักงาน
+  let rowIndex = 1;
+
   rows.forEach(row => {
     const empCode = row.employee_code || '-';
     const empName = row.employee_name || 'ไม่ระบุชื่อ';
     const empKey = `${empCode}_${empName}`;
 
-    // ถ้าพนักงานคนนี้ยังไม่มีใน Map ให้สร้างใหม่
     if (!employeeMap[empKey]) {
       employeeMap[empKey] = {
+        row_no: rowIndex++,
         employee_code: empCode,
         employee_name: empName,
         total_volumn: 0,
         total_net_wage: 0,
         grades: {}
       };
-      // สร้างโครงสร้างย่อยเตรียมรับข้อมูลแต่ละเกรด
       expectedColumns.forEach(col => {
         const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
         employeeMap[empKey].grades[colKey] = { volumn: 0, net_wage: 0 };
       });
     }
 
-    // เอาข้อมูลใส่ช่อง (เกรด + พิเศษ/ปกติ) ที่ตรงกัน
-    const colKey = `${row.grade}_${row.is_special ? 'spc' : 'norm'}`;
+    // 2. 💡 ลอจิกรวบยอด P และ PP
+    let isSpecial = row.is_special;
+    if (row.grade === 'P' || row.grade === 'PP') {
+      isSpecial = false; 
+    }
+
+    const colKey = `${row.grade}_${isSpecial ? 'spc' : 'norm'}`;
     const vol = Number(row.volumn) || 0;
     const wage = Number(row.net_wage) || 0;
 
-    // ถ้ามีคอลัมน์นี้เตรียมไว้ ค่อยบวกค่าเข้าไป
     if (employeeMap[empKey].grades[colKey] !== undefined) {
       employeeMap[empKey].grades[colKey].volumn += vol;
       employeeMap[empKey].grades[colKey].net_wage += wage;
 
-      // บวกเข้ายอดรวมรายคน (แถว)
       employeeMap[empKey].total_volumn += vol;
       employeeMap[empKey].total_net_wage += wage;
 
-      // บวกเข้ายอดรวมทั้งรายงาน (คอลัมน์)
       grandTotal[colKey].volumn += vol;
       grandTotal[colKey].net_wage += wage;
       grandTotal.total_volumn += vol;
@@ -334,67 +335,128 @@ const fetchWetWoodPerfDataHelper = async (branch_id, start_date, end_date, store
 };
 
 // --- Helper Function สำหรับรายงานสรุปค่าแรงจัดเรียงไม้แห้ง แยกรายคน ---
+// หน้าที่หลัก: รับข้อมูลดิบ (Rows) จาก Database แล้วนำมาจัดกลุ่ม (Group By) ตาม "พนักงาน" 
+// เพื่อแปลงให้เป็นข้อมูลรูปแบบตาราง (Cross-tab) พร้อมคำนวณยอดรวม (Grand Total)
 const fetchDryWoodPerfDataHelper = async (branch_id, start_date, end_date, store_code) => {
+  
+  // 1. เรียกใช้งาน Model เพื่อ Query ดึงข้อมูลดิบจาก Database ตามเงื่อนไขที่ผู้ใช้ระบุมา
   const rows = await ReportModel.getDryWoodPerformanceReport({ branch_id, start_date, end_date, store_code });
 
+  // 2. กำหนดโครงสร้างคอลัมน์ (เกรดไม้) ที่เราคาดหวังว่าจะนำไปโชว์ในแนวนอนบนหน้าเว็บ
+  // เกรด P และ PP เราจะบังคับรวม (Merge) ไม้พิเศษเข้ากับไม้ปกติ จึงตั้งค่าเป็น false อย่างเดียว
   const expectedColumns = [
-    { grade: 'AB', is_special: false },
-    { grade: 'AB', is_special: true },
-    { grade: 'C', is_special: false },
-    { grade: 'C', is_special: true },
-    { grade: 'P', is_special: false },
-    { grade: 'PP', is_special: false }
+    { grade: 'AB', is_special: false }, // AB ปกติ
+    { grade: 'AB', is_special: true },  // AB พิเศษ
+    { grade: 'C', is_special: false },  // C ปกติ
+    { grade: 'C', is_special: true },   // C พิเศษ
+    { grade: 'P', is_special: false },  // P รวมทั้งหมด (ปกติ + พิเศษ)
+    { grade: 'PP', is_special: false }  // PP รวมทั้งหมด (ปกติ + พิเศษ)
   ];
 
+  // 3. สร้าง Object ว่างเพื่อเตรียมไว้สำหรับจัดกลุ่มข้อมูล โดยจะใช้รหัส+ชื่อพนักงานเป็น Key ในการแยกตะกร้า
   const employeeMap = {};
   
+  // 4. สร้าง Object เพื่อเตรียมเก็บผลรวมของคอลัมน์ทั้งหมด (Grand Total) ที่จะแสดงในแถวล่างสุดของตาราง
+  // ตั้งค่าเริ่มต้นของยอดรวมแนวนอน (ปริมาตรรวม, ค่าแรงรวม) เป็น 0
   const grandTotal = { total_volumn: 0, total_net_wage: 0 };
+  
+  // วนลูปตามคอลัมน์ที่ตั้งไว้ เพื่อสร้างช่องเก็บยอดรวมของแต่ละเกรด (คอลัมน์) ในแนวตั้ง
   expectedColumns.forEach(col => {
+    // สร้าง Key คอลัมน์ให้สั้นลง เช่น 'AB_norm' (ปกติ) หรือ 'AB_spc' (พิเศษ)
     const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+    // กำหนดค่าเริ่มต้นยอดรวมแนวตั้งให้เกรดนั้นๆ เป็น 0 ทั้งปริมาตรและค่าแรง
     grandTotal[colKey] = { volumn: 0, net_wage: 0 };
   });
 
+  // 💡 ประกาศตัวแปรนับลำดับพนักงาน (Row Number) เริ่มต้นที่ 1
+  let rowIndex = 1;
+
+  // 5. เริ่มกระบวนการจัดกลุ่มข้อมูล: วนลูปอ่านข้อมูลดิบทีละบรรทัด (Row) ที่ได้มาจากฐานข้อมูล
   rows.forEach(row => {
+    
+    // ดึงรหัสพนักงาน ถ้าไม่มีข้อมูลให้แทนที่ด้วย '-'
     const empCode = row.employee_code || '-';
+    // ดึงชื่อพนักงาน ถ้าไม่มีข้อมูลให้แทนที่ด้วย 'ไม่ระบุชื่อ'
     const empName = row.employee_name || 'ไม่ระบุชื่อ';
+    // นำรหัสและชื่อมาต่อกันเพื่อสร้าง Key ประจำตัวพนักงาน (เช่น "001_นายเอ") ใช้สำหรับเช็คความซ้ำซ้อน
     const empKey = `${empCode}_${empName}`;
 
+    // เช็คว่าใน employeeMap มีตะกร้าของพนักงานคนนี้หรือยัง? (เครื่องหมาย ! คือ ยังไม่มี)
     if (!employeeMap[empKey]) {
+      
+      // ถ้ายังไม่มี (เจอพนักงานคนนี้เป็นครั้งแรก) ให้สร้างตะกร้าข้อมูลใบใหม่ให้พนักงานคนนี้
       employeeMap[empKey] = {
-        employee_code: empCode,
-        employee_name: empName,
-        total_volumn: 0,
-        total_net_wage: 0,
-        grades: {}
+        row_no: rowIndex++,      // 💡 เก็บเลขลำดับปัจจุบันลงไป แล้วบวกเพิ่ม (++) รอไว้ให้คนถัดไป
+        employee_code: empCode,  // เก็บข้อมูลรหัสพนักงาน
+        employee_name: empName,  // เก็บข้อมูลชื่อพนักงาน
+        total_volumn: 0,         // ยอดรวมปริมาตรทั้งหมดของพนักงานคนนี้ เริ่มที่ 0
+        total_net_wage: 0,       // ยอดรวมค่าแรงทั้งหมดของพนักงานคนนี้ เริ่มที่ 0
+        grades: {}               // Object ว่างๆ เตรียมไว้เก็บข้อมูลที่แยกตามเกรด
       };
+      
+      // วนลูปสร้างช่องเก็บข้อมูลย่อย (Cell) ตามจำนวนเกรดที่เราตั้งไว้
       expectedColumns.forEach(col => {
+        // สร้าง Key เช่น 'AB_norm'
         const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+        // สร้างช่องเก็บข้อมูลปริมาตรและค่าแรงของเกรดนั้น เริ่มที่ 0
         employeeMap[empKey].grades[colKey] = { volumn: 0, net_wage: 0 };
       });
     }
 
-    const colKey = `${row.grade}_${row.is_special ? 'spc' : 'norm'}`;
+    // 6. ดึงข้อมูลตัวเลขของบรรทัดปัจจุบันมาเตรียมไว้ เพื่อบวกสะสมเข้าในตะกร้า
+    // สร้างตัวแปรมารับค่า is_special จากฐานข้อมูลก่อน
+    let isSpecial = row.is_special;
+    
+    // 💡 ลอจิกสำคัญ: บังคับยุบรวม P และ PP 
+    // ถ้าเกรดที่อ่านมาคือ P หรือ PP เราจะบังคับให้กลายเป็นไม้ปกติเสมอ เพื่อให้มันไหลลงไปรวมในคอลัมน์เดียวกัน
+    if (row.grade === 'P' || row.grade === 'PP') {
+      isSpecial = false; 
+    }
+
+    // สร้าง Key ของคอลัมน์สำหรับบรรทัดปัจจุบัน (เช่น ถ้าเป็น P ก็จะกลายเป็น 'P_norm' เสมอ)
+    const colKey = `${row.grade}_${isSpecial ? 'spc' : 'norm'}`;
+    // แปลงค่าปริมาตรที่มาจาก DB ให้เป็นตัวเลข ถ้าพังหรือเป็นค่าว่างให้เป็น 0 ไว้ก่อน
     const vol = Number(row.volumn) || 0;
+    // แปลงค่าแรงให้เป็นตัวเลข ถ้าพังหรือเป็นค่าว่างให้เป็น 0 ไว้ก่อน
     const wage = Number(row.net_wage) || 0;
 
+    // เช็คเพื่อความปลอดภัย: เกรดที่อ่านมา มีอยู่ในโครงสร้างตะกร้าที่เราตั้งรับไว้หรือไม่? (ป้องกันเกรดหลง)
     if (employeeMap[empKey].grades[colKey] !== undefined) {
+      
+      // --- การสะสมยอด 4 ระดับ ---
+      
+      // 6.1 บวกยอดระดับบุคคล (เฉพาะเกรดนั้นๆ)
+      // บวกปริมาตรสะสมเข้าไปในช่องเกรดของพนักงานคนนี้
       employeeMap[empKey].grades[colKey].volumn += vol;
+      // บวกค่าแรงสะสมเข้าไปในช่องเกรดของพนักงานคนนี้
       employeeMap[empKey].grades[colKey].net_wage += wage;
 
+      // 6.2 บวกยอดระดับบุคคล (รวมทุกเกรดเข้าด้วยกัน แถวขวาสุด)
+      // บวกปริมาตรรวมของพนักงานคนนี้ 
       employeeMap[empKey].total_volumn += vol;
+      // บวกค่าแรงรวมของพนักงานคนนี้
       employeeMap[empKey].total_net_wage += wage;
 
+      // 6.3 บวกยอดระดับ Grand Total (รวมทุกคน เฉพาะเกรดนั้นๆ แถวล่างสุด)
+      // บวกปริมาตรเข้ายอดรวมคอลัมน์ของเกรดนั้นๆ ระดับบริษัท
       grandTotal[colKey].volumn += vol;
+      // บวกค่าแรงเข้ายอดรวมคอลัมน์ของเกรดนั้นๆ ระดับบริษัท
       grandTotal[colKey].net_wage += wage;
+      
+      // 6.4 บวกยอดระดับ Grand Total สุทธิ (รวมทุกคน ทุกเกรด มุมขวาล่างสุด)
+      // บวกปริมาตรเข้ายอดรวมสุทธิทั้งรายงาน
       grandTotal.total_volumn += vol;
+      // บวกค่าแรงเข้ายอดรวมสุทธิทั้งรายงาน
       grandTotal.total_net_wage += wage;
     }
   });
 
+  // 7. จัดการข้อมูลก่อนส่งคืน (Return)
   return { 
+    // Object.values() จะแปลง Object ที่เราใช้เป็นตะกร้า ให้กลายเป็น Array เพื่อให้ React นำไป .map() สร้างแถวได้
     formattedData: Object.values(employeeMap), 
-    grandTotal,
-    expectedColumns 
+    grandTotal,         // ยอดรวมทั้งหมด (Grand Total)
+    expectedColumns     // โครงสร้างคอลัมน์ (เอาไว้ให้ React สร้างหัวตารางและวนลูปสร้างคอลัมน์)
   };
 };
 
@@ -3822,6 +3884,8 @@ const reportController = {
       }
 
       const result = await fetchDryWoodPerfDataHelper(branch_id, start_date, end_date, store_code);
+
+      // console.log(result.formattedData[0].row_no);
 
       res.json({
         success: true,

@@ -17,6 +17,7 @@ const ReportTable = React.memo(({ data, grandTotal, expectedColumns, showFooter 
       <table className="w-full text-[11px] md:text-[12px] border-collapse border border-gray-400 whitespace-nowrap min-w-max text-center font-sans">
         <thead>
           <tr className="bg-gray-300 text-gray-800 font-bold border-y-2 border-gray-500">
+            <th rowSpan="2" className="border border-gray-400 p-2 align-middle w-16">ลำดับ</th>
             <th rowSpan="2" className="border border-gray-400 p-2 align-middle w-16">รหัส</th>
             <th rowSpan="2" className="border border-gray-400 p-2 align-middle min-w-[200px] text-left">ชื่อพนักงาน</th>
             
@@ -46,6 +47,7 @@ const ReportTable = React.memo(({ data, grandTotal, expectedColumns, showFooter 
           {data.length > 0 ? (
             data.map((emp, index) => (
               <tr key={index} className="bg-white hover:bg-orange-50 transition-colors">
+                <td className="border border-gray-400 p-1.5 text-center text-gray-600">{emp.row_no}</td>
                 <td className="border border-gray-400 p-1.5 text-center text-gray-600">{emp.employee_code}</td>
                 <td className="border border-gray-400 p-1.5 text-left font-medium text-gray-800">{emp.employee_name}</td>
                 
@@ -83,7 +85,7 @@ const ReportTable = React.memo(({ data, grandTotal, expectedColumns, showFooter 
           {/* แถวสรุปรวมทั้งหมด (Grand Total) - โชว์เฉพาะหน้าสุดท้าย */}
           {showFooter && grandTotal && data.length > 0 && (
             <tr className="bg-gray-300 font-bold text-gray-900 border-t-2 border-gray-600 text-[12px]">
-              <td colSpan="2" className="border border-gray-400 p-2 text-center align-middle tracking-wider">รวมทั้งหมด</td>
+              <td colSpan="3" className="border border-gray-400 p-2 text-center align-middle tracking-wider">รวมทั้งหมด</td>
               {expectedColumns.map((col, cIdx) => {
                 const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
                 const gtCell = grandTotal[colKey];
