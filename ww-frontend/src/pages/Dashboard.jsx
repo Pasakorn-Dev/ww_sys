@@ -69,6 +69,9 @@ export default function Dashboard() {
     lastSync: 'กำลังโหลด...'
   });
   const [chartData, setChartData] = useState([]);
+
+  // 💡 เพิ่ม State เก็บข้อมูลผลงานยอดเยี่ยม
+  const [topPerformers, setTopPerformers] = useState([]);
   
   // 💡 State สำหรับจัดการสาขา
   const [branches, setBranches] = useState([]);
@@ -121,6 +124,7 @@ export default function Dashboard() {
         setStats({ ...res.kpi, lastSync: dateStr });
         setChartData(res.chart);
         
+        setTopPerformers(res.topPerformers || []);
         // ให้ตัวเลขเริ่มวิ่งใหม่เมื่อดึงข้อมูลเสร็จ
         setAnimationKey(prev => prev + 1);
       }
@@ -328,50 +332,57 @@ export default function Dashboard() {
         </div>
 
         {/* Top Performers Section (✅ คงข้อมูล Mock Data ส่วนนี้ไว้ให้ทำต่อครับ) */}
+        {/* Top Performers Section */}
         <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col">
           <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
-            <i className="fas fa-trophy text-yellow-500"></i> ผลงานยอดเยี่ยม (วันนี้)
+            <i className="fas fa-trophy text-yellow-500"></i> ผลงานยอดเยี่ยม (7 วันย้อนหลัง)
           </h3>
           <div className="space-y-4 flex-1">
             
-            {/* อันดับ 1 */}
-            <div className="flex items-center gap-4 p-3 rounded-2xl bg-yellow-50/50 dark:bg-yellow-900/10 border border-yellow-100 dark:border-yellow-900/30 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center text-white text-lg font-bold shadow-md shadow-yellow-500/30">1</div>
-              <div className="flex-1">
-                <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200">นาย สมชาย ใจดี</h4>
-                <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">แผนกจัดเรียงไม้เปียก</p>
-              </div>
-              <div className="text-right">
-                <span className="block text-sm font-extrabold text-teal-600 dark:text-teal-400">850</span>
-                <span className="text-[10px] text-gray-400">ลบ.ฟุต</span>
-              </div>
-            </div>
+            {/* แสดงข้อความนี้ถ้าไม่มีใครทำผลงานเลยในสัปดาห์ */}
+            {topPerformers.length === 0 && !isLoading && (
+              <div className="text-center text-gray-400 text-sm mt-10">ไม่พบข้อมูลผลงานในสัปดาห์นี้</div>
+            )}
 
-            {/* อันดับ 2 */}
-            <div className="flex items-center gap-4 p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors border border-transparent">
-              <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 text-lg font-bold">2</div>
-              <div className="flex-1">
-                <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200">นาย สมปอง งานเนี๊ยบ</h4>
-                <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">แผนกเลื่อยไม้ (ชุดที่ 2)</p>
-              </div>
-              <div className="text-right">
-                <span className="block text-sm font-extrabold text-blue-600 dark:text-blue-400">720</span>
-                <span className="text-[10px] text-gray-400">ลบ.ฟุต</span>
-              </div>
-            </div>
+            {/* วนลูปข้อมูล 3 อันดับ */}
+            {topPerformers.map((person, index) => {
+              // กำหนด Style สีตามอันดับ (1: ทอง, 2: เงิน, 3: ทองแดง)
+              let rankStyle = "";
+              let iconStyle = "";
+              let textStyle = "";
+              
+              if (index === 0) {
+                rankStyle = "bg-yellow-50/50 dark:bg-yellow-900/10 border-yellow-100 dark:border-yellow-900/30 hover:bg-yellow-100 dark:hover:bg-yellow-900/30";
+                iconStyle = "bg-gradient-to-br from-yellow-400 to-yellow-600 text-white shadow-yellow-500/30";
+                textStyle = "text-yellow-600 dark:text-yellow-500";
+              } else if (index === 1) {
+                rankStyle = "hover:bg-gray-50 dark:hover:bg-gray-750 border-transparent";
+                iconStyle = "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300";
+                textStyle = "text-blue-600 dark:text-blue-400";
+              } else {
+                rankStyle = "hover:bg-gray-50 dark:hover:bg-gray-750 border-transparent";
+                iconStyle = "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400";
+                textStyle = "text-orange-600 dark:text-orange-400";
+              }
 
-            {/* อันดับ 3 */}
-            <div className="flex items-center gap-4 p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors border border-transparent">
-              <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400 text-lg font-bold">3</div>
-              <div className="flex-1">
-                <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200">นาง วนิดา ขยันทำ</h4>
-                <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">แผนกจัดเรียงไม้แห้ง</p>
-              </div>
-              <div className="text-right">
-                <span className="block text-sm font-extrabold text-orange-600 dark:text-orange-400">650</span>
-                <span className="text-[10px] text-gray-400">ลบ.ฟุต</span>
-              </div>
-            </div>
+              return (
+                <div key={index} className={`flex items-center gap-4 p-3 rounded-2xl border transition-colors ${rankStyle}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold shadow-md ${iconStyle}`}>
+                    {index + 1}
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200">{person.emp_name || 'ไม่ระบุชื่อ'}</h4>
+                    <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">{person.department}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className={`block text-sm font-extrabold ${textStyle}`}>
+                      <AnimatedNumber key={`top-${animationKey}-${index}`} endValue={person.volumn} />
+                    </span>
+                    <span className="text-[10px] text-gray-400">ลบ.ฟุต</span>
+                  </div>
+                </div>
+              );
+            })}
 
           </div>
 

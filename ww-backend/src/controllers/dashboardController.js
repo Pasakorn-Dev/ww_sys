@@ -51,7 +51,14 @@ const dashboardController = {
         };
       });
 
-      res.json({ success: true, kpi: kpiData, chart: chartData });
+      const topPerformers = await DashboardModel.getTopPerformers(branch_id);
+
+      res.json({ 
+        success: true, 
+        kpi: kpiData, 
+        chart: chartData , 
+        topPerformers: topPerformers
+      });
 
     } catch (error) {
       console.error('Error Dashboard API:', error);
