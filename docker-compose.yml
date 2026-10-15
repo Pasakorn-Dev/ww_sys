@@ -12,7 +12,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       # 👇 เพิ่มบรรทัดนี้กลับมา เพื่อให้ระบบดึงไฟล์ .sql ไปรันอัตโนมัติในครั้งแรก
-      - ./database-init:/docker-entrypoint-initdb.d
+      # - ./database-init:/docker-entrypoint-initdb.d
   # ตู้ Web UI สำหรับจัดการฐานข้อมูล (pgAdmin 4)
   pgadmin:
     image: dpage/pgadmin4:latest
