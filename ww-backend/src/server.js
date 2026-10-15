@@ -17,6 +17,7 @@ const masterRoutes = require('./routes/masterRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const masterOptionsRoutes = require('./routes/masterOptionsRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 
 app.use('/api/master', masterRoutes);
@@ -32,6 +33,8 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/master-options', masterOptionsRoutes);
 
 app.use('/api/reports', reportRoutes);
+
+app.use('/api/dashboard', dashboardRoutes);
 
 // Test Route เพื่อตรวจสอบสถานะ
 app.get('/api/status', (req, res) => {
