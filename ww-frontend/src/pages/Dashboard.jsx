@@ -1,12 +1,57 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
+// ─── Custom Hook สำหรับทำตัวเลขวิ่ง (Running Numbers) ───
+const useAnimatedNumber = (endValue, duration = 2000) => {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let startTimestamp = null;
+    let animationFrame;
+
+    const step = (timestamp) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      
+      // ใช้สูตร easeOutQuart เพื่อให้ตัวเลขวิ่งเร็วตอนแรก แล้วค่อยๆ ช้าลงตอนปลาย
+      const easeProgress = 1 - Math.pow(1 - progress, 4);
+      
+      setCount(Math.floor(easeProgress * endValue));
+
+      if (progress < 1) {
+        animationFrame = window.requestAnimationFrame(step);
+      } else {
+        setCount(endValue);
+      }
+    };
+
+    animationFrame = window.requestAnimationFrame(step);
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [endValue, duration]);
+
+  return count;
+};
+
+// ─── Component ย่อยสำหรับแสดงตัวเลขวิ่งพร้อม Format ───
+const AnimatedStat = ({ value, isCurrency = false, isMillion = false }) => {
+  const animatedValue = useAnimatedNumber(value);
+
+  if (isMillion) {
+    return (animatedValue / 1000000).toFixed(1) + 'M';
+  }
+  
+  return animatedValue.toLocaleString(undefined, {
+    minimumFractionDigits: isCurrency ? 0 : 0,
+    maximumFractionDigits: isCurrency ? 2 : 0
+  });
+};
+
 export default function Dashboard() {
-  // 💡 ข้อมูลจำลองสำหรับแสดงผล (Mock Data) อนาคตสามารถเขียน API เพื่อดึงของจริงมาใส่ได้
+  // 💡 เปลี่ยนข้อมูลจำลองเป็นตัวเลข (Number) แทน String เพื่อให้คำนวณตัวเลขวิ่งได้
   const [stats] = useState({
-    sawWood: { vol: '12,450', val: '1.2M' },
-    wetWood: { vol: '8,230', wage: '14,500' },
-    dryWood: { vol: '6,120', wage: '11,200' },
+    sawWood: { vol: 12450, val: 1200000 },
+    wetWood: { vol: 8230, wage: 14500 },
+    dryWood: { vol: 6120, wage: 11200 },
     lastSync: 'วันนี้ 08:30 น.'
   });
 
@@ -34,7 +79,6 @@ export default function Dashboard() {
             </span>
           </p>
         </div>
-        {/* วงกลมตกแต่ง Background สไตล์ Modern */}
         <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute bottom-0 right-32 -mb-10 w-40 h-40 bg-blue-300 opacity-20 rounded-full blur-2xl pointer-events-none"></div>
       </div>
@@ -54,9 +98,12 @@ export default function Dashboard() {
           </div>
           <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">ปริมาตรไม้เลื่อย (ลบ.ฟุต)</h3>
           <div className="mt-2 flex items-baseline gap-2">
-            <h2 className="text-3xl font-extrabold text-gray-800 dark:text-white tracking-tight">{stats.sawWood.vol}</h2>
+            <h2 className="text-3xl font-extrabold text-gray-800 dark:text-white tracking-tight">
+              {/* 💡 เรียกใช้ AnimatedStat แทนการแสดงตัวเลขตรงๆ */}
+              <AnimatedStat value={stats.sawWood.vol} />
+            </h2>
           </div>
-          <p className="text-xs text-gray-400 mt-2 font-medium">ยอดขายประเมิน <span className="font-bold text-blue-600 dark:text-blue-400">฿{stats.sawWood.val}</span></p>
+          <p className="text-xs text-gray-400 mt-2 font-medium">ยอดขายประเมิน <span className="font-bold text-blue-600 dark:text-blue-400">฿<AnimatedStat value={stats.sawWood.val} isMillion={true} /></span></p>
         </div>
 
         {/* Card 2: ไม้เปียก */}
@@ -71,9 +118,11 @@ export default function Dashboard() {
           </div>
           <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">ปริมาตรไม้เปียก (ลบ.ฟุต)</h3>
           <div className="mt-2 flex items-baseline gap-2">
-            <h2 className="text-3xl font-extrabold text-gray-800 dark:text-white tracking-tight">{stats.wetWood.vol}</h2>
+            <h2 className="text-3xl font-extrabold text-gray-800 dark:text-white tracking-tight">
+              <AnimatedStat value={stats.wetWood.vol} />
+            </h2>
           </div>
-          <p className="text-xs text-gray-400 mt-2 font-medium">ค่าแรงรวม <span className="font-bold text-teal-600 dark:text-teal-400">฿{stats.wetWood.wage}</span></p>
+          <p className="text-xs text-gray-400 mt-2 font-medium">ค่าแรงรวม <span className="font-bold text-teal-600 dark:text-teal-400">฿<AnimatedStat value={stats.wetWood.wage} isCurrency={true} /></span></p>
         </div>
 
         {/* Card 3: ไม้แห้ง */}
@@ -88,9 +137,11 @@ export default function Dashboard() {
           </div>
           <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">ปริมาตรไม้แห้ง (ลบ.ฟุต)</h3>
           <div className="mt-2 flex items-baseline gap-2">
-            <h2 className="text-3xl font-extrabold text-gray-800 dark:text-white tracking-tight">{stats.dryWood.vol}</h2>
+            <h2 className="text-3xl font-extrabold text-gray-800 dark:text-white tracking-tight">
+              <AnimatedStat value={stats.dryWood.vol} />
+            </h2>
           </div>
-          <p className="text-xs text-gray-400 mt-2 font-medium">ค่าแรงรวม <span className="font-bold text-orange-600 dark:text-orange-400">฿{stats.dryWood.wage}</span></p>
+          <p className="text-xs text-gray-400 mt-2 font-medium">ค่าแรงรวม <span className="font-bold text-orange-600 dark:text-orange-400">฿<AnimatedStat value={stats.dryWood.wage} isCurrency={true} /></span></p>
         </div>
 
         {/* Card 4 - Quick Action (Gradient) */}
@@ -111,7 +162,6 @@ export default function Dashboard() {
               <i className="fas fa-chevron-right text-[10px] opacity-50 group-hover/btn:translate-x-1 transition-transform"></i>
             </Link>
           </div>
-          {/* Abstract graphic */}
           <div className="absolute -right-6 -bottom-6 opacity-10 group-hover:scale-125 transition-transform duration-700 pointer-events-none">
             <i className="fas fa-chart-pie text-[150px]"></i>
           </div>
@@ -121,7 +171,7 @@ export default function Dashboard() {
       {/* 🌟 3. กราฟและข้อมูล (Main Content Area) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Chart Section (ใช้ Tailwind สร้างกราฟแท่งแบบ Pure CSS) */}
+        {/* Chart Section */}
         <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col">
           <div className="flex justify-between items-center mb-8">
             <h3 className="text-lg font-bold text-gray-800 dark:text-white">แนวโน้มผลผลิต (7 วันย้อนหลัง)</h3>
@@ -133,7 +183,6 @@ export default function Dashboard() {
           </div>
           
           <div className="h-64 flex items-end justify-between gap-2 pt-4 relative border-b border-gray-200 dark:border-gray-700 flex-1">
-            {/* เส้น Grid แนวนอน */}
             <div className="absolute w-full h-full flex flex-col justify-between pb-6 pointer-events-none opacity-20 dark:opacity-10">
               <div className="border-b-2 border-dashed border-gray-400 w-full flex-1"></div>
               <div className="border-b-2 border-dashed border-gray-400 w-full flex-1"></div>
@@ -143,16 +192,14 @@ export default function Dashboard() {
 
             {chartData.map((d, i) => (
               <div key={i} className="flex-1 flex flex-col justify-end items-center group relative h-full pb-8 z-10 cursor-pointer">
-                {/* Tooltip */}
                 <div className="absolute -top-12 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs font-bold px-3 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-xl z-20">
                   <div className="mb-1 text-center border-b border-gray-700 dark:border-gray-300 pb-1">{d.day}</div>
                   <span className="text-blue-400 dark:text-blue-600">เลื่อย: {d.saw}</span> | <span className="text-teal-400 dark:text-teal-600">เปียก: {d.wet}</span> | <span className="text-orange-400 dark:text-orange-600">แห้ง: {d.dry}</span>
                 </div>
-                {/* กราฟแท่ง */}
                 <div className="flex items-end gap-1 w-full justify-center h-full">
-                  <div style={{ height: `${d.saw}%` }} className="w-3 md:w-5 bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-md transition-all duration-500 group-hover:brightness-110 shadow-sm"></div>
-                  <div style={{ height: `${d.wet}%` }} className="w-3 md:w-5 bg-gradient-to-t from-teal-600 to-teal-400 rounded-t-md transition-all duration-500 group-hover:brightness-110 shadow-sm"></div>
-                  <div style={{ height: `${d.dry}%` }} className="w-3 md:w-5 bg-gradient-to-t from-orange-600 to-orange-400 rounded-t-md transition-all duration-500 group-hover:brightness-110 shadow-sm"></div>
+                  <div style={{ height: `${d.saw}%` }} className="w-3 md:w-5 bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-md transition-all duration-500 group-hover:brightness-110 shadow-sm animate-[grow_1s_ease-out_forwards]"></div>
+                  <div style={{ height: `${d.wet}%` }} className="w-3 md:w-5 bg-gradient-to-t from-teal-600 to-teal-400 rounded-t-md transition-all duration-500 group-hover:brightness-110 shadow-sm animate-[grow_1.2s_ease-out_forwards]"></div>
+                  <div style={{ height: `${d.dry}%` }} className="w-3 md:w-5 bg-gradient-to-t from-orange-600 to-orange-400 rounded-t-md transition-all duration-500 group-hover:brightness-110 shadow-sm animate-[grow_1.4s_ease-out_forwards]"></div>
                 </div>
                 <span className="text-xs text-gray-500 dark:text-gray-400 mt-3 absolute bottom-0 font-bold">{d.day}</span>
               </div>
@@ -167,7 +214,6 @@ export default function Dashboard() {
           </h3>
           <div className="space-y-4 flex-1">
             
-            {/* อันดับ 1 */}
             <div className="flex items-center gap-4 p-3 rounded-2xl bg-yellow-50/50 dark:bg-yellow-900/10 border border-yellow-100 dark:border-yellow-900/30 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center text-white text-lg font-bold shadow-md shadow-yellow-500/30">1</div>
               <div className="flex-1">
@@ -175,12 +221,13 @@ export default function Dashboard() {
                 <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">แผนกจัดเรียงไม้เปียก</p>
               </div>
               <div className="text-right">
-                <span className="block text-sm font-extrabold text-teal-600 dark:text-teal-400">850</span>
+                <span className="block text-sm font-extrabold text-teal-600 dark:text-teal-400">
+                  <AnimatedStat value={850} />
+                </span>
                 <span className="text-[10px] text-gray-400">ลบ.ฟุต</span>
               </div>
             </div>
 
-            {/* อันดับ 2 */}
             <div className="flex items-center gap-4 p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors border border-transparent">
               <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 text-lg font-bold">2</div>
               <div className="flex-1">
@@ -188,12 +235,13 @@ export default function Dashboard() {
                 <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">แผนกเลื่อยไม้ (ชุดที่ 2)</p>
               </div>
               <div className="text-right">
-                <span className="block text-sm font-extrabold text-blue-600 dark:text-blue-400">720</span>
+                <span className="block text-sm font-extrabold text-blue-600 dark:text-blue-400">
+                  <AnimatedStat value={720} />
+                </span>
                 <span className="text-[10px] text-gray-400">ลบ.ฟุต</span>
               </div>
             </div>
 
-            {/* อันดับ 3 */}
             <div className="flex items-center gap-4 p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors border border-transparent">
               <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400 text-lg font-bold">3</div>
               <div className="flex-1">
@@ -201,7 +249,9 @@ export default function Dashboard() {
                 <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">แผนกจัดเรียงไม้แห้ง</p>
               </div>
               <div className="text-right">
-                <span className="block text-sm font-extrabold text-orange-600 dark:text-orange-400">650</span>
+                <span className="block text-sm font-extrabold text-orange-600 dark:text-orange-400">
+                  <AnimatedStat value={650} />
+                </span>
                 <span className="text-[10px] text-gray-400">ลบ.ฟุต</span>
               </div>
             </div>
@@ -214,6 +264,14 @@ export default function Dashboard() {
         </div>
 
       </div>
+      
+      {/* แทรก CSS แอนิเมชันสำหรับกราฟแท่งเล็กน้อย */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes grow {
+          from { height: 0%; opacity: 0; }
+          to { opacity: 1; }
+        }
+      `}} />
     </div>
   );
 }

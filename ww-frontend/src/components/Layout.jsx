@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
 import apiFetch from '../services/apiFetch';
+import Swal from 'sweetalert2';
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -62,6 +63,26 @@ export default function Layout() {
           const currentMenu = data.data.find((m) => m.link === location.pathname);
           if (currentMenu && currentMenu.parent_id !== 0) {
             setExpandedMenu(currentMenu.parent_id);
+          }
+
+          // 🌟 2. เพิ่มระบบ Route Guard ป้องกันการพิมพ์ URL ตรงนี้ 🌟
+          // ยกเว้นหน้า /dashboard ให้เข้าได้เสมอ (หน้าแรกสุดหลังจาก Login)
+          if (location.pathname !== '/dashboard' && location.pathname !== '/') {
+            
+            // เช็คว่า path ปัจจุบัน มีอยู่ในรายการเมนูที่ User มีสิทธิ์หรือไม่
+            const hasPermission = data.data.some((menu) => menu.link === location.pathname);
+            
+            if (!hasPermission) {
+              // ถ้าตรวจสอบแล้วไม่มีสิทธิ์ ให้แจ้งเตือนและเตะกลับหน้า Dashboard ทันที
+              Swal.fire({
+                icon: 'error',
+                title: 'ไม่มีสิทธิ์เข้าถึง',
+                text: 'คุณไม่มีสิทธิ์เข้าใช้งานเมนูนี้',
+                confirmButtonColor: '#3b82f6'
+              });
+              navigate('/dashboard', { replace: true });
+              return; // หยุดการทำงานของฟังก์ชัน
+            }
           }
         } else {
           localStorage.clear();
