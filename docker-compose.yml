@@ -27,7 +27,7 @@ services:
 
   # 2. Backend (Node.js + Express)
   backend:
-    image: pasakorndev/my-backend:v1.0.1
+    image: pasakorndev/my-backend:v1.0.2
     restart: always
     env_file:
       - .env  # ใช้งานไฟล์ .env ความลับไฟล์เดียวกับ Database
@@ -36,7 +36,7 @@ services:
 
   # 3. Frontend (React + Vite)
   frontend:
-    image: pasakorndev/my-frontend:v1.0.2
+    image: pasakorndev/my-frontend:v1.0.3
     restart: always
 
   # 4. Nginx (Gateway / Reverse Proxy หน้าสุด)

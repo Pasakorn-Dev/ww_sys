@@ -27,10 +27,13 @@ export default function CheckSawWood() {
     saw_wood_types_code: ''
   });
 
-  // 💡 1. State สำหรับจับข้อความค้นหาในช่องเจ้าหนี้ (รถไม้)
+  // State สำหรับจับข้อความค้นหาในช่องเจ้าหนี้ (รถไม้)
   const [truckSearchText, setTruckSearchText] = useState('');
 
   const { options, isLoadingOptions } = useMasterOptions(filters.branch_id);
+
+  // เช็คสถานะโหมดมืด ณ ตอนที่ Render Component
+  const isDark = document.documentElement.classList.contains('dark');
 
   useEffect(() => {
     fetchBranches();
@@ -62,9 +65,19 @@ export default function CheckSawWood() {
     }
   };
 
+  // 💡 ฟังก์ชันดึง Theme สีสำหรับ SweetAlert2
+  const getSwalTheme = () => {
+    const darkTheme = document.documentElement.classList.contains('dark');
+    return {
+      background: darkTheme ? '#1f2937' : '#ffffff',
+      color: darkTheme ? '#f3f4f6' : '#111827',
+    };
+  };
+
   const handleSearch = async () => {
+    const themeParams = getSwalTheme();
     if (!filters.branch_id || !filters.start_date || !filters.end_date) {
-      return Swal.fire('แจ้งเตือน', 'กรุณาเลือกสาขาและช่วงวันที่ให้ครบถ้วน', 'warning');
+      return Swal.fire({ ...themeParams, title: 'แจ้งเตือน', text: 'กรุณาเลือกสาขาและช่วงวันที่ให้ครบถ้วน', icon: 'warning', confirmButtonColor: '#3b82f6' });
     }
     
     setIsLoading(true);
@@ -74,17 +87,21 @@ export default function CheckSawWood() {
       if (res?.success) {
         setData(res.data);
       } else {
-        Swal.fire('ข้อผิดพลาด', res?.message || 'ไม่สามารถดึงข้อมูลได้', 'error');
+        Swal.fire({ ...themeParams, title: 'ข้อผิดพลาด', text: res?.message || 'ไม่สามารถดึงข้อมูลได้', icon: 'error', confirmButtonColor: '#3b82f6' });
       }
     } catch (error) {
-      Swal.fire('ข้อผิดพลาด', 'เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว', 'error');
+      Swal.fire({ ...themeParams, title: 'ข้อผิดพลาด', text: 'เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว', icon: 'error', confirmButtonColor: '#3b82f6' });
     } finally {
       setIsLoading(false);
     }
   };
 
   const viewDetails = async (barcode_id) => {
+    const themeParams = getSwalTheme();
+    const isDarkTheme = document.documentElement.classList.contains('dark');
+
     Swal.fire({
+      ...themeParams,
       title: 'กำลังโหลดข้อมูล...',
       allowOutsideClick: false,
       didOpen: () => Swal.showLoading()
@@ -100,26 +117,27 @@ export default function CheckSawWood() {
       
       if (res?.success) {
         const items = res.data;
+        // 💡 ใส่คลาส Dark Mode ให้กับตาราง HTML ที่จะโชว์ใน SweetAlert2
         let htmlTable = `
-          <div class="overflow-x-auto mt-4 max-h-[60vh]">
-            <table class="w-full text-sm text-left border border-gray-200">
-              <thead class="bg-gray-100 sticky top-0">
+          <div class="overflow-x-auto mt-4 max-h-[60vh] custom-scrollbar">
+            <table class="w-full text-sm text-left border ${isDarkTheme ? 'border-gray-700' : 'border-gray-200'}">
+              <thead class="${isDarkTheme ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800'} sticky top-0">
                 <tr>
-                  <th class="p-2 border">รหัสไม้</th>
-                  <th class="p-2 border">เกรด</th>
-                  <th class="p-2 border">จำนวน</th>
-                  <th class="p-2 border">ปริมาตร</th>
-                  <th class="p-2 border">ราคาสุทธิ</th>
+                  <th class="p-2 border ${isDarkTheme ? 'border-gray-600' : ''}">รหัสไม้</th>
+                  <th class="p-2 border ${isDarkTheme ? 'border-gray-600' : ''}">เกรด</th>
+                  <th class="p-2 border ${isDarkTheme ? 'border-gray-600' : ''}">จำนวน</th>
+                  <th class="p-2 border ${isDarkTheme ? 'border-gray-600' : ''}">ปริมาตร</th>
+                  <th class="p-2 border ${isDarkTheme ? 'border-gray-600' : ''}">ราคาสุทธิ</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody class="${isDarkTheme ? 'text-gray-200' : 'text-gray-800'}">
                 ${items.map(item => `
-                  <tr class="hover:bg-gray-50">
-                    <td class="p-2 border">${item.wood_code || '-'}</td>
-                    <td class="p-2 border">${item.grade || '-'}</td>
-                    <td class="p-2 border text-right">${item.amount}</td>
-                    <td class="p-2 border text-right">${item.volumn}</td>
-                    <td class="p-2 border text-right text-blue-600 font-semibold">${Number(item.net_price).toLocaleString()}</td>
+                  <tr class="border-b ${isDarkTheme ? 'border-gray-700 hover:bg-gray-600/50' : 'hover:bg-gray-50'}">
+                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''}">${item.wood_code || '-'}</td>
+                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''}">${item.grade || '-'}</td>
+                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''} text-right">${item.amount}</td>
+                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''} text-right">${item.volumn}</td>
+                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''} text-right ${isDarkTheme ? 'text-blue-400' : 'text-blue-600'} font-semibold">${Number(item.net_price).toLocaleString()}</td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -128,25 +146,25 @@ export default function CheckSawWood() {
         `;
 
         Swal.fire({
-          title: `รายละเอียด Barcode: ${barcode_id}`,
+          ...themeParams,
+          title: `<span class="text-lg">รายละเอียด Barcode: <span class="${isDarkTheme ? 'text-blue-400' : 'text-blue-600'}">${barcode_id}</span></span>`,
           html: htmlTable,
           width: '800px',
           showCloseButton: true,
-          confirmButtonText: 'ปิด'
+          confirmButtonText: 'ปิด',
+          confirmButtonColor: '#3b82f6'
         });
       }
     } catch (error) {
-      Swal.fire('ข้อผิดพลาด', 'ดึงรายละเอียดล้มเหลว', 'error');
+      Swal.fire({ ...themeParams, title: 'ข้อผิดพลาด', text: 'ดึงรายละเอียดล้มเหลว', icon: 'error', confirmButtonColor: '#3b82f6' });
     }
   };
 
-  // 💡 2. จัดโครงสร้างและตัดข้อมูล (Slice) เฉพาะ 50 รายการแรก เพื่อไม่ให้ระบบอืด
   const allTruckOptions = options.truckCompanies ? options.truckCompanies.map(item => ({
     value: item.id,
     label: `${item.code} - ${item.name}`
   })) : [];
   
-  // ใช้ Filter ควบคู่กับ Slice(0, 50) กรองเฉพาะตอนพิมพ์ค้นหา
   const displayTruckOptions = allTruckOptions
     .filter(opt => opt.label.toLowerCase().includes(truckSearchText.toLowerCase()))
     .slice(0, 50);
@@ -154,91 +172,89 @@ export default function CheckSawWood() {
   const selectedTruck = allTruckOptions.find(opt => String(opt.value) === String(filters.ws_customer_id)) || null;
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto flex flex-col min-h-[80vh]">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto flex flex-col min-h-[80vh] font-sans">
       
       {/* ส่วนค้นหา */}
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <i className="fas fa-search text-blue-600"></i> ตรวจสอบข้อมูลไม้เลื่อย
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 mb-6 transition-colors duration-300">
+        <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+          <i className="fas fa-search text-blue-600 dark:text-blue-400"></i> ตรวจสอบข้อมูลไม้เลื่อย
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">สาขา <span className="text-red-500">*</span></label>
-            <select name="branch_id" value={filters.branch_id} onChange={handleFilterChange} className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none focus:ring-1 focus:ring-blue-500">
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">สาขา <span className="text-red-500">*</span></label>
+            <select name="branch_id" value={filters.branch_id} onChange={handleFilterChange} className="w-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-blue-500 transition-colors duration-300">
               <option value="">-- เลือกสาขา --</option>
               {branches.map(b => <option key={b.id} value={b.id}>{b.branch_code} - {b.branch_name}</option>)}
             </select>
           </div>
           
           <div className="flex flex-col">
-            <label className="block text-xs font-semibold text-gray-600 mb-1">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
             <DatePicker
               selected={filters.start_date ? parseISO(filters.start_date) : null}
               onChange={(date) => handleDateChange(date, 'start_date')}
               dateFormat="dd/MM/yyyy"
               locale={th}
-              className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none focus:border-blue-500"
+              className="w-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg p-2 text-sm outline-none focus:border-blue-500 transition-colors duration-300"
               placeholderText="วว/ดด/ปปปป"
               wrapperClassName="w-full"
             />
           </div>
           
           <div className="flex flex-col">
-            <label className="block text-xs font-semibold text-gray-600 mb-1">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
             <DatePicker
               selected={filters.end_date ? parseISO(filters.end_date) : null}
               onChange={(date) => handleDateChange(date, 'end_date')}
               dateFormat="dd/MM/yyyy"
               locale={th}
-              className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none focus:border-blue-500"
+              className="w-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg p-2 text-sm outline-none focus:border-blue-500 transition-colors duration-300"
               placeholderText="วว/ดด/ปปปป"
               wrapperClassName="w-full"
             />
           </div>
           
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">รหัสประเภทไม้เลื่อย (Saw Wood Type Code)</label>
-            <input type="text" name="saw_wood_types_code" value={filters.saw_wood_types_code} onChange={handleFilterChange} placeholder="ระบุโค้ด (ถ้ามี)" className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none" />
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">รหัสประเภทไม้เลื่อย (Code)</label>
+            <input type="text" name="saw_wood_types_code" value={filters.saw_wood_types_code} onChange={handleFilterChange} placeholder="ระบุโค้ด (ถ้ามี)" className="w-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-blue-500 transition-colors duration-300" />
           </div>
           
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">ประเภทการชั่ง</label>
-            <select name="transaction_type_id" value={filters.transaction_type_id} onChange={handleFilterChange} disabled={isLoadingOptions} className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none">
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">ประเภทการชั่ง</label>
+            <select name="transaction_type_id" value={filters.transaction_type_id} onChange={handleFilterChange} disabled={isLoadingOptions} className="w-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg p-2 text-sm outline-none disabled:opacity-60 transition-colors duration-300">
               <option value="">-- ทั้งหมด --</option>
               {options.transactionTypes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">ประเภทไม้ท่อน</label>
-            <select name="log_wood_type_id" value={filters.log_wood_type_id} onChange={handleFilterChange} disabled={isLoadingOptions} className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none">
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">ประเภทไม้ท่อน</label>
+            <select name="log_wood_type_id" value={filters.log_wood_type_id} onChange={handleFilterChange} disabled={isLoadingOptions} className="w-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg p-2 text-sm outline-none disabled:opacity-60 transition-colors duration-300">
               <option value="">-- ทั้งหมด --</option>
               {options.logWoodTypes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">กลุ่มไม้ท่อน</label>
-            <select name="log_wood_eval_size_id" value={filters.log_wood_eval_size_id} onChange={handleFilterChange} disabled={isLoadingOptions} className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none">
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">กลุ่มไม้ท่อน</label>
+            <select name="log_wood_eval_size_id" value={filters.log_wood_eval_size_id} onChange={handleFilterChange} disabled={isLoadingOptions} className="w-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg p-2 text-sm outline-none disabled:opacity-60 transition-colors duration-300">
               <option value="">-- ทั้งหมด --</option>
               {options.logWoodEvalSizes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </div>
           
           <div className="flex flex-col z-20">
-            <label className="block text-xs font-semibold text-gray-600 mb-1">เจ้าหนี้ (รถไม้)</label>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">เจ้าหนี้ (รถไม้)</label>
             <Select
-              // 💡 3. นำตัวแปรที่ตัดแค่ 50 รายการมาใส่
               options={displayTruckOptions}
               value={selectedTruck}
-              // จับคู่ event การพิมพ์ค้นหา
               onInputChange={(inputValue, { action }) => {
                 if (action === 'input-change') setTruckSearchText(inputValue);
               }}
-              onMenuClose={() => setTruckSearchText('')} // คืนค่าตัวกรองเป็นค่าว่างตอนปิดเมนู
+              onMenuClose={() => setTruckSearchText('')} 
               onChange={(selected) => handleFilterChange({
                 target: { name: 'ws_customer_id', value: selected ? selected.value : '' }
               })}
-              filterOption={null} // 💡 ปิด Filter เดิมของ react-select เพราะเราเขียนกรองในข้อ 2 แล้ว
+              filterOption={null} 
               isDisabled={isLoadingOptions}
               isClearable
               isSearchable
@@ -250,56 +266,65 @@ export default function CheckSawWood() {
                   ...base,
                   minHeight: '38px',
                   borderRadius: '0.5rem',
-                  borderColor: '#e5e7eb',
-                  backgroundColor: '#f9fafb',
+                  borderColor: isDark ? '#4b5563' : '#e5e7eb',
+                  backgroundColor: isDark ? '#374151' : '#f9fafb',
+                  color: isDark ? '#f3f4f6' : '#111827',
                   fontSize: '0.875rem',
                   boxShadow: 'none',
-                  '&:hover': { borderColor: '#d1d5db' }
+                  '&:hover': { borderColor: isDark ? '#6b7280' : '#d1d5db' }
                 }),
+                singleValue: (base) => ({ ...base, color: isDark ? '#f3f4f6' : '#111827' }),
+                input: (base) => ({ ...base, color: isDark ? '#f3f4f6' : '#111827' }),
                 menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-                menu: (base) => ({ ...base, fontSize: '0.875rem' })
+                menu: (base) => ({ ...base, backgroundColor: isDark ? '#1f2937' : '#ffffff', fontSize: '0.875rem' }),
+                option: (base, state) => ({
+                  ...base,
+                  backgroundColor: state.isFocused ? (isDark ? '#374151' : '#f3f4f6') : 'transparent',
+                  color: isDark ? '#f3f4f6' : '#111827',
+                  '&:active': { backgroundColor: isDark ? '#4b5563' : '#e5e7eb' }
+                }),
               }}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">กะการทำงาน (เวลา)</label>
-            <select name="saw_time_id" value={filters.saw_time_id} onChange={handleFilterChange} disabled={isLoadingOptions} className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none">
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">กะการทำงาน (เวลา)</label>
+            <select name="saw_time_id" value={filters.saw_time_id} onChange={handleFilterChange} disabled={isLoadingOptions} className="w-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg p-2 text-sm outline-none disabled:opacity-60 transition-colors duration-300">
               <option value="">-- ทั้งหมด --</option>
               {options.sawTimes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </div>
         </div>
         <div className="mt-6 flex justify-end">
-          <button onClick={handleSearch} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold shadow flex items-center gap-2">
+          <button onClick={handleSearch} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold shadow flex items-center gap-2 disabled:opacity-50">
             {isLoading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-search"></i>} ค้นหาข้อมูล
           </button>
         </div>
       </div>
 
       {/* ตารางแสดงผล */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col">
-        <div className="overflow-x-auto flex-1">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex-1 overflow-hidden flex flex-col transition-colors duration-300">
+        <div className="overflow-x-auto flex-1 custom-scrollbar">
           <table className="w-full text-sm text-left whitespace-nowrap">
             <thead className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-3 border-b">วันที่ผลิต</th>
-                <th className="px-4 py-3 border-b">สาขา</th>
-                <th className="px-4 py-3 border-b">Barcode</th>
-                <th className="px-4 py-3 border-b">รหัสไม้</th>
-                <th className="px-4 py-3 border-b text-center">เกรด</th>
-                <th className="px-4 py-3 border-b text-right">จำนวน</th>
-                <th className="px-4 py-3 border-b text-right">ปริมาตร</th>
-                <th className="px-4 py-3 border-b text-right">ราคาสุทธิ</th>
-                <th className="px-4 py-3 border-b text-center">รายละเอียด</th>
+                <th className="px-4 py-3 border-b dark:border-gray-600">วันที่ผลิต</th>
+                <th className="px-4 py-3 border-b dark:border-gray-600">สาขา</th>
+                <th className="px-4 py-3 border-b dark:border-gray-600">Barcode</th>
+                <th className="px-4 py-3 border-b dark:border-gray-600">รหัสไม้</th>
+                <th className="px-4 py-3 border-b dark:border-gray-600 text-center">เกรด</th>
+                <th className="px-4 py-3 border-b dark:border-gray-600 text-right">จำนวน</th>
+                <th className="px-4 py-3 border-b dark:border-gray-600 text-right">ปริมาตร</th>
+                <th className="px-4 py-3 border-b dark:border-gray-600 text-right">ราคาสุทธิ</th>
+                <th className="px-4 py-3 border-b dark:border-gray-600 text-center">รายละเอียด</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="text-gray-800 dark:text-gray-200">
               {data.length === 0 ? (
-                <tr><td colSpan="9" className="text-center py-8 text-gray-500">ไม่พบข้อมูล</td></tr>
+                <tr><td colSpan="9" className="text-center py-8 text-gray-500 dark:text-gray-400">ไม่พบข้อมูล</td></tr>
               ) : (
                 data.map((row, index) => (
-                  <tr key={index} className="border-b hover:bg-blue-50/50">
+                  <tr key={index} className="border-b dark:border-gray-700 hover:bg-blue-50/50 dark:hover:bg-gray-700/50 transition-colors">
                     <td className="px-4 py-3">{new Date(row.produce_date).toLocaleDateString('th-TH')}</td>
                     <td className="px-4 py-3">{row.branch_code}</td>
                     <td className="px-4 py-3 font-mono text-xs">{row.barcode_id}</td>
@@ -307,11 +332,11 @@ export default function CheckSawWood() {
                     <td className="px-4 py-3 text-center">{row.grade || '-'}</td>
                     <td className="px-4 py-3 text-right">{row.amount}</td>
                     <td className="px-4 py-3 text-right">{row.volumn}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-blue-600">{Number(row.net_price).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-blue-600 dark:text-blue-400">{Number(row.net_price).toLocaleString()}</td>
                     <td className="px-4 py-3 text-center">
                       <button 
                         onClick={() => viewDetails(row.barcode_id)}
-                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded shadow-sm text-xs"
+                        className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1 rounded shadow-sm text-xs transition-colors"
                       >
                         <i className="fas fa-list"></i> ดูทั้งหมด
                       </button>

@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
 
-// นำเข้าไลบรารีปฏิทินและภาษาไทย
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { th } from 'date-fns/locale';
@@ -13,7 +12,6 @@ export default function SyncWetWood() {
   const [branches, setBranches] = useState([]);
   const [selectedBranch, setSelectedBranch] = useState('');
   
-  // State สำหรับวันที่
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -32,7 +30,6 @@ export default function SyncWetWood() {
 
   useEffect(() => {
     fetchAllowedBranches();
-    // Set default date = today
     const today = new Date().toISOString().split('T')[0];
     setStartDate(today);
     setEndDate(today);
@@ -46,8 +43,6 @@ export default function SyncWetWood() {
       
       if (data?.success) {
         setBranches(data.data);
-        
-        // กรองเอาเฉพาะสาขาจริง (ไม่เอา id 0) เพื่อใช้หาค่าเริ่มต้น
         const validList = data.data.filter(b => b.id !== 0);
         
         if (validList.length > 0) {
@@ -62,7 +57,6 @@ export default function SyncWetWood() {
     }
   };
 
-  // ฟังก์ชันจัดการเมื่อเลือกวันที่จากปฏิทิน
   const handleDateChange = (date, type) => {
     if (date) {
       const formattedDate = format(date, 'yyyy-MM-dd');
@@ -71,26 +65,39 @@ export default function SyncWetWood() {
     }
   };
 
+  // 💡 ฟังก์ชันดึง Theme สีสำหรับ SweetAlert2
+  const getSwalTheme = () => {
+    const isDark = document.documentElement.classList.contains('dark');
+    return {
+      background: isDark ? '#1f2937' : '#ffffff',
+      color: isDark ? '#f3f4f6' : '#111827',
+    };
+  };
+
   const handleStartSync = async () => {
+    const themeParams = getSwalTheme();
+
     if (!startDate || !endDate) {
-      return Swal.fire('แจ้งเตือน', 'กรุณาเลือกช่วงวันที่ให้ครบถ้วน', 'warning');
+      return Swal.fire({ ...themeParams, title: 'แจ้งเตือน', text: 'กรุณาเลือกช่วงวันที่ให้ครบถ้วน', icon: 'warning', confirmButtonColor: '#0d9488' });
     }
     if (new Date(startDate) > new Date(endDate)) {
-      return Swal.fire('แจ้งเตือน', 'วันที่เริ่มต้นต้องไม่มากกว่าวันที่สิ้นสุด', 'warning');
+      return Swal.fire({ ...themeParams, title: 'แจ้งเตือน', text: 'วันที่เริ่มต้นต้องไม่มากกว่าวันที่สิ้นสุด', icon: 'warning', confirmButtonColor: '#0d9488' });
     }
     if (selectedBranch === '' || selectedBranch === 0) {
-      return Swal.fire('แจ้งเตือน', 'กรุณาเลือกสาขาปลายทาง (ไม่สามารถดึงรวมทุกสาขาได้ในฟังก์ชันนี้)', 'warning');
+      return Swal.fire({ ...themeParams, title: 'แจ้งเตือน', text: 'กรุณาเลือกสาขาปลายทาง (ไม่สามารถดึงรวมทุกสาขาได้ในฟังก์ชันนี้)', icon: 'warning', confirmButtonColor: '#0d9488' });
     }
 
     const branchName = branches.find(b => Number(b.id) === Number(selectedBranch))?.branch_name;
 
     const confirm = await Swal.fire({
+      ...themeParams,
       title: 'ยืนยันการนำเข้าข้อมูล?',
       html: `ดึงข้อมูลไม้เปียกของ <b>${branchName}</b><br/>ตั้งแต่วันที่ <b>${new Date(startDate).toLocaleDateString('th-TH')}</b> ถึง <b>${new Date(endDate).toLocaleDateString('th-TH')}</b>`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'ใช่, เริ่มดึงข้อมูล',
-      cancelButtonText: 'ยกเลิก'
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#0d9488'
     });
 
     if (!confirm.isConfirmed) return;
@@ -102,7 +109,6 @@ export default function SyncWetWood() {
     const startTime = Date.now();
 
     try {
-      // ยิง API ไปที่เส้นทางไม้เปียก
       const data = await apiFetch('/transactions/sync-wet-woods', { 
         method: 'POST',
         body: JSON.stringify({ 
@@ -118,41 +124,43 @@ export default function SyncWetWood() {
         setStatus('success');
         addLog(`✅ SYNC SUCCESS: Processed ${data.total_synced} records.`);
         addLog(`⏱️ Execution Time: ${syncTimeSeconds} seconds.`);
-        Swal.fire('นำเข้าสำเร็จ!', `นำเข้าข้อมูล ${data.total_synced} รายการ<br/>ใช้เวลา ${syncTimeSeconds} วินาที`, 'success');
+        Swal.fire({ ...getSwalTheme(), title: 'นำเข้าสำเร็จ!', html: `นำเข้าข้อมูล ${data.total_synced} รายการ<br/>ใช้เวลา ${syncTimeSeconds} วินาที`, icon: 'success', confirmButtonColor: '#0d9488' });
       } else {
         setStatus('error');
         addLog(`❌ SYNC FAILED: ${data?.message}`);
-        Swal.fire('ข้อผิดพลาด', data?.message, 'error');
+        Swal.fire({ ...getSwalTheme(), title: 'ข้อผิดพลาด', text: data?.message, icon: 'error', confirmButtonColor: '#0d9488' });
       }
     } catch (error) {
       setStatus('error');
       addLog('❌ FATAL ERROR: Server connection lost.');
+      Swal.fire({ ...getSwalTheme(), title: 'ข้อผิดพลาด', text: 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', icon: 'error', confirmButtonColor: '#0d9488' });
     }
   };
-  // กรองเฉพาะสาขาจริง
+
   const validBranches = branches.filter(b => b.id !== 0);
 
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto flex flex-col min-h-[80vh]">
-      <div className="bg-white dark:bg-gray-800 w-full rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col lg:flex-row flex-1">
+    <div className="p-4 md:p-6 max-w-6xl mx-auto flex flex-col min-h-[80vh] font-sans">
+      <div className="bg-white dark:bg-gray-800 w-full rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col lg:flex-row flex-1 transition-colors duration-300">
         
         {/* Left Panel */}
-        <div className="w-full lg:w-5/12 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-100 dark:border-gray-700">
-          <div className="p-6 md:p-8 text-center border-b border-gray-100 dark:border-gray-700 bg-teal-50/50 dark:bg-gray-900/50">
-            <div className="w-16 h-16 bg-teal-100 dark:bg-teal-900/50 rounded-full flex items-center justify-center mx-auto mb-4">
+        <div className="w-full lg:w-5/12 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-100 dark:border-gray-700 transition-colors duration-300">
+          <div className="p-6 md:p-8 text-center border-b border-gray-100 dark:border-gray-700 bg-teal-50/50 dark:bg-gray-900/50 transition-colors duration-300">
+            <div className="w-16 h-16 bg-teal-100 dark:bg-teal-900/50 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors duration-300">
               <i className="fas fa-water text-2xl text-teal-600 dark:text-teal-400"></i>
             </div>
-            <h2 className="text-xl font-bold text-gray-800 dark:text-white">นำเข้ายอดไม้เปียก</h2>
-            <p className="text-sm text-gray-500 mt-1">ดึงข้อมูลการผลิตและคำนวณราคาอัตโนมัติ</p>
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white transition-colors duration-300">นำเข้ายอดไม้เปียก</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 transition-colors duration-300">ดึงข้อมูลการผลิตและคำนวณราคาอัตโนมัติ</p>
           </div>
-          <div className="p-6 flex-1 space-y-5">
+          
+          <div className="p-6 flex-1 space-y-5 bg-white dark:bg-gray-800 transition-colors duration-300">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">เลือกสาขา</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 transition-colors duration-300">เลือกสาขา</label>
               <select
                 value={selectedBranch}
                 onChange={(e) => setSelectedBranch(e.target.value)}
                 disabled={status === 'syncing'}
-                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl p-3 outline-none focus:ring-2 focus:ring-teal-500 text-sm"
+                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-xl p-3 outline-none focus:ring-2 focus:ring-teal-500 text-sm transition-colors duration-300 disabled:opacity-60"
               >
                 <option value="">-- กรุณาเลือกสาขา --</option>
                 {validBranches.map(b => (
@@ -163,7 +171,7 @@ export default function SyncWetWood() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col">
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">ตั้งแต่วันที่</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 transition-colors duration-300">ตั้งแต่วันที่</label>
                 <DatePicker 
                   selected={startDate ? parseISO(startDate) : null}
                   onChange={(date) => handleDateChange(date, 'start')}
@@ -171,13 +179,13 @@ export default function SyncWetWood() {
                   locale={th}
                   disabled={status === 'syncing'}
                   placeholderText="วว/ดด/ปปปป"
-                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl p-3 outline-none focus:ring-2 focus:ring-teal-500 text-sm" 
+                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl p-3 outline-none focus:ring-2 focus:ring-teal-500 text-sm transition-colors duration-300 disabled:opacity-60" 
                   wrapperClassName="w-full"
                 />
               </div>
 
               <div className="flex flex-col">
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">ถึงวันที่</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 transition-colors duration-300">ถึงวันที่</label>
                 <DatePicker 
                   selected={endDate ? parseISO(endDate) : null}
                   onChange={(date) => handleDateChange(date, 'end')}
@@ -185,18 +193,18 @@ export default function SyncWetWood() {
                   locale={th}
                   disabled={status === 'syncing'}
                   placeholderText="วว/ดด/ปปปป"
-                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl p-3 outline-none focus:ring-2 focus:ring-teal-500 text-sm" 
+                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl p-3 outline-none focus:ring-2 focus:ring-teal-500 text-sm transition-colors duration-300 disabled:opacity-60" 
                   wrapperClassName="w-full"
                 />
               </div>
             </div>
           </div>
 
-          <div className="p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+          <div className="p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 transition-colors duration-300">
             <button
               onClick={handleStartSync}
               disabled={status === 'syncing' || !selectedBranch || !startDate || !endDate}
-              className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-semibold shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-semibold shadow-md transition-all flex items-center justify-center gap-2 disabled:bg-gray-400 disabled:dark:bg-gray-600 disabled:cursor-not-allowed"
             >
               {status === 'syncing' ? <><i className="fas fa-spinner fa-spin"></i> กำลังประมวลผล...</> : <><i className="fas fa-cloud-download-alt"></i> นำเข้าข้อมูล</>}
             </button>
@@ -204,25 +212,26 @@ export default function SyncWetWood() {
         </div>
 
         {/* Right Panel (Terminal) */}
-        <div className="w-full lg:w-7/12 bg-gray-950 p-4 lg:p-6 flex flex-col">
+        <div className="w-full lg:w-7/12 bg-gray-950 p-4 lg:p-6 flex flex-col border-t lg:border-t-0 border-gray-800">
           <div className="flex items-center gap-2 mb-3 px-2">
             <div className="flex gap-1.5">
               <div className="w-3 h-3 rounded-full bg-red-500"></div>
               <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
               <div className="w-3 h-3 rounded-full bg-green-500"></div>
             </div>
-            <span className="text-gray-400 text-xs font-mono ml-2">transaction_wet_wood_sync.log</span>
+            <span className="text-gray-400 text-xs font-mono ml-2 tracking-wider">transaction_wet_wood_sync.log</span>
           </div>
           
-          <div className="flex-1 bg-black/50 border border-gray-800 rounded-lg p-4 font-mono text-xs md:text-sm overflow-y-auto custom-scrollbar shadow-inner">
+          <div className="flex-1 bg-black/60 border border-gray-800/50 rounded-lg p-4 font-mono text-xs md:text-sm overflow-y-auto custom-scrollbar shadow-inner">
             <div className="space-y-1.5">
               {logs.map((log, index) => {
                 let color = "text-gray-300";
                 if (log.includes('✅')) color = "text-green-400 font-bold";
-                else if (log.includes('❌')) color = "text-red-400";
+                else if (log.includes('❌') || log.includes('ERROR')) color = "text-red-400";
                 else if (log.includes('🚀') || log.includes('⏱️')) color = "text-teal-300";
+                else if (log.includes('---')) color = "text-gray-600";
                 
-                return <div key={index} className={color}>{log}</div>;
+                return <div key={index} className={`${color} break-words`}>{log}</div>;
               })}
               {status === 'syncing' && (
                 <div className="text-teal-400 animate-pulse mt-2 flex items-center gap-2">
