@@ -189,8 +189,8 @@ const ReportModel = {
     let query = `
       SELECT 
           concat(SUBSTRING(mws.wood_code FROM 6 FOR 2),'-',SUBSTRING(mws.wood_code FROM 3 FOR 3)) as thick_mil
-          ,mws.thick
-          ,mws.length
+          ,max(mws.thick) as thick
+	        ,max(mws.length) as length
           ,RIGHT(mws.wood_code, 7) AS wood_code
           ,SUM(tsw.volumn) AS ab_volumn
           ,SUM(tsw.net_price) AS ab_amount
@@ -224,13 +224,12 @@ const ReportModel = {
     
     query += `
       GROUP BY 
-        concat(SUBSTRING(mws.wood_code FROM 6 FOR 2),'-',SUBSTRING(mws.wood_code FROM 3 FOR 3)), 
-        mws.thick, 
-        mws.length, 
-        RIGHT(mws.wood_code, 7)
+        thick_mil, 
+	      wood_code,
+        mws.length
       ORDER BY 
         thick_mil ASC, 
-        mws.length ASC, 
+        mws.length ASC,
         wood_code ASC
     `;
 
