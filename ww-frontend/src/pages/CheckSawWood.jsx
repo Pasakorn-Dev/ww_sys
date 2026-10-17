@@ -14,6 +14,10 @@ export default function CheckSawWood() {
   const [data, setData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // 💡 เพิ่ม State สำหรับการแบ่งหน้า (Pagination)
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50; // โชว์หน้าละ 50 รายการ เพื่อความลื่นไหล
+
   // State สำหรับ Filters
   const [filters, setFilters] = useState({
     branch_id: '',
@@ -65,7 +69,7 @@ export default function CheckSawWood() {
     }
   };
 
-  // 💡 ฟังก์ชันดึง Theme สีสำหรับ SweetAlert2
+  // ฟังก์ชันดึง Theme สีสำหรับ SweetAlert2
   const getSwalTheme = () => {
     const darkTheme = document.documentElement.classList.contains('dark');
     return {
@@ -86,6 +90,10 @@ export default function CheckSawWood() {
       const res = await apiFetch(`/transactions/saw-woods?${queryParams}`);
       if (res?.success) {
         setData(res.data);
+        setCurrentPage(1); // 💡 รีเซ็ตกลับไปหน้า 1 เสมอเมื่อค้นหาใหม่
+        if (res.data.length === 0) {
+           Swal.fire({ ...themeParams, title: 'แจ้งเตือน', text: 'ไม่พบข้อมูลในช่วงเวลาที่เลือก', icon: 'info', confirmButtonColor: '#3b82f6' });
+        }
       } else {
         Swal.fire({ ...themeParams, title: 'ข้อผิดพลาด', text: res?.message || 'ไม่สามารถดึงข้อมูลได้', icon: 'error', confirmButtonColor: '#3b82f6' });
       }
@@ -117,7 +125,6 @@ export default function CheckSawWood() {
       
       if (res?.success) {
         const items = res.data;
-        // 💡 ใส่คลาส Dark Mode ให้กับตาราง HTML ที่จะโชว์ใน SweetAlert2
         let htmlTable = `
           <div class="overflow-x-auto mt-4 max-h-[60vh] custom-scrollbar">
             <table class="w-full text-sm text-left border ${isDarkTheme ? 'border-gray-700' : 'border-gray-200'}">
@@ -170,6 +177,12 @@ export default function CheckSawWood() {
     .slice(0, 50);
 
   const selectedTruck = allTruckOptions.find(opt => String(opt.value) === String(filters.ws_customer_id)) || null;
+
+  // 💡 คำนวณข้อมูลที่จะตัดไปแสดงในตาราง (ตามหน้าที่เลือก)
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentData = data.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(data.length / itemsPerPage);
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto flex flex-col min-h-[80vh] font-sans">
@@ -296,7 +309,7 @@ export default function CheckSawWood() {
           </div>
         </div>
         <div className="mt-6 flex justify-end">
-          <button onClick={handleSearch} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold shadow flex items-center gap-2 disabled:opacity-50">
+          <button onClick={handleSearch} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold shadow flex items-center gap-2">
             {isLoading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-search"></i>} ค้นหาข้อมูล
           </button>
         </div>
@@ -323,7 +336,8 @@ export default function CheckSawWood() {
               {data.length === 0 ? (
                 <tr><td colSpan="9" className="text-center py-8 text-gray-500 dark:text-gray-400">ไม่พบข้อมูล</td></tr>
               ) : (
-                data.map((row, index) => (
+                // 💡 เปลี่ยนจาก data.map เป็น currentData.map 
+                currentData.map((row, index) => (
                   <tr key={index} className="border-b dark:border-gray-700 hover:bg-blue-50/50 dark:hover:bg-gray-700/50 transition-colors">
                     <td className="px-4 py-3">{new Date(row.produce_date).toLocaleDateString('th-TH')}</td>
                     <td className="px-4 py-3">{row.branch_code}</td>
@@ -347,6 +361,82 @@ export default function CheckSawWood() {
             </tbody>
           </table>
         </div>
+        
+        {/* 💡 โซนปุ่มกดเปลี่ยนหน้า (Pagination Controls) ด้านล่างตาราง */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <div className="flex flex-wrap justify-between items-center w-full gap-4">
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    currentPage === 1 
+                      ? 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed' 
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  « หน้าแรก
+                </button>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    currentPage === 1 
+                      ? 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed' 
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  ‹ ก่อนหน้า
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">หน้า</span>
+                <select
+                  value={currentPage}
+                  onChange={(e) => setCurrentPage(Number(e.target.value))}
+                  className="border border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 text-sm outline-none focus:border-blue-500 font-semibold text-blue-700 dark:text-blue-400 bg-white dark:bg-gray-700"
+                >
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                    <option key={page} value={page}>
+                      {page}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-sm text-gray-700 dark:text-gray-300">จาก {totalPages}</span>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    currentPage === totalPages 
+                      ? 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed' 
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  ถัดไป ›
+                </button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    currentPage === totalPages 
+                      ? 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed' 
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  หน้าสุดท้าย »
+                </button>
+              </div>
+
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
