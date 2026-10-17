@@ -26,7 +26,7 @@ const TransactionModel = {
         a.produce_date, a.log_wood_type_id, a.log_wood_eval_size_id, a.ws_customer_id, 
         a.transaction_type_id, a.saw_time_id, a.saw_name, bc.barcode_id, 
         wsam.id AS wood_size_amount_map_id, wsam.amount,
-        round(((MID(wz.wood_code,6,1)+MID(wz.wood_code,7,1)/8)*(IF(MID(wz.wood_code,8,1)="A",10,IF(MID(wz.wood_code,8,1)="B",11,IF(MID(wz.wood_code,8,1)="C",12,IF(MID(wz.wood_code,8,1)="D",13,IF(MID(wz.wood_code,8,1)="E",14,IF(MID(wz.wood_code,8,1)="F",15,IF(MID(wz.wood_code,8,1)="G",16,IF(MID(wz.wood_code,8,1)="H",17,IF(MID(wz.wood_code,8,1)="I",18,IF(MID(wz.wood_code,8,1)="J",19,IF(MID(wz.wood_code,8,1)="K",20,MID(wz.wood_code,8,1))))))))))))+MID(wz.wood_code,9,1)/8)*(RIGHT(wz.wood_code,3)/100)*0.0228 * wsam.amount),4) as volumn,
+        round(((MID(wz.wood_code,6,1)+MID(wz.wood_code,7,1)/8)*(IF(MID(wz.wood_code,8,1)="A",10,IF(MID(wz.wood_code,8,1)="B",11,IF(MID(wz.wood_code,8,1)="C",12,IF(MID(wz.wood_code,8,1)="D",13,IF(MID(wz.wood_code,8,1)="E",14,IF(MID(wz.wood_code,8,1)="F",15,IF(MID(wz.wood_code,8,1)="G",16,IF(MID(wz.wood_code,8,1)="H",17,IF(MID(wz.wood_code,8,1)="I",18,IF(MID(wz.wood_code,8,1)="J",19,IF(MID(wz.wood_code,8,1)="K",20,MID(wz.wood_code,8,1))))))))))))+MID(wz.wood_code,9,1)/8)*(RIGHT(wz.wood_code,3)/100)*0.0228 * wsam.amount),5) as volumn,
         wz.id AS wood_size_id, wsam.saw_wood_type_id, a.sawer_id
       FROM (
         SELECT lwqc.*, rws.id as rws_id, rws.barcode_id, rws.produce_date, rws.sawer_id
@@ -319,7 +319,7 @@ const TransactionModel = {
         wsa.amount,
         em.id AS sorter_id,
         mwd.truck_company_id AS ws_customer_id,
-        round(((MID(ws.wood_code,6,1)+MID(ws.wood_code,7,1)/8)*(IF(MID(ws.wood_code,8,1)="A",10,IF(MID(ws.wood_code,8,1)="B",11,IF(MID(ws.wood_code,8,1)="C",12,IF(MID(ws.wood_code,8,1)="D",13,IF(MID(ws.wood_code,8,1)="E",14,IF(MID(ws.wood_code,8,1)="F",15,IF(MID(ws.wood_code,8,1)="G",16,IF(MID(ws.wood_code,8,1)="H",17,IF(MID(ws.wood_code,8,1)="I",18,IF(MID(ws.wood_code,8,1)="J",19,IF(MID(ws.wood_code,8,1)="K",20,MID(ws.wood_code,8,1))))))))))))+MID(ws.wood_code,9,1)/8)*(RIGHT(ws.wood_code,3)/100)*0.0228 * wsa.amount),4) as volumn
+        round(((MID(ws.wood_code,6,1)+MID(ws.wood_code,7,1)/8)*(IF(MID(ws.wood_code,8,1)="A",10,IF(MID(ws.wood_code,8,1)="B",11,IF(MID(ws.wood_code,8,1)="C",12,IF(MID(ws.wood_code,8,1)="D",13,IF(MID(ws.wood_code,8,1)="E",14,IF(MID(ws.wood_code,8,1)="F",15,IF(MID(ws.wood_code,8,1)="G",16,IF(MID(ws.wood_code,8,1)="H",17,IF(MID(ws.wood_code,8,1)="I",18,IF(MID(ws.wood_code,8,1)="J",19,IF(MID(ws.wood_code,8,1)="K",20,MID(ws.wood_code,8,1))))))))))))+MID(ws.wood_code,9,1)/8)*(RIGHT(ws.wood_code,3)/100)*0.0228 * wsa.amount),5) as volumn
       FROM mobile_wet_wood_data mwd
       LEFT JOIN mobile_wet_wood_data_sorter_info mwds ON mwds.mobile_wet_wood_data_sorter_info_list_id = mwd.id
       LEFT JOIN sorter_info si ON si.id = mwds.sorter_info_id
@@ -449,7 +449,7 @@ const TransactionModel = {
         wsa.amount,
         em.id AS sorter_id,
         st.code AS store_code, -- ดึง code มาเพื่อเช็คเงื่อนไขค่าแรงใน Node.js
-        round(((MID(ws.wood_code,6,1)+MID(ws.wood_code,7,1)/8)*(IF(MID(ws.wood_code,8,1)="A",10,IF(MID(ws.wood_code,8,1)="B",11,IF(MID(ws.wood_code,8,1)="C",12,IF(MID(ws.wood_code,8,1)="D",13,IF(MID(ws.wood_code,8,1)="E",14,IF(MID(ws.wood_code,8,1)="F",15,IF(MID(ws.wood_code,8,1)="G",16,IF(MID(ws.wood_code,8,1)="H",17,IF(MID(ws.wood_code,8,1)="I",18,IF(MID(ws.wood_code,8,1)="J",19,IF(MID(ws.wood_code,8,1)="K",20,MID(ws.wood_code,8,1))))))))))))+MID(ws.wood_code,9,1)/8)*(RIGHT(ws.wood_code,3)/100)*0.0228 * wsa.amount),4) as volumn
+        round(((MID(ws.wood_code,6,1)+MID(ws.wood_code,7,1)/8)*(IF(MID(ws.wood_code,8,1)="A",10,IF(MID(ws.wood_code,8,1)="B",11,IF(MID(ws.wood_code,8,1)="C",12,IF(MID(ws.wood_code,8,1)="D",13,IF(MID(ws.wood_code,8,1)="E",14,IF(MID(ws.wood_code,8,1)="F",15,IF(MID(ws.wood_code,8,1)="G",16,IF(MID(ws.wood_code,8,1)="H",17,IF(MID(ws.wood_code,8,1)="I",18,IF(MID(ws.wood_code,8,1)="J",19,IF(MID(ws.wood_code,8,1)="K",20,MID(ws.wood_code,8,1))))))))))))+MID(ws.wood_code,9,1)/8)*(RIGHT(ws.wood_code,3)/100)*0.0228 * wsa.amount),5) as volumn
       FROM mobile_dry_wood_data mdd
       LEFT JOIN mobile_dry_wood_data_sorter_info mwds ON mwds.mobile_dry_wood_data_sorter_info_list_id = mdd.id
       LEFT JOIN sorter_info si ON si.id = mwds.sorter_info_id

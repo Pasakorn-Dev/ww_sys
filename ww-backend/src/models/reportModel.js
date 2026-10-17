@@ -719,7 +719,7 @@ const ReportModel = {
         , ws.grade
         , ws.is_special
         , SUM(tdw.volumn) AS volumn
-        , SUM(tdw.net_wage) AS net_wage
+        , ROUND(SUM(tdw.net_wage)::numeric, 2) AS net_wage
       FROM transaction_dry_woods tdw
       LEFT JOIN master_wood_stores wst ON wst.old_id = tdw.wood_store_id AND wst.branch_id = tdw.branch_id 
       LEFT JOIN master_employees em ON em.old_id = tdw.sorter_id AND em.branch_id = tdw.branch_id

@@ -58,10 +58,8 @@ const AnimatedNumber = ({ endValue, duration = 1500, isCurrency = false, prefix 
 };
 
 export default function Dashboard() {
-  // 💡 State สำหรับกระตุ้นตัวเลขวิ่ง
   const [animationKey, setAnimationKey] = useState(0);
 
-  // 💡 State สำหรับเก็บข้อมูลจริง
   const [stats, setStats] = useState({
     sawWood: { vol: 0, val: 0, percent: 0 },
     wetWood: { vol: 0, wage: 0, percent: 0 },
@@ -70,16 +68,14 @@ export default function Dashboard() {
   });
   const [chartData, setChartData] = useState([]);
 
-  // 💡 เพิ่ม State เก็บข้อมูลผลงานยอดเยี่ยม
+  // 💡 State เก็บข้อมูลผลงานยอดเยี่ยม
   const [topPerformers, setTopPerformers] = useState([]);
   
-  // 💡 State สำหรับจัดการสาขา
   const [branches, setBranches] = useState([]);
   const [selectedBranch, setSelectedBranch] = useState('');
   const [accessLevel, setAccessLevel] = useState(3);
   const [isLoading, setIsLoading] = useState(false);
 
-  // 1. ดึงสิทธิ์สาขาอัตโนมัติตอนโหลดหน้า
   useEffect(() => {
     let isMounted = true;
     const fetchBranches = async () => {
@@ -109,7 +105,6 @@ export default function Dashboard() {
     return () => { isMounted = false; };
   }, []);
 
-  // 2. ฟังก์ชันดึงข้อมูล Dashboard (KPI + Chart)
   const fetchDashboardData = async (branchId) => {
     setIsLoading(true);
     try {
@@ -124,8 +119,9 @@ export default function Dashboard() {
         setStats({ ...res.kpi, lastSync: dateStr });
         setChartData(res.chart);
         
+        // 💡 เก็บข้อมูลลง State
         setTopPerformers(res.topPerformers || []);
-        // ให้ตัวเลขเริ่มวิ่งใหม่เมื่อดึงข้อมูลเสร็จ
+        
         setAnimationKey(prev => prev + 1);
       }
     } catch (error) {
@@ -141,16 +137,19 @@ export default function Dashboard() {
     fetchDashboardData(val);
   };
 
-  // ฟังก์ชันคลิกกราฟเพื่อให้ตัวเลขวิ่งใหม่
   const handleGraphClick = () => {
     setAnimationKey(prev => prev + 1);
   };
 
-  // คำนวณความสูงสูงสุดของกราฟ (ค่าที่มากที่สุดใน 7 วัน เพื่อให้กราฟสมส่วน)
   const maxChartVolume = chartData.length > 0 
     ? Math.max(...chartData.flatMap(d => [d.saw, d.wet, d.dry])) 
     : 100;
   const getGraphHeight = (val) => maxChartVolume > 0 ? (val / maxChartVolume) * 100 : 0;
+
+  // 💡 จัดรูปแบบข้อมูลให้ดึงง่ายขึ้น
+  const sawTop = topPerformers.find(p => p.department === 'แผนกเลื่อยไม้') || null;
+  const wetTop = topPerformers.find(p => p.department === 'แผนกจัดเรียงไม้เปียก') || null;
+  const dryTop = topPerformers.find(p => p.department === 'แผนกจัดเรียงไม้แห้ง') || null;
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto min-h-[80vh] font-sans">
@@ -167,7 +166,6 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* Dropdown สาขา */}
         <div className="relative z-10 w-full md:w-64 bg-white/10 p-3 rounded-2xl backdrop-blur-sm border border-white/20">
           <label className="block text-[11px] font-bold text-blue-200 mb-1">แสดงข้อมูลสาขา</label>
           <select
@@ -186,7 +184,6 @@ export default function Dashboard() {
 
       {/* 🌟 2. KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        
         {/* Card 1: ไม้เลื่อย */}
         <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
           <div className="flex justify-between items-start mb-4">
@@ -319,7 +316,6 @@ export default function Dashboard() {
                   <span className="text-orange-400 ml-1">แห้ง: {d.dry.toLocaleString()}</span>
                 </div>
                 
-                {/* กราฟแท่ง (ใช้ Key บังคับให้แอนิเมชันรันใหม่ตอนคลิก) */}
                 <div className="flex items-end gap-1 w-full justify-center h-full">
                   <div key={`bar-saw-${animationKey}-${i}`} style={{ height: `${getGraphHeight(d.saw)}%` }} className="w-3 md:w-5 bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-md transition-all duration-500 hover:brightness-110 shadow-sm animate-[grow_1s_ease-out_forwards]"></div>
                   <div key={`bar-wet-${animationKey}-${i}`} style={{ height: `${getGraphHeight(d.wet)}%` }} className="w-3 md:w-5 bg-gradient-to-t from-teal-600 to-teal-400 rounded-t-md transition-all duration-500 hover:brightness-110 shadow-sm animate-[grow_1.2s_ease-out_forwards]"></div>
@@ -331,58 +327,73 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Top Performers Section (✅ คงข้อมูล Mock Data ส่วนนี้ไว้ให้ทำต่อครับ) */}
-        {/* Top Performers Section */}
+        {/* 💡 Top Performers Section (จัดกลุ่มตามประเภทไม้) */}
         <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col">
           <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
             <i className="fas fa-trophy text-yellow-500"></i> ผลงานยอดเยี่ยม (7 วันย้อนหลัง)
           </h3>
           <div className="space-y-4 flex-1">
             
-            {/* แสดงข้อความนี้ถ้าไม่มีใครทำผลงานเลยในสัปดาห์ */}
             {topPerformers.length === 0 && !isLoading && (
               <div className="text-center text-gray-400 text-sm mt-10">ไม่พบข้อมูลผลงานในสัปดาห์นี้</div>
             )}
 
-            {/* วนลูปข้อมูล 3 อันดับ */}
-            {topPerformers.map((person, index) => {
-              // กำหนด Style สีตามอันดับ (1: ทอง, 2: เงิน, 3: ทองแดง)
-              let rankStyle = "";
-              let iconStyle = "";
-              let textStyle = "";
-              
-              if (index === 0) {
-                rankStyle = "bg-yellow-50/50 dark:bg-yellow-900/10 border-yellow-100 dark:border-yellow-900/30 hover:bg-yellow-100 dark:hover:bg-yellow-900/30";
-                iconStyle = "bg-gradient-to-br from-yellow-400 to-yellow-600 text-white shadow-yellow-500/30";
-                textStyle = "text-yellow-600 dark:text-yellow-500";
-              } else if (index === 1) {
-                rankStyle = "hover:bg-gray-50 dark:hover:bg-gray-750 border-transparent";
-                iconStyle = "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300";
-                textStyle = "text-blue-600 dark:text-blue-400";
-              } else {
-                rankStyle = "hover:bg-gray-50 dark:hover:bg-gray-750 border-transparent";
-                iconStyle = "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400";
-                textStyle = "text-orange-600 dark:text-orange-400";
-              }
-
-              return (
-                <div key={index} className={`flex items-center gap-4 p-3 rounded-2xl border transition-colors ${rankStyle}`}>
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold shadow-md ${iconStyle}`}>
-                    {index + 1}
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200">{person.emp_name || 'ไม่ระบุชื่อ'}</h4>
-                    <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">{person.department}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className={`block text-sm font-extrabold ${textStyle}`}>
-                      <AnimatedNumber key={`top-${animationKey}-${index}`} endValue={person.volumn} />
-                    </span>
-                    <span className="text-[10px] text-gray-400">ลบ.ฟุต</span>
-                  </div>
+            {/* แผนกไม้เลื่อย (สีฟ้า) */}
+            {sawTop && (
+              <div className="flex items-center gap-4 p-3 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold shadow-md bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                  <i className="fas fa-layer-group text-sm"></i>
                 </div>
-              );
-            })}
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200">{sawTop.emp_name || 'ไม่ระบุชื่อ'}</h4>
+                  <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">{sawTop.department}</p>
+                </div>
+                <div className="text-right">
+                  <span className="block text-sm font-extrabold text-blue-600 dark:text-blue-400">
+                    <AnimatedNumber key={`top-saw-${animationKey}`} endValue={sawTop.volumn} />
+                  </span>
+                  <span className="text-[10px] text-gray-400">ลบ.ฟุต</span>
+                </div>
+              </div>
+            )}
+
+            {/* แผนกไม้เปียก (สีเขียว/Teal) */}
+            {wetTop && (
+              <div className="flex items-center gap-4 p-3 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold shadow-md bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400">
+                  <i className="fas fa-water text-sm"></i>
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200">{wetTop.emp_name || 'ไม่ระบุชื่อ'}</h4>
+                  <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">{wetTop.department}</p>
+                </div>
+                <div className="text-right">
+                  <span className="block text-sm font-extrabold text-teal-600 dark:text-teal-400">
+                    <AnimatedNumber key={`top-wet-${animationKey}`} endValue={wetTop.volumn} />
+                  </span>
+                  <span className="text-[10px] text-gray-400">ลบ.ฟุต</span>
+                </div>
+              </div>
+            )}
+
+            {/* แผนกไม้แห้ง (สีส้ม) */}
+            {dryTop && (
+              <div className="flex items-center gap-4 p-3 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold shadow-md bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400">
+                  <i className="fas fa-fire-alt text-sm"></i>
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200">{dryTop.emp_name || 'ไม่ระบุชื่อ'}</h4>
+                  <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">{dryTop.department}</p>
+                </div>
+                <div className="text-right">
+                  <span className="block text-sm font-extrabold text-orange-600 dark:text-orange-400">
+                    <AnimatedNumber key={`top-dry-${animationKey}`} endValue={dryTop.volumn} />
+                  </span>
+                  <span className="text-[10px] text-gray-400">ลบ.ฟุต</span>
+                </div>
+              </div>
+            )}
 
           </div>
 
@@ -393,7 +404,6 @@ export default function Dashboard() {
 
       </div>
 
-      {/* แอนิเมชันสำหรับกราฟแท่ง */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes grow {
           from { height: 0%; opacity: 0; }
