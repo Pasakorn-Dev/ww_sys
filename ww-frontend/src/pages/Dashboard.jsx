@@ -157,7 +157,7 @@ export default function Dashboard() {
       {/* 🌟 1. Welcome Banner + ตัวกรองสาขา */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-3xl p-8 text-white shadow-xl shadow-blue-500/20 relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="relative z-10 w-full md:w-auto">
-          <h1 className="text-3xl md:text-4xl font-extrabold mb-2 tracking-tight">ระบบภาพรวมการผลิต</h1>
+          <h1 className="text-3xl md:text-4xl font-extrabold mb-2 tracking-tight">ภาพรวมการผลิต</h1>
           <p className="text-blue-100 text-sm md:text-base max-w-xl leading-relaxed">
             ข้อมูลอัปเดตล่าสุด: 
             <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-mono ml-2 backdrop-blur-md inline-flex items-center mt-2 border border-white/30">

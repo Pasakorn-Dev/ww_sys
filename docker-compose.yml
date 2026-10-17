@@ -10,7 +10,7 @@ services:
     env_file:
       - .env  # ดึงรหัสผ่านจากไฟล์ .env (ความลับ) บน Server
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql
       # 👇 เพิ่มบรรทัดนี้กลับมา เพื่อให้ระบบดึงไฟล์ .sql ไปรันอัตโนมัติในครั้งแรก
       - ./database-init:/docker-entrypoint-initdb.d
   # ตู้ Web UI สำหรับจัดการฐานข้อมูล (pgAdmin 4)

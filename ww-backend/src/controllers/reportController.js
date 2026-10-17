@@ -47,84 +47,155 @@ const getBrowser = async () => {
 };
 
 // 💡 1. ปรับฟังก์ชัน Helper ให้รับ parameter 'grade' เข้ามาและตั้งเงื่อนไข
+// ประกาศฟังก์ชันแบบ Async รับค่า วันเริ่มต้น, วันสิ้นสุด, รหัสสาขา และ เกรดไม้ (ถ้าไม่ส่งมาจะใช้ 'AB' เป็นค่าปริยาย)
 const fetchWoodTypeAbData = async (start_date, end_date, branch_id, grade = 'AB') => {
+  
+  // กำหนดเงื่อนไขตั้งต้นสำหรับเกรดใน SQL (ถ้าไม่เข้าเงื่อนไขอะไรเลย จะบังคับดึง AB)
   let gradeCondition = "mws.grade = 'AB'";
+  // กำหนดตัวแปรที่ใช้เตรียมส่งเข้าไปใน SQL (ป้องกัน SQL Injection) ตามลำดับ $1, $2, $3
   const params = [start_date, end_date, branch_id];
 
-  // ตรวจสอบเงื่อนไขเกรด
+  // ตรวจสอบเงื่อนไขเกรด: ถ้าส่งเกรดมาและไม่ใช่ 'ALL'
   if (grade && grade !== 'ALL') {
+    // ให้ใช้ค่าเกรดที่ส่งมา ผูกเป็นตัวแปร $4
     gradeCondition = "mws.grade = $4";
+    // นำค่าเกรดดัน (push) เข้าไปในอาร์เรย์ params ให้ตรงกับตำแหน่ง $4
     params.push(grade);
-  } else if (grade === 'ALL') {
+  } 
+  // ถ้าส่งคำว่า 'ALL' มา (แปลว่าต้องการดูทุกเกรดรวมกัน)
+  else if (grade === 'ALL') {
+    // เปลี่ยนเงื่อนไขเป็นการดึงข้อมูลทั้งหมด 4 เกรดหลักออกมา
     gradeCondition = "mws.grade IN ('AB', 'C', 'P', 'PP')";
   }
 
+  // --- เริ่มสร้างคำสั่ง SQL ---
   const query = `
+    /* ใช้ CTE (Common Table Expression) ชื่อ BaseData ในการเตรียมข้อมูลดิบขั้นแรก */
     WITH BaseData AS (
         SELECT 
-            tsw.saw_name, mws.thick, mws.length, RIGHT(mws.wood_code, 7) AS wood_code,
+            -- เลือกคอลัมน์ชื่อชุดเลื่อย
+            tsw.saw_name, 
+            -- เลือกคอลัมน์ความหนา
+            mws.thick, 
+            -- เลือกคอลัมน์ความยาว
+            mws.length, 
+            -- ตัดเอารหัสไม้เฉพาะ 7 ตัวท้าย (ตัด 2 ตัวหน้าทิ้ง)
+            RIGHT(mws.wood_code, 7) AS wood_code,
+            
+            -- คำนวณฝั่ง "ไม้ปกติ" (is_special = false)
+            -- หาผลรวมปริมาตรเฉพาะไม้ปกติ ถ้าใช่ให้ใช้ค่า volumn มาบวกกัน ถ้าไม่ใช่ให้บวก 0
             SUM(CASE WHEN mws.is_special = false THEN tsw.volumn ELSE 0 END) AS ab_volumn,
+            -- หาผลรวมจำนวนเงินเฉพาะไม้ปกติ
             SUM(CASE WHEN mws.is_special = false THEN tsw.net_price ELSE 0 END) AS ab_amount,
+            
+            -- คำนวณฝั่ง "ไม้พิเศษ" (is_special = true)
+            -- หาผลรวมปริมาตรเฉพาะไม้พิเศษ
             SUM(CASE WHEN mws.is_special = true THEN tsw.volumn ELSE 0 END) AS spc_volumn,
+            -- หาผลรวมจำนวนเงินเฉพาะไม้พิเศษ
             SUM(CASE WHEN mws.is_special = true THEN tsw.net_price ELSE 0 END) AS spc_amount
+            
+        -- ข้อมูลตารางหลัก (การเลื่อยไม้)
         FROM transaction_saw_woods tsw
+        -- เชื่อมตารางขนาดไม้ด้วย id (เก่า) และรหัสสาขา
         JOIN master_wood_sizes mws 
           on mws.old_id = tsw.wood_size_id 
           and tsw.branch_id = mws.branch_id
+          
+        -- กรองข้อมูล
+        -- ใส่เงื่อนไขเกรดที่เราสร้างไว้ข้างบน (อาจเป็น AB หรือ IN ('AB','C',...))
         WHERE ${gradeCondition}
+          -- เลือกช่วงวันที่ผลิต ($1, $2)
           AND DATE(tsw.produce_date) BETWEEN $1 AND $2
+          -- เลือกรหัสสาขา ($3)
           AND tsw.branch_id = $3
+          
+        -- จับกลุ่มข้อมูลเพื่อทำการ Sum เข้าด้วยกันตามชุดเลื่อย, ความหนา, ความยาว, และรหัสไม้
         GROUP BY tsw.saw_name, mws.thick, mws.length, RIGHT(mws.wood_code, 7)
     )
+    
+    /* ขั้นตอนที่ 2: นำตารางจำลอง BaseData มาประมวลผลต่อ (หาเปอร์เซ็นต์และราคาเฉลี่ย) ด้วย Window Function */
     SELECT 
         saw_name, thick, length, wood_code,
         ab_volumn, ab_amount,
+        
+        -- หาราคาเฉลี่ย (จำนวนเงิน / ปริมาตร) ของไม้ปกติ ถ้าปริมาตรเป็น 0 ให้กัน error คืนค่า 0
         CASE WHEN ab_volumn > 0 THEN ab_amount / ab_volumn ELSE 0 END AS ab_avg_price,
-        CASE WHEN SUM(ab_volumn) OVER (PARTITION BY saw_name, thick, length) > 0 THEN (ab_volumn / SUM(ab_volumn) OVER (PARTITION BY saw_name, thick, length)) * 100 ELSE 0 END AS ab_percent_qty,
+        
+        -- หาเปอร์เซ็นต์ (ไม้ปกติ): (ปริมาตรบรรทัดนี้ / ปริมาตรรวมทั้งหมดในชุดเลื่อย+หนา+ยาวกลุ่มนี้) * 100
+        -- SUM(...) OVER (...) คือ Window function ใช้หาผลรวมโดยไม่ต้อง GROUP BY ลดแถว
+        CASE WHEN SUM(ab_volumn) OVER (PARTITION BY saw_name, thick, length) > 0 
+             THEN (ab_volumn / SUM(ab_volumn) OVER (PARTITION BY saw_name, thick, length)) * 100 
+             ELSE 0 END AS ab_percent_qty,
+             
         spc_volumn, spc_amount,
+        
+        -- หาราคาเฉลี่ย (จำนวนเงิน / ปริมาตร) ของไม้พิเศษ
         CASE WHEN spc_volumn > 0 THEN spc_amount / spc_volumn ELSE 0 END AS spc_avg_price,
-        CASE WHEN SUM(spc_volumn) OVER (PARTITION BY saw_name, thick, length) > 0 THEN (spc_volumn / SUM(spc_volumn) OVER (PARTITION BY saw_name, thick, length)) * 100 ELSE 0 END AS spc_percent_qty
+        
+        -- หาเปอร์เซ็นต์ (ไม้พิเศษ) ใช้หลักการเดียวกับไม้ปกติ
+        CASE WHEN SUM(spc_volumn) OVER (PARTITION BY saw_name, thick, length) > 0 
+             THEN (spc_volumn / SUM(spc_volumn) OVER (PARTITION BY saw_name, thick, length)) * 100 
+             ELSE 0 END AS spc_percent_qty
+             
     FROM BaseData
+    -- เรียงลำดับผลลัพธ์
     ORDER BY saw_name, thick, length, wood_code;
   `;
 
+  // สั่งยิง SQL Query ไปยัง Database พร้อมตัวแปร และดึงแค่บรรทัดคำตอบ (rows) ออกมา
   const { rows } = await pool.query(query, params);
 
-  // --- คำนวณ Grand Total ---
+  // --- คำนวณ Grand Total (ยอดรวมทั้งรายงาน) ---
+  // กำหนดตัวแปรสะสมยอดเริ่มต้นเป็น 0
   let gt_ab_volumn = 0, gt_ab_amount = 0, gt_spc_volumn = 0, gt_spc_amount = 0;
   
+  // วนลูปทุกบรรทัดผลลัพธ์จาก Database เพื่อบวกสะสม
   rows.forEach(row => {
-    gt_ab_volumn += Number(row.ab_volumn || 0);
-    gt_ab_amount += Number(row.ab_amount || 0);
-    gt_spc_volumn += Number(row.spc_volumn || 0);
-    gt_spc_amount += Number(row.spc_amount || 0);
+    gt_ab_volumn += Number(row.ab_volumn || 0); // สะสมปริมาตรปกติ
+    gt_ab_amount += Number(row.ab_amount || 0); // สะสมจำนวนเงินปกติ
+    gt_spc_volumn += Number(row.spc_volumn || 0); // สะสมปริมาตรพิเศษ
+    gt_spc_amount += Number(row.spc_amount || 0); // สะสมจำนวนเงินพิเศษ
   });
 
+  // หายอดรวมปริมาตรสุทธิ (ปกติ + พิเศษ)
   const gt_all_volumn = gt_ab_volumn + gt_spc_volumn;
 
+  // สร้าง Object เก็บผลสรุป Grand Total พร้อมคำนวณ % และราคาเฉลี่ยภาพรวม
   const grandTotal = {
     ab_volumn: gt_ab_volumn,
     ab_amt: gt_ab_amount,
     spc_volumn: gt_spc_volumn,
     spc_amt: gt_spc_amount,
+    // % ของไม้ปกติต่อยอดรวมสุทธิ
     pct_all_ab: gt_all_volumn > 0 ? (gt_ab_volumn / gt_all_volumn) * 100 : 0,
+    // % ของไม้พิเศษต่อยอดรวมสุทธิ
     pct_all_spc: gt_all_volumn > 0 ? (gt_spc_volumn / gt_all_volumn) * 100 : 0,
+    // % แยกปกติ/พิเศษ (ตั้งไว้เป็น 100% เสมอเพราะเป็นผลรวมระดับบนสุด)
     pct_sep_ab: gt_ab_volumn > 0 ? 100 : 0, 
     pct_sep_spc: gt_spc_volumn > 0 ? 100 : 0,
+    // ราคาเฉลี่ยรวมไม้ปกติ
     avg_price_ab: gt_ab_volumn > 0 ? (gt_ab_amount / gt_ab_volumn) : 0,
+    // ราคาเฉลี่ยรวมไม้พิเศษ
     avg_price_spc: gt_spc_volumn > 0 ? (gt_spc_amount / gt_spc_volumn) : 0,
   };
 
   // --- จัดกลุ่มข้อมูล (Grouping) ---
+  // การใช้ reduce เพื่อแปลง Array โครงสร้างแบนๆ (Flat Table) จาก Database 
+  // ให้กลายเป็นโครงสร้าง Object แบบต้นไม้ซ้อนกัน (Tree structure) ตามลำดับ: ชุดเลื่อย > หนา > ยาว
   const groupedData = rows.reduce((acc, row) => {
+    // เตรียมตัวแปร (ชื่อชุดเลื่อย, ความหนา, ความยาว) ไว้ใช้เป็น Key ของกลุ่ม
     const s = row.saw_name || 'ไม่ระบุชุดเลื่อย';
     const t = row.thick;
     const l = row.length;
 
+    // ถ้ายังไม่เคยมีกลุ่ม "ชุดเลื่อย" นี้ ให้สร้างใหม่พร้อมเตรียมยอดรวมตั้งต้น
     if (!acc[s]) acc[s] = { saw_name: s, thicks: {}, total_ab_volumn: 0, total_spc_volumn: 0 };
+    // ถ้ายังไม่เคยมีกลุ่ม "ความหนา" ภายใต้ชุดเลื่อยนี้ ให้สร้างใหม่
     if (!acc[s].thicks[t]) acc[s].thicks[t] = { thick: t, lengths: {}, subTotal: { ab_volumn: 0, ab_amt: 0, spc_volumn: 0, spc_amt: 0 } };
+    // ถ้ายังไม่เคยมีกลุ่ม "ความยาว" ภายใต้ความหนานี้ ให้สร้างใหม่
     if (!acc[s].thicks[t].lengths[l]) acc[s].thicks[t].lengths[l] = { length: l, items: [], subTotal: { ab_volumn: 0, ab_amt: 0, spc_volumn: 0, spc_amt: 0 } };
 
+    // นำข้อมูลระดับล่างสุด (รายละเอียดรหัสไม้บรรทัดนี้) จับยัดใส่ Array ของกลุ่ม "ความยาว"
     acc[s].thicks[t].lengths[l].items.push({
       wood_code: row.wood_code,
       ab_volumn: Number(row.ab_volumn), ab_pct_qty: Number(row.ab_percent_qty),
@@ -133,33 +204,49 @@ const fetchWoodTypeAbData = async (start_date, end_date, branch_id, grade = 'AB'
       spc_price: Number(row.spc_avg_price), spc_amt: Number(row.spc_amount)
     });
 
+    // --- สะสมยอดรวม (SubTotal) กลับขึ้นไปยังกลุ่มชั้นบนต่างๆ ทันทีที่อ่านแต่ละบรรทัดเสร็จ ---
+    // 1. สะสมยอดระดับความยาว
     acc[s].thicks[t].lengths[l].subTotal.ab_volumn += Number(row.ab_volumn);
     acc[s].thicks[t].lengths[l].subTotal.ab_amt += Number(row.ab_amount);
     acc[s].thicks[t].lengths[l].subTotal.spc_volumn += Number(row.spc_volumn);
     acc[s].thicks[t].lengths[l].subTotal.spc_amt += Number(row.spc_amount);
 
+    // 2. สะสมยอดระดับความหนา
     acc[s].thicks[t].subTotal.ab_volumn += Number(row.ab_volumn);
     acc[s].thicks[t].subTotal.ab_amt += Number(row.ab_amount);
     acc[s].thicks[t].subTotal.spc_volumn += Number(row.spc_volumn);
     acc[s].thicks[t].subTotal.spc_amt += Number(row.spc_amount);
 
+    // 3. สะสมยอดระดับชุดเลื่อย (เก็บเฉพาะปริมาตรเพื่อใช้คำนวณ % สัดส่วนภายหลัง)
     acc[s].total_ab_volumn += Number(row.ab_volumn);
     acc[s].total_spc_volumn += Number(row.spc_volumn);
 
+    // ส่งคืนตัวสะสมเพื่อไปทำงานในลูปต่อไป
     return acc;
-  }, {});
+  }, {}); // เริ่มต้น reduce ด้วย Object ว่างๆ {}
 
+  // console.log(groupedData);
+  // --- ประมวลผลขั้นสุดท้าย (คำนวณ % ระดับกลุ่มย่อย และแปลง Object -> Array) ---
+  // Object.values() ทำการเปลี่ยน Object ที่ใช้ชื่อ Key จัดกลุ่ม เป็น Array ที่มีแต่ Value เปล่าๆ เพื่อให้ React .map() ได้
   const finalData = Object.values(groupedData).map(sawGroup => {
+    // ยอดรวมทั้งหมดของชุดเลื่อย
     sawGroup.total_all_volumn = sawGroup.total_ab_volumn + sawGroup.total_spc_volumn;
+    
+    // แปลงกลุ่มความหนาให้เป็น Array
     sawGroup.thicks = Object.values(sawGroup.thicks).map(thickGroup => {
+      // คำนวณเปอเซ็นต์ความหนา (แบบรวมทุกประเภท)
       thickGroup.pct_thick_all_ab = sawGroup.total_all_volumn > 0 ? (thickGroup.subTotal.ab_volumn / sawGroup.total_all_volumn) * 100 : 0;
       thickGroup.pct_thick_all_spc = sawGroup.total_all_volumn > 0 ? (thickGroup.subTotal.spc_volumn / sawGroup.total_all_volumn) * 100 : 0;
+      // คำนวณเปอเซ็นต์ความหนา (แบบแยกปกติกับพิเศษคิดสัดส่วนเฉพาะของตัวเอง)
       thickGroup.pct_thick_sep_ab = sawGroup.total_ab_volumn > 0 ? (thickGroup.subTotal.ab_volumn / sawGroup.total_ab_volumn) * 100 : 0;
       thickGroup.pct_thick_sep_spc = sawGroup.total_spc_volumn > 0 ? (thickGroup.subTotal.spc_volumn / sawGroup.total_spc_volumn) * 100 : 0;
+      // หาราคาเฉลี่ยต่อความหนา
       thickGroup.avg_price_ab = thickGroup.subTotal.ab_volumn > 0 ? (thickGroup.subTotal.ab_amt / thickGroup.subTotal.ab_volumn) : 0;
       thickGroup.avg_price_spc = thickGroup.subTotal.spc_volumn > 0 ? (thickGroup.subTotal.spc_amt / thickGroup.subTotal.spc_volumn) : 0;
 
+      // แปลงกลุ่มความยาวให้เป็น Array
       thickGroup.lengths = Object.values(thickGroup.lengths).map(lenGroup => {
+        // หา %ยาว: สัดส่วนของ "ความยาวนี้" เทียบกับ "ความหนานั้นทั้งหมด"
         lenGroup.subTotal.ab_pct_amt = thickGroup.subTotal.ab_volumn > 0 ? (lenGroup.subTotal.ab_volumn / thickGroup.subTotal.ab_volumn) * 100 : 0;
         lenGroup.subTotal.spc_pct_amt = thickGroup.subTotal.spc_volumn > 0 ? (lenGroup.subTotal.spc_volumn / thickGroup.subTotal.spc_volumn) * 100 : 0;
         return lenGroup;
@@ -169,6 +256,7 @@ const fetchWoodTypeAbData = async (start_date, end_date, branch_id, grade = 'AB'
     return sawGroup;
   });
 
+  // คืนค่าชุดข้อมูลที่พร้อมใช้ และผลรวมทั้งรายงาน
   return { finalData, grandTotal };
 };
 
@@ -567,23 +655,32 @@ const reportController = {
       res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานรูปแบบที่ 2' });
     }
   },
-  // ฟังก์ชัน API เดิมของ JSON 
+  // ประกาศฟังก์ชันไว้ภายใน Object reportController
   getAbWoodReport: async (req, res) => {
     try {
-      const { start_date, end_date, branch_id, grade} = req.query;
-      if (!branch_id || !start_date || !end_date) return res.status(400).json({ success: false, message: 'Missing parameters' });
+      // 💡 2. รับตัวแปรพารามิเตอร์ที่ Frontend ส่งมาทาง Query String (เช่น ?start_date=...&branch_id=...)
+      const { start_date, end_date, branch_id, grade } = req.query;
       
-      // รับค่าทั้ง data และ grandTotal
-      const result = await fetchWoodTypeAbData(start_date, end_date, branch_id ,grade);
+      // ถ้าระบุตัวแปรที่จำเป็นไม่ครบ ให้แจ้งเตือน (Bad Request) ป้องกันฐานข้อมูลพัง
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'Missing parameters' });
+      }
       
-      // แนบ grandTotal ไปใน JSON Response ด้วย
+      // นำตัวแปรทั้งหมดโยนเข้าไปให้ฟังก์ชัน Helper `fetchWoodTypeAbData` ที่อธิบายไปด้านบน ดำเนินการ
+      const result = await fetchWoodTypeAbData(start_date, end_date, branch_id, grade);
+      
+      // เมื่อคำนวณเสร็จ ส่งผลลัพธ์กลับในรูปแบบ JSON ให้ Frontend นำไปใช้งาน
+      // จะส่งกลับทั้งสถานะ (success), ข้อมูลจัดกลุ่มแล้ว (data) และยอดรวม (grandTotal)
       res.status(200).json({ 
         success: true, 
         data: result.finalData, 
         grandTotal: result.grandTotal 
       });
+      
     } catch (error) {
+      // หากโค้ดมีบัคหรือยิง Database ไม่สำเร็จ จะมาเข้าที่ Catch พิมพ์ Error ลง Log บน Server
       console.error(error);
+      // ส่งแจ้งเตือนว่าเกิดข้อผิดพลาดให้ Frontend
       res.status(500).json({ success: false, message: 'Server Error' });
     }
   },
@@ -2831,6 +2928,8 @@ const reportController = {
       const { formattedData, grandTotalMap, uniqueLengths, expectedGrades } = await reportController.fetchSawerPerfLengthHelper(branch_id, start_date, end_date, grade_group, report_format);
       const isFormat2 = String(report_format) === '2';
 
+      const fs = require('fs');
+      const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
       let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
 
@@ -2838,13 +2937,13 @@ const reportController = {
       const allGradesLabel = expectedGrades.map(formatGradeLabel).join('+');
 
       let theadHtml = `
-        <tr style="background-color: #d1d5db;">
+        <tr style="background-color: #d1d5db; page-break-inside: avoid;">
           <th rowspan="2" style="width: 150px;">รหัส-ชื่อนายม้า</th>
           ${isFormat2 ? '<th rowspan="2" style="width: 80px;">รหัสแผนก</th>' : ''}
           ${expectedGrades.map(g => `<th colspan="${uniqueLengths.length + 1}">${formatGradeLabel(g)} (ลบ.ฟุต)</th>`).join('')}
           <th colspan="${uniqueLengths.length + 1}" style="background-color: #9ca3af;">${allGradesLabel} (ลบ.ฟุต)</th>
         </tr>
-        <tr style="background-color: #e5e7eb;">
+        <tr style="background-color: #e5e7eb; page-break-inside: avoid;">
           ${expectedGrades.map(() => uniqueLengths.map(l => `<th>${l}</th>`).join('') + '<th>รวม</th>').join('')}
           ${uniqueLengths.map(l => `<th style="background-color: #d1d5db;">${l}</th>`).join('')}
           <th style="background-color: #9ca3af;">รวม</th>
@@ -2855,13 +2954,20 @@ const reportController = {
       formattedData.forEach((emp) => {
         const empName = emp.employee_code ? `${emp.employee_code} ${emp.employee_name}` : emp.employee_name;
         
+        // 💡 ครอบข้อมูลของพนักงานแต่ละคนด้วย <tbody> เดี่ยวๆ เพื่อป้องกันไม่ให้ถูกตัดขาดกลางหน้ากระดาษ (Page break)
+        tbodyHtml += `<tbody style="page-break-inside: avoid;">`;
+
         if (isFormat2) {
           const saws = Object.values(emp.saws);
           saws.forEach((saw, sIdx) => {
             let volRow = `<tr>`;
-            // 💡 แก้ไข: นับ rowSpan ให้พอดีกับจำนวนชุดเลื่อย ไม่เกินลงไปทับแถวรวม
-            if (sIdx === 0) volRow += `<td rowspan="${saws.length * 2}" class="left pl" style="background-color: #fefce8; vertical-align: middle;">${empName}</td>`;
-            volRow += `<td class="left pl">${saw.saw_name}</td>`;
+            
+            // 💡 แก้ไข: นับ rowSpan ให้ครอบคลุม: (จำนวนชุดเลื่อย x 2 บรรทัดย่อย) + บรรทัด "รวม" สุทธิ 2 บรรทัด
+            if (sIdx === 0) {
+               volRow += `<td rowspan="${(saws.length * 2) + 2}" class="left pl" style="background-color: #fefce8; vertical-align: middle;">${empName}</td>`;
+            }
+            
+            volRow += `<td rowspan="2" class="left pl" style="vertical-align: middle;">${saw.saw_name}</td>`;
             expectedGrades.forEach(g => {
               uniqueLengths.forEach(l => { volRow += `<td>${saw.grades[g].lengths[l] > 0 ? saw.grades[g].lengths[l].toFixed(4) : '0.0000'}</td>`; });
               volRow += `<td class="bold bg-gray-light">${saw.grades[g].total > 0 ? saw.grades[g].total.toFixed(4) : '0.0000'}</td>`;
@@ -2869,7 +2975,7 @@ const reportController = {
             uniqueLengths.forEach(l => { volRow += `<td style="background-color: #eff6ff;">${saw.total_all_grades.lengths[l] > 0 ? saw.total_all_grades.lengths[l].toFixed(4) : '0.0000'}</td>`; });
             volRow += `<td class="bold" style="background-color: #dbeafe;">${saw.total_all_grades.total > 0 ? saw.total_all_grades.total.toFixed(4) : '0.0000'}</td></tr>`;
 
-            let pctRow = `<tr class="text-gray text-xs"><td></td>`;
+            let pctRow = `<tr class="text-gray text-xs">`;
             expectedGrades.forEach(g => {
               uniqueLengths.forEach(l => { pctRow += `<td>${saw.grades[g].pcts[l] > 0 ? saw.grades[g].pcts[l].toFixed(2) + '%' : '0.00%'}</td>`; });
               pctRow += `<td class="bold bg-gray-light">${saw.grades[g].pct_total > 0 ? saw.grades[g].pct_total.toFixed(2) + '%' : '0.00%'}</td>`;
@@ -2881,7 +2987,7 @@ const reportController = {
           });
 
           // 💡 แก้ไข: บรรทัดรวมพนักงาน ผสานเซลล์อย่างสมบูรณ์แบบ
-          let sumVol = `<tr class="bold" style="background-color: #e2efda; border-top: 1px solid #000;"><td colspan="2" rowspan="2" class="center" style="vertical-align: middle;">รวม</td>`;
+          let sumVol = `<tr class="bold" style="background-color: #e2efda; border-top: 1px solid #000;"><td rowspan="2" class="center" style="vertical-align: middle;">รวม</td>`;
           let sumPct = `<tr class="text-xs" style="background-color: #e2efda; border-bottom: 2px solid #555;">`;
           expectedGrades.forEach(g => {
             uniqueLengths.forEach(l => { 
@@ -2921,10 +3027,12 @@ const reportController = {
 
           tbodyHtml += volRow + pctRow;
         }
+        tbodyHtml += `</tbody>`; // ปิด tbody ของพนักงานคนนี้
       });
 
       // Grand Total
       if (grandTotalMap) {
+        tbodyHtml += `<tbody style="page-break-inside: avoid;">`;
         let gtVol = `<tr class="bold" style="background-color: #d1d5db; border-top: 2px solid #333;"><td colspan="${isFormat2 ? 2 : 1}" rowspan="2" class="center" style="vertical-align: middle;">รวมทั้งหมด</td>`;
         let gtPct = `<tr class="text-xs" style="background-color: #e5e7eb; border-bottom: 2px solid #333;">`;
         expectedGrades.forEach(g => {
@@ -2942,14 +3050,18 @@ const reportController = {
         gtVol += `<td style="background-color: #93c5fd; color: #1e3a8a;">${grandTotalMap['ALL'].total > 0 ? grandTotalMap['ALL'].total.toFixed(4) : '0.0000'}</td></tr>`;
         gtPct += `<td class="text-gray" style="background-color: #bfdbfe;">${grandTotalMap['ALL'].pct_total > 0 ? grandTotalMap['ALL'].pct_total.toFixed(2) + '%' : '0.00%'}</td></tr>`;
 
-        tbodyHtml += gtVol + gtPct;
+        tbodyHtml += gtVol + gtPct + `</tbody>`;
       }
 
+      // 💡 เพิ่มการตั้งค่า CSS page-break-inside: avoid; เพื่อบังคับไม่ให้เนื้อหาแต่ละชุดโดนหั่นกลางกระดาษ
       const htmlContent = `
         <html><head><style>
           @font-face { font-family: 'THSarabun'; src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype'); }
-          body { font-family: 'THSarabun', sans-serif; font-size: 11px; margin: 0; padding: 15px; }
-          table { width: 100%; border-collapse: collapse; }
+          body { font-family: 'THSarabun', sans-serif; font-size: 11px; margin: 0; padding: 10px; }
+          table { width: 100%; border-collapse: collapse; page-break-inside: auto; }
+          tr { page-break-inside: avoid; page-break-after: auto; }
+          thead { display: table-header-group; }
+          tfoot { display: table-footer-group; }
           th, td { border: 1px solid #777; padding: 3px; text-align: right; }
           th { font-weight: bold; text-align: center; }
           .left { text-align: left; } .center { text-align: center; } .pl { padding-left: 6px; } 
@@ -2961,14 +3073,25 @@ const reportController = {
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปผลงานนายม้า แยกตามความยาวไม้</h2>
             <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date} | กลุ่มเกรดไม้: ${grade_group === 'AB_C' ? 'AB, C' : 'P, PP'}</p>
           </div>
-          <table><thead>${theadHtml}</thead><tbody>${tbodyHtml}</tbody></table>
+          <table><thead>${theadHtml}</thead>${tbodyHtml}</table>
         </body></html>
       `;
 
+      // ใช้ Global Browser เพื่อลดการบริโภคทรัพยากรของเซิร์ฟเวอร์
       const browser = await getBrowser(); 
       const page = await browser.newPage();
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ format: 'Legal', landscape: true, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
+      
+      // กำหนด load ให้โหลดข้อมูลและ CSS ให้เสร็จสมบูรณ์ก่อน
+      await page.setContent(htmlContent, { waitUntil: 'load' }); 
+      
+      const pdfBuffer = await page.pdf({ 
+        format: 'Legal', 
+        landscape: true, 
+        printBackground: true, 
+        // 💡 ปรับให้ Header ตารางโชว์ทุกหน้าอัตโนมัติด้วย display: table-header-group;
+        displayHeaderFooter: false, 
+        margin: { top: '15mm', bottom: '15mm', left: '10mm', right: '10mm' }
+      });
       await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');

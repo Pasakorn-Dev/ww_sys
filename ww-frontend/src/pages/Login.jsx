@@ -93,7 +93,7 @@ export default function Login() {
             ระบบจัดการคลัง <br/>และวิเคราะห์ข้อมูล
           </h1>
           <p className="text-lg text-green-200 mb-8 font-light">
-            WW_Report Enterprise System 
+            WW_Report System 
             ยกระดับการตัดสินใจทางธุรกิจด้วยข้อมูลที่แม่นยำและรายงานแบบเรียลไทม์
           </p>
           <div className="flex items-center text-sm text-green-300/80 font-medium">
@@ -198,7 +198,7 @@ export default function Login() {
         {/* Footer ด้านล่างฟอร์ม (Mobile & Desktop) */}
         <div className="absolute bottom-6 text-center lg:w-1/2">
           <p className="text-xs text-gray-400 dark:text-slate-500">
-            &copy; {new Date().getFullYear()} WW Corporation. All rights reserved.
+            &copy; {new Date().getFullYear()} Wood Work Corporation. All rights reserved.
           </p>
         </div>
       </div>
