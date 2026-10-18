@@ -157,7 +157,7 @@ export default function WoodPriceManager() {
   };
 
   const handleExportExcel = () => {
-    window.open(`${import.meta.env.VITE_API_URL}/master/wood-prices/export?branch_id=${selectedBranch}&type_id=1`, '_blank');
+    window.open(`${import.meta.env.VITE_API_URL}/master/wood-prices/export?branch_id=${selectedBranch}&type_id=1&paramExport=true`, '_blank');
   };
 
   const handleImportExcel = async (e) => {

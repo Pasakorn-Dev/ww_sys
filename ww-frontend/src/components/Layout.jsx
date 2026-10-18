@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
 import apiFetch from '../services/apiFetch';
 import Swal from 'sweetalert2';
+import { clearSession } from '../utils/session';
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -37,7 +38,7 @@ export default function Layout() {
     const storedUser = localStorage.getItem('user');
 
     if (!token || !storedUser || storedUser === 'undefined' || storedUser === 'null') {
-      localStorage.clear();
+      clearSession();
       navigate('/login', { replace: true });
       return;
     }
@@ -46,7 +47,7 @@ export default function Layout() {
       setUser(JSON.parse(storedUser));
     } catch (error) {
       console.error('Invalid user session', error);
-      localStorage.clear();
+      clearSession();
       navigate('/login', { replace: true });
       return;
     }
@@ -85,13 +86,13 @@ export default function Layout() {
             }
           }
         } else {
-          localStorage.clear();
+          clearSession();
           navigate('/login', { replace: true });
         }
       } catch (err) {
         console.error('Error fetching menus:', err);
         if (isMounted) {
-          localStorage.clear();
+          clearSession();
           navigate('/login', { replace: true });
         }
       }
@@ -104,7 +105,7 @@ export default function Layout() {
 
   // ─── Handler: Logout ──────────────────────────────────────
   const handleLogout = () => {
-    localStorage.clear();
+    clearSession();
     navigate('/login', { replace: true });
   };
 
@@ -257,7 +258,7 @@ export default function Layout() {
               <i className="fas fa-bars text-xl"></i>
             </button>
             <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 hidden sm:block">
-              ระบบจัดการหลังบ้าน
+              ระบบรายงานการผลิต
             </h2>
           </div>
 

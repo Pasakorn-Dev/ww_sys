@@ -1,4 +1,5 @@
 // src/services/apiFetch.js
+import { clearSession } from '../utils/session';
 
 const BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
@@ -15,9 +16,8 @@ export default async function apiFetch(path, options = {}) {
     },
   });
 
-  // 1. ถ้า Token พัง หรือ หมดอายุ (401) ค่อยเตะออก
   if (res.status === 401) {
-    localStorage.clear();
+    clearSession();
     if (window.location.pathname !== '/login') {
       window.location.href = '/login';
     }

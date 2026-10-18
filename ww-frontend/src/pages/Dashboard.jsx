@@ -172,7 +172,7 @@ export default function Dashboard() {
             value={selectedBranch}
             onChange={handleBranchChange}
             disabled={isLoading || (accessLevel !== 1 && branches.length <= 1)}
-            className="w-full bg-white text-gray-800 border-none rounded-lg p-2 text-sm outline-none shadow-inner disabled:bg-gray-200"
+            className="w-full bg-white dark:bg-gray-800 text-gray-800 dark:text-white border-none rounded-lg p-2 text-sm outline-none shadow-inner disabled:bg-gray-200 dark:disabled:bg-gray-700 dark:disabled:text-gray-500 cursor-pointer"
           >
             {accessLevel === 1 && <option value="">🌟 สรุปทุกสาขาทั้งบริษัท</option>}
             {branches.map(b => (
@@ -190,18 +190,18 @@ export default function Dashboard() {
             <div className="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-2xl">
               <i className="fas fa-layer-group text-2xl text-blue-600 dark:text-blue-400"></i>
             </div>
-            <span className={`text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 ${stats.sawWood.percent >= 0 ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100'}`}>
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 ${stats.sawWood.percent >= 0 ? 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30' : 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30'}`}>
               <i className={`fas ${stats.sawWood.percent >= 0 ? 'fa-arrow-up' : 'fa-arrow-down'}`}></i> {Math.abs(stats.sawWood.percent).toFixed(1)}%
             </span>
           </div>
-          <h3 className="text-gray-500 text-sm font-medium">ปริมาตรไม้เลื่อย (ลบ.ฟุต)</h3>
+          <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">ปริมาตรไม้เลื่อย (ลบ.ฟุต)</h3>
           <div className="mt-2 flex items-baseline gap-2">
-            <h2 className="text-3xl font-extrabold text-gray-800">
+            <h2 className="text-3xl font-extrabold text-gray-800 dark:text-white">
               <AnimatedNumber key={`saw-vol-${animationKey}`} endValue={stats.sawWood.vol} />
             </h2>
           </div>
-          <p className="text-xs text-gray-400 mt-2 font-medium">
-            ยอดขายประเมิน <span className="font-bold text-blue-600">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 font-medium">
+            ยอดขายประเมิน <span className="font-bold text-blue-600 dark:text-blue-400">
               <AnimatedNumber key={`saw-val-${animationKey}`} endValue={stats.sawWood.val} prefix="฿" isMillion={true} />
             </span>
           </p>
@@ -213,18 +213,18 @@ export default function Dashboard() {
             <div className="bg-teal-50 dark:bg-teal-900/30 p-3 rounded-2xl">
               <i className="fas fa-water text-2xl text-teal-600 dark:text-teal-400"></i>
             </div>
-            <span className={`text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 ${stats.wetWood.percent >= 0 ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100'}`}>
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 ${stats.wetWood.percent >= 0 ? 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30' : 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30'}`}>
               <i className={`fas ${stats.wetWood.percent >= 0 ? 'fa-arrow-up' : 'fa-arrow-down'}`}></i> {Math.abs(stats.wetWood.percent).toFixed(1)}%
             </span>
           </div>
-          <h3 className="text-gray-500 text-sm font-medium">ปริมาตรไม้เปียก (ลบ.ฟุต)</h3>
+          <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">ปริมาตรไม้เปียก (ลบ.ฟุต)</h3>
           <div className="mt-2 flex items-baseline gap-2">
-            <h2 className="text-3xl font-extrabold text-gray-800">
+            <h2 className="text-3xl font-extrabold text-gray-800 dark:text-white">
               <AnimatedNumber key={`wet-vol-${animationKey}`} endValue={stats.wetWood.vol} />
             </h2>
           </div>
-          <p className="text-xs text-gray-400 mt-2 font-medium">
-            ค่าแรงรวม <span className="font-bold text-teal-600">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 font-medium">
+            ค่าแรงรวม <span className="font-bold text-teal-600 dark:text-teal-400">
               <AnimatedNumber key={`wet-val-${animationKey}`} endValue={stats.wetWood.wage} prefix="฿" isCurrency={true} />
             </span>
           </p>
@@ -236,25 +236,25 @@ export default function Dashboard() {
             <div className="bg-orange-50 dark:bg-orange-900/30 p-3 rounded-2xl">
               <i className="fas fa-fire-alt text-2xl text-orange-600 dark:text-orange-400"></i>
             </div>
-            <span className={`text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 ${stats.dryWood.percent >= 0 ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100'}`}>
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 ${stats.dryWood.percent >= 0 ? 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30' : 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30'}`}>
               <i className={`fas ${stats.dryWood.percent >= 0 ? 'fa-arrow-up' : 'fa-arrow-down'}`}></i> {Math.abs(stats.dryWood.percent).toFixed(1)}%
             </span>
           </div>
-          <h3 className="text-gray-500 text-sm font-medium">ปริมาตรไม้แห้ง (ลบ.ฟุต)</h3>
+          <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">ปริมาตรไม้แห้ง (ลบ.ฟุต)</h3>
           <div className="mt-2 flex items-baseline gap-2">
-            <h2 className="text-3xl font-extrabold text-gray-800">
+            <h2 className="text-3xl font-extrabold text-gray-800 dark:text-white">
               <AnimatedNumber key={`dry-vol-${animationKey}`} endValue={stats.dryWood.vol} />
             </h2>
           </div>
-          <p className="text-xs text-gray-400 mt-2 font-medium">
-            ค่าแรงรวม <span className="font-bold text-orange-600">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 font-medium">
+            ค่าแรงรวม <span className="font-bold text-orange-600 dark:text-orange-400">
               <AnimatedNumber key={`dry-val-${animationKey}`} endValue={stats.dryWood.wage} prefix="฿" isCurrency={true} />
             </span>
           </p>
         </div>
 
         {/* Card 4 - Quick Action */}
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-3xl shadow-lg text-white flex flex-col justify-between relative overflow-hidden group">
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-3xl shadow-lg text-white flex flex-col justify-between relative overflow-hidden group border dark:border-slate-700">
           <div className="relative z-10">
             <div className="bg-white/10 w-fit p-3 rounded-2xl mb-4 backdrop-blur-md border border-white/10">
               <i className="fas fa-bolt text-2xl text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]"></i>
@@ -287,33 +287,33 @@ export default function Dashboard() {
         >
           <div className="flex justify-between items-center mb-8">
             <h3 className="text-lg font-bold text-gray-800 dark:text-white">แนวโน้มผลผลิต (7 วันย้อนหลัง)</h3>
-            <div className="flex gap-4 text-xs font-bold text-gray-500">
+            <div className="flex gap-4 text-xs font-bold text-gray-500 dark:text-gray-400">
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-500 shadow-sm"></span> ไม้เลื่อย</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-teal-500 shadow-sm"></span> ไม้เปียก</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-orange-500 shadow-sm"></span> ไม้แห้ง</span>
             </div>
           </div>
           
-          <div className="h-64 flex items-end justify-between gap-2 pt-4 relative border-b border-gray-200 flex-1">
-            <div className="absolute w-full h-full flex flex-col justify-between pb-6 pointer-events-none opacity-20">
-              <div className="border-b-2 border-dashed border-gray-400 w-full flex-1"></div>
-              <div className="border-b-2 border-dashed border-gray-400 w-full flex-1"></div>
-              <div className="border-b-2 border-dashed border-gray-400 w-full flex-1"></div>
-              <div className="border-b-2 border-dashed border-gray-400 w-full flex-1"></div>
+          <div className="h-64 flex items-end justify-between gap-2 pt-4 relative border-b border-gray-200 dark:border-gray-700 flex-1">
+            <div className="absolute w-full h-full flex flex-col justify-between pb-6 pointer-events-none opacity-20 dark:opacity-10">
+              <div className="border-b-2 border-dashed border-gray-400 dark:border-gray-500 w-full flex-1"></div>
+              <div className="border-b-2 border-dashed border-gray-400 dark:border-gray-500 w-full flex-1"></div>
+              <div className="border-b-2 border-dashed border-gray-400 dark:border-gray-500 w-full flex-1"></div>
+              <div className="border-b-2 border-dashed border-gray-400 dark:border-gray-500 w-full flex-1"></div>
             </div>
 
             {chartData.length === 0 && !isLoading && (
-              <div className="absolute inset-0 flex items-center justify-center text-gray-400">ไม่พบข้อมูลในสัปดาห์นี้</div>
+              <div className="absolute inset-0 flex items-center justify-center text-gray-400 dark:text-gray-500">ไม่พบข้อมูลในสัปดาห์นี้</div>
             )}
 
             {chartData.map((d, i) => (
               <div key={i} className="flex-1 flex flex-col justify-end items-center group relative h-full pb-8 z-10 cursor-pointer">
                 {/* Tooltip */}
-                <div className="absolute -top-12 bg-gray-900 text-white text-xs font-bold px-3 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-xl z-20">
-                  <div className="mb-1 text-center border-b border-gray-700 pb-1">{d.date} ({d.day})</div>
-                  <span className="text-blue-400">เลื่อย: {d.saw.toLocaleString()}</span> | 
-                  <span className="text-teal-400 ml-1">เปียก: {d.wet.toLocaleString()}</span> | 
-                  <span className="text-orange-400 ml-1">แห้ง: {d.dry.toLocaleString()}</span>
+                <div className="absolute -top-12 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs font-bold px-3 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-xl z-20 border border-transparent dark:border-gray-600">
+                  <div className="mb-1 text-center border-b border-gray-700 dark:border-gray-300 pb-1">{d.date} ({d.day})</div>
+                  <span className="text-blue-400 dark:text-blue-600">เลื่อย: {d.saw.toLocaleString()}</span> | 
+                  <span className="text-teal-400 dark:text-teal-600 ml-1">เปียก: {d.wet.toLocaleString()}</span> | 
+                  <span className="text-orange-400 dark:text-orange-600 ml-1">แห้ง: {d.dry.toLocaleString()}</span>
                 </div>
                 
                 <div className="flex items-end gap-1 w-full justify-center h-full">
@@ -321,76 +321,95 @@ export default function Dashboard() {
                   <div key={`bar-wet-${animationKey}-${i}`} style={{ height: `${getGraphHeight(d.wet)}%` }} className="w-3 md:w-5 bg-gradient-to-t from-teal-600 to-teal-400 rounded-t-md transition-all duration-500 hover:brightness-110 shadow-sm animate-[grow_1.2s_ease-out_forwards]"></div>
                   <div key={`bar-dry-${animationKey}-${i}`} style={{ height: `${getGraphHeight(d.dry)}%` }} className="w-3 md:w-5 bg-gradient-to-t from-orange-600 to-orange-400 rounded-t-md transition-all duration-500 hover:brightness-110 shadow-sm animate-[grow_1.4s_ease-out_forwards]"></div>
                 </div>
-                <span className="text-xs text-gray-500 mt-3 absolute bottom-0 font-bold">{d.day}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 mt-3 absolute bottom-0 font-bold">{d.day}</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* 💡 Top Performers Section (จัดกลุ่มตามประเภทไม้) */}
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col transition-colors duration-300">
           <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
             <i className="fas fa-trophy text-yellow-500"></i> ผลงานยอดเยี่ยม (7 วันย้อนหลัง)
           </h3>
           <div className="space-y-4 flex-1">
             
-            {topPerformers.length === 0 && !isLoading && (
+            {/* แสดงข้อความเมื่อกำลังโหลด หรือไม่มีข้อมูล */}
+            {isLoading && (
+               <div className="text-center text-gray-400 text-sm mt-10"><i className="fas fa-circle-notch fa-spin"></i> กำลังโหลดข้อมูล...</div>
+            )}
+            {!isLoading && topPerformers.length === 0 && (
               <div className="text-center text-gray-400 text-sm mt-10">ไม่พบข้อมูลผลงานในสัปดาห์นี้</div>
             )}
 
             {/* แผนกไม้เลื่อย (สีฟ้า) */}
-            {sawTop && (
-              <div className="flex items-center gap-4 p-3 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold shadow-md bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+            {!isLoading && topPerformers.find(p => p.department === 'แผนกเลื่อยไม้') && (
+              <div className="group flex items-center gap-4 p-3 rounded-2xl border border-transparent hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors cursor-default">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold shadow-md bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 group-hover:bg-blue-200 dark:group-hover:bg-blue-800/80 transition-colors">
                   <i className="fas fa-layer-group text-sm"></i>
                 </div>
                 <div className="flex-1">
-                  <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200">{sawTop.emp_name || 'ไม่ระบุชื่อ'}</h4>
-                  <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">{sawTop.department}</p>
+                  <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200 dark:group-hover:text-white transition-colors">
+                    {topPerformers.find(p => p.department === 'แผนกเลื่อยไม้').emp_name || 'ไม่ระบุชื่อ'}
+                  </h4>
+                  <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 dark:group-hover:text-gray-300 transition-colors">แผนกเลื่อยไม้</p>
                 </div>
                 <div className="text-right">
-                  <span className="block text-sm font-extrabold text-blue-600 dark:text-blue-400">
-                    <AnimatedNumber key={`top-saw-${animationKey}`} endValue={sawTop.volumn} />
+                  <span className="block text-sm font-extrabold text-blue-600 dark:text-blue-400 dark:group-hover:text-blue-300 transition-colors">
+                    <AnimatedNumber 
+                      key={`top-saw-${animationKey}`} 
+                      endValue={topPerformers.find(p => p.department === 'แผนกเลื่อยไม้').volumn} 
+                    />
                   </span>
-                  <span className="text-[10px] text-gray-400">ลบ.ฟุต</span>
+                  <span className="text-[10px] text-gray-400 dark:text-gray-500 dark:group-hover:text-gray-400 transition-colors">ลบ.ฟุต</span>
                 </div>
               </div>
             )}
 
             {/* แผนกไม้เปียก (สีเขียว/Teal) */}
-            {wetTop && (
-              <div className="flex items-center gap-4 p-3 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold shadow-md bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400">
+            {!isLoading && topPerformers.find(p => p.department === 'แผนกจัดเรียงไม้เปียก') && (
+              <div className="group flex items-center gap-4 p-3 rounded-2xl border border-transparent hover:bg-teal-50 dark:hover:bg-slate-700 transition-colors cursor-default">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold shadow-md bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400 group-hover:bg-teal-200 dark:group-hover:bg-teal-800/80 transition-colors">
                   <i className="fas fa-water text-sm"></i>
                 </div>
                 <div className="flex-1">
-                  <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200">{wetTop.emp_name || 'ไม่ระบุชื่อ'}</h4>
-                  <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">{wetTop.department}</p>
+                  <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200 dark:group-hover:text-white transition-colors">
+                    {topPerformers.find(p => p.department === 'แผนกจัดเรียงไม้เปียก').emp_name || 'ไม่ระบุชื่อ'}
+                  </h4>
+                  <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 dark:group-hover:text-gray-300 transition-colors">แผนกจัดเรียงไม้เปียก</p>
                 </div>
                 <div className="text-right">
-                  <span className="block text-sm font-extrabold text-teal-600 dark:text-teal-400">
-                    <AnimatedNumber key={`top-wet-${animationKey}`} endValue={wetTop.volumn} />
+                  <span className="block text-sm font-extrabold text-teal-600 dark:text-teal-400 dark:group-hover:text-teal-300 transition-colors">
+                    <AnimatedNumber 
+                      key={`top-wet-${animationKey}`} 
+                      endValue={topPerformers.find(p => p.department === 'แผนกจัดเรียงไม้เปียก').volumn} 
+                    />
                   </span>
-                  <span className="text-[10px] text-gray-400">ลบ.ฟุต</span>
+                  <span className="text-[10px] text-gray-400 dark:text-gray-500 dark:group-hover:text-gray-400 transition-colors">ลบ.ฟุต</span>
                 </div>
               </div>
             )}
 
             {/* แผนกไม้แห้ง (สีส้ม) */}
-            {dryTop && (
-              <div className="flex items-center gap-4 p-3 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold shadow-md bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400">
+            {!isLoading && topPerformers.find(p => p.department === 'แผนกจัดเรียงไม้แห้ง') && (
+              <div className="group flex items-center gap-4 p-3 rounded-2xl border border-transparent hover:bg-orange-50 dark:hover:bg-slate-700 transition-colors cursor-default">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold shadow-md bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 group-hover:bg-orange-200 dark:group-hover:bg-orange-800/80 transition-colors">
                   <i className="fas fa-fire-alt text-sm"></i>
                 </div>
                 <div className="flex-1">
-                  <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200">{dryTop.emp_name || 'ไม่ระบุชื่อ'}</h4>
-                  <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">{dryTop.department}</p>
+                  <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200 dark:group-hover:text-white transition-colors">
+                    {topPerformers.find(p => p.department === 'แผนกจัดเรียงไม้แห้ง').emp_name || 'ไม่ระบุชื่อ'}
+                  </h4>
+                  <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 dark:group-hover:text-gray-300 transition-colors">แผนกจัดเรียงไม้แห้ง</p>
                 </div>
                 <div className="text-right">
-                  <span className="block text-sm font-extrabold text-orange-600 dark:text-orange-400">
-                    <AnimatedNumber key={`top-dry-${animationKey}`} endValue={dryTop.volumn} />
+                  <span className="block text-sm font-extrabold text-orange-600 dark:text-orange-400 dark:group-hover:text-orange-300 transition-colors">
+                    <AnimatedNumber 
+                      key={`top-dry-${animationKey}`} 
+                      endValue={topPerformers.find(p => p.department === 'แผนกจัดเรียงไม้แห้ง').volumn} 
+                    />
                   </span>
-                  <span className="text-[10px] text-gray-400">ลบ.ฟุต</span>
+                  <span className="text-[10px] text-gray-400 dark:text-gray-500 dark:group-hover:text-gray-400 transition-colors">ลบ.ฟุต</span>
                 </div>
               </div>
             )}

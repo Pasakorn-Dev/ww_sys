@@ -70,6 +70,8 @@ export default function Login() {
         title: 'เกิดข้อผิดพลาดของระบบ',
         text: 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ในขณะนี้',
         confirmButtonColor: '#16a34a', // เปลี่ยนสีปุ่มแจ้งเตือนเป็นสีเขียว
+        background: document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff',
+        color: document.documentElement.classList.contains('dark') ? '#f8fafc' : '#111827',
       });
     } finally {
       setLoading(false);
@@ -90,10 +92,10 @@ export default function Login() {
             <i className="fas fa-chart-line text-3xl text-green-300"></i>
           </div>
           <h1 className="text-4xl lg:text-5xl font-bold tracking-tight mb-4 leading-tight">
-            ระบบจัดการคลัง <br/>และวิเคราะห์ข้อมูล
+            ระบบรายงานการผลิต <br/>และวิเคราะห์ข้อมูล
           </h1>
           <p className="text-lg text-green-200 mb-8 font-light">
-            WW_Report System 
+            Wood Work Report System 
             ยกระดับการตัดสินใจทางธุรกิจด้วยข้อมูลที่แม่นยำและรายงานแบบเรียลไทม์
           </p>
           <div className="flex items-center text-sm text-green-300/80 font-medium">

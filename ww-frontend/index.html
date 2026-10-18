@@ -7,6 +7,16 @@
     <title>WW_Report System</title>
     
     <link rel="stylesheet" href="/fontawesome/css/all.min.css" crossorigin="anonymous" />
+    <!-- 💡 เพิ่ม Script ตรวจสอบ Theme ตรงนี้ (รันก่อน React จะเริ่มทำงาน) -->
+    <script>
+      (function () {
+        try {
+          if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

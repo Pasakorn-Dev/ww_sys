@@ -41,11 +41,14 @@ const woodPriceController = {
   // ─── 3. ดาวน์โหลด (Export) ไฟล์ Excel Template ───
   exportExcel: async (req, res) => {
     try {
-      const { branch_id } = req.query;
+      const { branch_id ,paramExport} = req.query;
       if (!branch_id) return res.status(400).send('กรุณาระบุสาขา');
+      
 
       // นำ Model เดิมมา Reuse ใช้ดึงข้อมูลใส่ Excel
-      const rows = await WoodPriceModel.getWoodPrices({ branch_id });
+      const rows = await WoodPriceModel.getWoodPrices({branch_id ,paramExport});
+
+      const branchInfo = await WoodPriceModel.getBranchFileName(branch_id);
 
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('PriceUpdate');
@@ -68,7 +71,7 @@ const woodPriceController = {
       worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename=WoodPrice_Branch_${branch_id}.xlsx`);
+      res.setHeader('Content-Disposition', `attachment; filename=WoodPrice_Branch_${branchInfo}.xlsx`);
 
       await workbook.xlsx.write(res);
       res.end();
@@ -82,40 +85,57 @@ const woodPriceController = {
   // ─── 4. นำเข้า (Import) ราคาจากไฟล์ Excel ───
   importExcel: async (req, res) => {
     try {
+      // รับค่า รหัสสาขา (branch_id) จากฟอร์มที่ส่งมาหน้าเว็บ
       const branchId = req.body.branch_id;
+      // รับไฟล์ Excel ที่แนบมา (จัดการโดยไลบรารี multer ซึ่งโหลดไฟล์ไว้ในหน่วยความจำชั่วคราว)
       const file = req.file;
 
+      // ถ้าไม่มีสาขา หรือ ไม่มีไฟล์ส่งมา ให้ตอบกลับหน้าเว็บไปเลยว่า "ข้อมูลไม่ครบถ้วน"
       if (!branchId || !file) {
         return res.status(400).json({ success: false, message: 'ข้อมูลไม่ครบถ้วน (ไฟล์ หรือ สาขา)' });
       }
 
+      // สร้างกล่องสมุดงาน Excel (Workbook) เปล่าๆ ด้วยไลบรารี ExcelJS
       const workbook = new ExcelJS.Workbook();
+      // สั่งให้อ่านข้อมูลไฟล์ Excel จากหน่วยความจำ (Buffer) เข้าไปใน Workbook
       await workbook.xlsx.load(file.buffer); 
+      // เลือกดึงข้อมูลจาก Sheet แรก (index 1) มาทำงาน
       const worksheet = workbook.getWorksheet(1);
 
+      // สร้าง Array ว่างเตรียมเก็บข้อมูลที่จะใช้อัปเดต
       const updates = [];
 
+      // วนลูปอ่านข้อมูลใน Sheet ทีละบรรทัด (row)
       worksheet.eachRow((row, rowNumber) => {
+        // ข้ามบรรทัดที่ 1 (หัวตาราง) ให้เริ่มอ่านเฉพาะบรรทัดที่ 2 เป็นต้นไป
         if (rowNumber > 1) {
+          // ดึง "รหัสสินค้า" จากคอลัมน์ A (1) พร้อมตัดช่องว่างหน้า-หลัง (.trim)
           const woodCode = row.getCell(1).value?.toString().trim();
+          // ดึง "ราคาขาย" จากคอลัมน์ C (3) แล้วแปลงเป็นตัวเลขทศนิยม (Float)
           const unitPrice = parseFloat(row.getCell(3).value);
 
+          // เช็คว่า มีรหัสสินค้า และ ราคาต้องเป็นตัวเลขจริงๆ (!isNaN)
           if (woodCode && !isNaN(unitPrice)) {
+            // *** หัวใจสำคัญ *** เอาข้อมูลมาเรียงกันเป็น Array ชุดละ 3 ตัว: [ราคา, สาขา, รหัสสินค้า]
+            // สังเกตว่าเรายัด branchId ที่ได้จากหน้าเว็บ ประกบติดไปกับสินค้าทุกบรรทัดเลย!
             updates.push([unitPrice, branchId, woodCode]);
           }
         }
       });
 
+      // ถ้าวนลูปจบแล้ว พบว่าไฟล์ว่างเปล่า ไม่มีข้อมูลเลย ก็แจ้ง Error กลับไป
       if (updates.length === 0) {
         return res.status(400).json({ success: false, message: 'ไม่พบข้อมูลที่สามารถอัปเดตได้ในไฟล์ Excel' });
       }
 
-      // ส่ง Array ไปให้ Model อัปเดตฐานข้อมูลให้
+      // ส่ง Array `updates` ไปให้ฟังก์ชันใน Database จัดการอัปเดต แล้วรอรับ "จำนวนแถว" ที่อัปเดตสำเร็จ
       const updatedCount = await WoodPriceModel.updatePricesByCodes(branchId, updates);
 
+      // ส่งผลลัพธ์แจ้งหน้าเว็บว่าอัปโหลดและอัปเดตสำเร็จ พร้อมบอกจำนวนที่ทำได้
       res.json({ success: true, message: 'อัปโหลดสำเร็จ', updated_count: updatedCount });
 
     } catch (error) {
+      // ถ้าพังระหว่างทาง (เช่น ไฟล์พัง) ให้ล็อก Error และแจ้งเตือน
       console.error('Import excel error:', error);
       res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการอ่าน/บันทึกไฟล์ Excel' });
     }
