@@ -24,6 +24,7 @@ import DryWoodCoverReport from './pages/DryWoodCoverReport';
 import WetWoodPerformanceReport from './pages/WetWoodPerformanceReport';
 import DryWoodPerformanceReport from './pages/DryWoodPerformanceReport';
 import WetWoodDataReport from './pages/WetWoodDataReport';
+import DryWoodDataReport from './pages/DryWoodDataReport';
 
 
 
@@ -57,6 +58,7 @@ function App() {
           <Route path="/wet-wood-perf" element={<WetWoodPerformanceReport />} />
           <Route path="/dry-wood-perf" element={<DryWoodPerformanceReport />} />
           <Route path="/wet-wood-data" element={<WetWoodDataReport />} />
+          <Route path="/dry-wood-data" element={<DryWoodDataReport />} />
         </Route>
       </Routes>
     </BrowserRouter>

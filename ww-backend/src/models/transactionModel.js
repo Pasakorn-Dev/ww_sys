@@ -572,6 +572,50 @@ const TransactionModel = {
     const { rows } = await pool.query(query, params);
     return rows;
   },
+
+  // ==========================================
+  // ─── ดึงข้อมูลรายละเอียดไม้แห้ง (Transaction) ───
+  // ==========================================
+  getDryWoods: async (filters) => {
+    const { branch_id, start_date, end_date, store_code_start, store_code_end } = filters;
+
+    let query = `
+      SELECT 
+        tdw.id,
+        tdw.produce_date,
+        tdw.barcode_id,
+        st.code as wood_store_code,
+        ws.wood_code,
+        tdw.amount,
+        tdw.volumn
+      FROM transaction_dry_woods tdw
+      LEFT JOIN master_wood_sizes ws ON ws.old_id = tdw.wood_size_id AND tdw.branch_id = ws.branch_id
+      LEFT JOIN master_wood_stores st ON st.old_id = tdw.wood_store_id AND tdw.branch_id = st.branch_id
+      WHERE tdw.branch_id = $1
+        AND DATE(tdw.produce_date) BETWEEN $2 AND $3
+    `;
+
+    const params = [branch_id, start_date, end_date];
+    let paramIndex = 4;
+
+    // เช็คเงื่อนไขช่วงสโตร์
+    if (store_code_start && store_code_end) {
+      query += ` AND st.code BETWEEN $${paramIndex++} AND $${paramIndex++}`;
+      params.push(store_code_start, store_code_end);
+    } else if (store_code_start) {
+      query += ` AND st.code >= $${paramIndex++}`;
+      params.push(store_code_start);
+    } else if (store_code_end) {
+      query += ` AND st.code <= $${paramIndex++}`;
+      params.push(store_code_end);
+    }
+
+    // เรียงลำดับและจำกัดบรรทัดเพื่อป้องกันโหลดหนัก (สามารถปรับ Limit ได้ถ้าต้องการ)
+    query += ` ORDER BY tdw.produce_date DESC, tdw.barcode_id ASC LIMIT 1000`;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
 };
 
 module.exports = TransactionModel;

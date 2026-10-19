@@ -107,14 +107,14 @@ export default function CheckSawWood() {
   const viewDetails = async (barcode_id) => {
     const themeParams = getSwalTheme();
     const isDarkTheme = document.documentElement.classList.contains('dark');
-
+    /*
     Swal.fire({
       ...themeParams,
       title: 'กำลังโหลดข้อมูล...',
       allowOutsideClick: false,
       didOpen: () => Swal.showLoading()
     });
-
+    */
     try {
       const queryParams = new URLSearchParams({
         branch_id: filters.branch_id,

@@ -22,4 +22,7 @@ router.post('/sync-dry-woods', verifyToken, checkPermission('/sync-dry-woods', '
 // ดึงข้อมูลรายละเอียดการนับไม้เปียก
 router.get('/wet-woods', verifyToken, checkPermission('/wet-wood-data', 'view'), transactionController.getWetWoods);
 
+// ดึงข้อมูลรายละเอียดการนับไม้แห้ง
+router.get('/dry-woods', verifyToken, checkPermission('/dry-wood-data', 'view'), transactionController.getDryWoods);
+
 module.exports = router;
