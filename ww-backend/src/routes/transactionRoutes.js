@@ -19,4 +19,7 @@ router.post('/sync-wet-woods', verifyToken, checkPermission('/sync-wet-woods', '
 // API ซิงค์ข้อมูลไม้แห้ง
 router.post('/sync-dry-woods', verifyToken, checkPermission('/sync-dry-woods', 'add'), transactionController.syncDryWoods);
 
+// ดึงข้อมูลรายละเอียดการนับไม้เปียก
+router.get('/wet-woods', verifyToken, checkPermission('/wet-wood-data', 'view'), transactionController.getWetWoods);
+
 module.exports = router;

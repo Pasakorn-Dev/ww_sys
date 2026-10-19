@@ -262,7 +262,37 @@ const transactionController = {
       console.error('Dry Wood Sync Error:', error);
       res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการนำเข้าข้อมูลไม้แห้ง' });
     }
-  }
+  },
+
+  getWetWoods: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date } = req.query;
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      // ดึงข้อมูลจาก Model
+      const data = await TransactionModel.getWetWoods(req.query);
+
+      // คำนวณ Grand Total ให้ Frontend ด้วยเลย
+      let total_amount = 0;
+      let total_volumn = 0;
+      data.forEach(row => {
+        total_amount += Number(row.amount) || 0;
+        total_volumn += Number(row.volumn) || 0;
+      });
+
+      res.json({ 
+        success: true, 
+        data,
+        grandTotal: { total_amount, total_volumn }
+      });
+    } catch (error) {
+      console.error('Fetch Wet Woods Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงข้อมูลรายละเอียดไม้เปียก' });
+    }
+  },
 };
 
 module.exports = transactionController;

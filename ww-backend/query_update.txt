@@ -1,15 +1,15 @@
 INSERT INTO public.menus(id, menu_name, link, icon, sort_order, parent_id)
-VALUES (26, 'สรุปค่าแรง', '/wet-wood-perf', 'fas fa-fire-alt', 2, 17);
-
-INSERT INTO public.group_permissions(id, group_id, menu_id, can_view, can_rpt, can_add, can_edit, can_delete, access_level)
-VALUES (31, 1, 26, true, true, true, true, true, 2);
+VALUES (28, 'ข้อมูลไม้เปียก', '/wet-wood-data', 'fas fa-tint', 16, 6);
 
 INSERT INTO public.menus(id, menu_name, link, icon, sort_order, parent_id)
-VALUES (27, 'สรุปค่าแรง', '/dry-wood-perf', 'fas fa-fire-alt', 2, 24);
+VALUES (29, 'ข้อมูลไม้แห้ง', '/dry-wood-data', 'fas fa-tint', 17, 6);
 
--- อัปเดตสิทธิ์ให้ Admin 
-INSERT INTO public.group_permissions(id, group_id, menu_id, can_view, can_rpt, can_add, can_edit, can_delete, access_level)
-VALUES (32, 1, 27, true, true, true, true, true, 2);
+INSERT INTO public.group_permissions(id,group_id, menu_id, can_view, can_rpt, can_add, can_edit, can_delete, access_level)
+VALUES (33,1, 28, true, true, true, true, true, 1);
+
+INSERT INTO public.group_permissions(id,group_id, menu_id, can_view, can_rpt, can_add, can_edit, can_delete, access_level)
+VALUES (34,1, 29, true, true, true, true, true, 1);
+
 
 
 

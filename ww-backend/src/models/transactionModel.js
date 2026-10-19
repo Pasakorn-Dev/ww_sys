@@ -527,7 +527,51 @@ const TransactionModel = {
       params = [branchId, startDate, endDate];
     }
     await pool.query(query, params);
-  }
+  },
+
+  // ─── ดึงข้อมูลรายละเอียดไม้เปียก (Transaction) ───
+  getWetWoods: async (filters) => {
+    const { branch_id, start_date, end_date, store_code_start, store_code_end } = filters;
+
+    let query = `
+      SELECT 
+        tww.id,
+        tww.produce_date,
+        tww.barcode_id,
+        wt.code as wet_wood_code,
+        ws.wood_code,
+        tww.amount,
+        tww.volumn,
+        tc.name as companies_name
+      FROM transaction_wet_woods tww
+      LEFT JOIN master_wood_sizes ws ON ws.old_id = tww.wood_size_id AND tww.branch_id = ws.branch_id
+      LEFT JOIN master_wet_wood_types wt ON wt.old_id = tww.wet_wood_type_id AND tww.branch_id = wt.branch_id
+      LEFT JOIN master_truck_companies tc ON tc.old_id = tww.ws_customer_id AND tww.branch_id = tc.branch_id
+      WHERE tww.branch_id = $1
+        AND DATE(tww.produce_date) BETWEEN $2 AND $3
+    `;
+
+    const params = [branch_id, start_date, end_date];
+    let paramIndex = 4;
+
+    // เช็คเงื่อนไขช่วงสโตร์
+    if (store_code_start && store_code_end) {
+      query += ` AND wt.code BETWEEN $${paramIndex++} AND $${paramIndex++}`;
+      params.push(store_code_start, store_code_end);
+    } else if (store_code_start) {
+      query += ` AND wt.code >= $${paramIndex++}`;
+      params.push(store_code_start);
+    } else if (store_code_end) {
+      query += ` AND wt.code <= $${paramIndex++}`;
+      params.push(store_code_end);
+    }
+
+    // เรียงลำดับและจำกัดบรรทัดเพื่อป้องกันโหลดหนักแบบเดียวกับ getSawWoods
+    query += ` ORDER BY tww.produce_date DESC, tww.barcode_id ASC LIMIT 1000`;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
 };
 
 module.exports = TransactionModel;

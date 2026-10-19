@@ -10,9 +10,9 @@ const checkPermission = require('../middlewares/permissionMiddleware'); // น�
 const upload = multer({ storage: multer.memoryStorage() });
 
 // ทุกเส้นทางต้องผ่านการตรวจสอบ Token (Security)
-router.get('/categories', verifyToken, masterController.getCategories);
-router.get('/suppliers', verifyToken, masterController.getSuppliers);
-router.get('/units', verifyToken, masterController.getUnits);
+// router.get('/categories', verifyToken, masterController.getCategories);
+// router.get('/suppliers', verifyToken, masterController.getSuppliers);
+// router.get('/units', verifyToken, masterController.getUnits);
 
 // เพิ่ม API ยิงคำสั่ง Sync ข้อมูล (เช็คสิทธิ์แอดมินหรือคนที่มีสิทธิ์กดเพิ่มข้อมูล)
 router.post('/sync', verifyToken, checkPermission('/sync-master', 'add'), masterController.syncMasterData);

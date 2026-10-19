@@ -50,6 +50,7 @@ src/
   controllers/
     authController.js
     branchController.js
+    dashboardController.js
     masterController.js
     masterOptionsController.js
     menuController.js
@@ -61,6 +62,7 @@ src/
     permissionMiddleware.js
   models/
     branchModel.js
+    dashboardModel.js
     menuModel.js
     reportModel.js
     transactionModel.js
@@ -69,6 +71,7 @@ src/
   routes/
     authRoutes.js
     branchRoutes.js
+    dashboardRoutes.js
     masterOptionsRoutes.js
     masterRoutes.js
     menuRoutes.js
@@ -78,6 +81,7 @@ src/
 Dockerfile
 .dockerignore
 .env.example
+.env.production
 .gitignore
 package.json
 query_update.txt
@@ -363,6 +367,79 @@ const branchController = {
 };
 
 module.exports = branchController;
+</file>
+
+<file path="src/controllers/dashboardController.js">
+const DashboardModel = require('../models/dashboardModel');
+
+const dashboardController = {
+  getDashboardSummary: async (req, res) => {
+    try {
+      const { branch_id } = req.query;
+      // ดึงข้อมูล 7 วันย้อนหลังจาก Model เรียงจากวันที่ล่าสุด (DESC)
+      const rows = await DashboardModel.getOverviewData(branch_id);
+      
+      // 1. จัดการข้อมูล KPI Cards (ใช้ 2 วันล่าสุด)
+      let yesterday = { sawVol: 0, sawVal: 0, wetVol: 0, wetVal: 0, dryVol: 0, dryVal: 0, date: null };
+      let dayBefore = { sawVol: 0, wetVol: 0, dryVol: 0 };
+
+      if (rows.length > 0) {
+        yesterday = {
+          sawVol: Number(rows[0].volumn_saw || 0), sawVal: Number(rows[0].net_money_saw || 0),
+          wetVol: Number(rows[0].volumn_wet || 0), wetVal: Number(rows[0].net_money_wet || 0),
+          dryVol: Number(rows[0].volumn_dry || 0), dryVal: Number(rows[0].net_money_dry || 0),
+          date: rows[0].produce_date
+        };
+      }
+
+      if (rows.length > 1) {
+        dayBefore = {
+          sawVol: Number(rows[1].volumn_saw || 0),
+          wetVol: Number(rows[1].volumn_wet || 0),
+          dryVol: Number(rows[1].volumn_dry || 0)
+        };
+      }
+
+      const calcPercent = (curr, prev) => prev === 0 ? (curr > 0 ? 100 : 0) : ((curr - prev) / prev) * 100;
+
+      const kpiData = {
+        sawWood: { vol: yesterday.sawVol, val: yesterday.sawVal, percent: calcPercent(yesterday.sawVol, dayBefore.sawVol) },
+        wetWood: { vol: yesterday.wetVol, wage: yesterday.wetVal, percent: calcPercent(yesterday.wetVol, dayBefore.wetVol) },
+        dryWood: { vol: yesterday.dryVol, wage: yesterday.dryVal, percent: calcPercent(yesterday.dryVol, dayBefore.dryVol) },
+        lastSync: yesterday.date || 'ไม่มีข้อมูล'
+      };
+
+      // 2. จัดการข้อมูลกราฟ 7 วัน (Chart Data)
+      const daysOfWeek = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+      // สลับ Array ให้เป็นจากอดีต -> ปัจจุบัน (ASC) สำหรับแสดงในกราฟ
+      const chartData = rows.slice(0, 7).reverse().map(r => {
+        const d = new Date(r.produce_date);
+        return {
+          day: daysOfWeek[d.getDay()],
+          date: `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth()+1).padStart(2, '0')}`,
+          saw: Number(r.volumn_saw || 0),
+          wet: Number(r.volumn_wet || 0),
+          dry: Number(r.volumn_dry || 0)
+        };
+      });
+
+      const topPerformers = await DashboardModel.getTopPerformers(branch_id);
+
+      res.json({ 
+        success: true, 
+        kpi: kpiData, 
+        chart: chartData , 
+        topPerformers: topPerformers
+      });
+
+    } catch (error) {
+      console.error('Error Dashboard API:', error);
+      res.status(500).json({ success: false, message: 'Server error' });
+    }
+  }
+};
+
+module.exports = dashboardController;
 </file>
 
 <file path="src/controllers/masterController.js">
@@ -753,7 +830,7 @@ const masterController = {
             
             const [oldWetWoodTypes] = await mysqlPool.query(`
                 SELECT 
-                    id AS id_old, name, is_buy_wood, ax_location, ax_warehouse 
+                    id AS id_old, name, is_buy_wood, ax_location, ax_warehouse ,code
                 FROM wet_wood_type
             `);
 
@@ -764,7 +841,8 @@ const masterController = {
                     row.name || null,                      
                     cleanBool(row.is_buy_wood, false),     
                     row.ax_location || null,               
-                    row.ax_warehouse || null               
+                    row.ax_warehouse || null,
+                    row.code || null             
                 ]);
 
                 const chunkWetSize = 4000;
@@ -773,7 +851,7 @@ const masterController = {
                     
                     const upsertWetWoodQuery = format(`
                         INSERT INTO master_wet_wood_types (
-                            old_id, branch_id, name, is_buy_wood, ax_location, ax_warehouse
+                            old_id, branch_id, name, is_buy_wood, ax_location, ax_warehouse, code
                         ) 
                         VALUES %L 
                         ON CONFLICT (branch_id, old_id) 
@@ -782,6 +860,7 @@ const masterController = {
                             is_buy_wood = EXCLUDED.is_buy_wood,
                             ax_location = EXCLUDED.ax_location,
                             ax_warehouse = EXCLUDED.ax_warehouse,
+                            code = EXCLUDED.code,
                             updated_at = CURRENT_TIMESTAMP;
                     `, chunk);
 
@@ -798,7 +877,7 @@ const masterController = {
             
             const [oldWoodStores] = await mysqlPool.query(`
                 SELECT 
-                    id AS id_old, description, allow_two_prefix, ax_location, ax_warehouse 
+                    id AS id_old, description, allow_two_prefix, ax_location, ax_warehouse ,code
                 FROM wood_store
             `);
 
@@ -809,7 +888,8 @@ const masterController = {
                     row.description || null,               
                     cleanBool(row.allow_two_prefix, false),
                     row.ax_location || null,               
-                    row.ax_warehouse || null               
+                    row.ax_warehouse || null,               
+                    row.code || null                        
                 ]);
 
                 const chunkStoreSize = 4000;
@@ -818,7 +898,7 @@ const masterController = {
                     
                     const upsertWoodStoreQuery = format(`
                         INSERT INTO master_wood_stores (
-                            old_id, branch_id, description, allow_two_prefix, ax_location, ax_warehouse
+                            old_id, branch_id, description, allow_two_prefix, ax_location, ax_warehouse, code
                         ) 
                         VALUES %L 
                         ON CONFLICT (branch_id, old_id) 
@@ -827,6 +907,7 @@ const masterController = {
                             allow_two_prefix = EXCLUDED.allow_two_prefix,
                             ax_location = EXCLUDED.ax_location,
                             ax_warehouse = EXCLUDED.ax_warehouse,
+                            code = EXCLUDED.code,
                             updated_at = CURRENT_TIMESTAMP;
                     `, chunk);
 
@@ -1092,84 +1173,155 @@ const getBrowser = async () => {
 };
 
 // 💡 1. ปรับฟังก์ชัน Helper ให้รับ parameter 'grade' เข้ามาและตั้งเงื่อนไข
+// ประกาศฟังก์ชันแบบ Async รับค่า วันเริ่มต้น, วันสิ้นสุด, รหัสสาขา และ เกรดไม้ (ถ้าไม่ส่งมาจะใช้ 'AB' เป็นค่าปริยาย)
 const fetchWoodTypeAbData = async (start_date, end_date, branch_id, grade = 'AB') => {
+  
+  // กำหนดเงื่อนไขตั้งต้นสำหรับเกรดใน SQL (ถ้าไม่เข้าเงื่อนไขอะไรเลย จะบังคับดึง AB)
   let gradeCondition = "mws.grade = 'AB'";
+  // กำหนดตัวแปรที่ใช้เตรียมส่งเข้าไปใน SQL (ป้องกัน SQL Injection) ตามลำดับ $1, $2, $3
   const params = [start_date, end_date, branch_id];
 
-  // ตรวจสอบเงื่อนไขเกรด
+  // ตรวจสอบเงื่อนไขเกรด: ถ้าส่งเกรดมาและไม่ใช่ 'ALL'
   if (grade && grade !== 'ALL') {
+    // ให้ใช้ค่าเกรดที่ส่งมา ผูกเป็นตัวแปร $4
     gradeCondition = "mws.grade = $4";
+    // นำค่าเกรดดัน (push) เข้าไปในอาร์เรย์ params ให้ตรงกับตำแหน่ง $4
     params.push(grade);
-  } else if (grade === 'ALL') {
+  } 
+  // ถ้าส่งคำว่า 'ALL' มา (แปลว่าต้องการดูทุกเกรดรวมกัน)
+  else if (grade === 'ALL') {
+    // เปลี่ยนเงื่อนไขเป็นการดึงข้อมูลทั้งหมด 4 เกรดหลักออกมา
     gradeCondition = "mws.grade IN ('AB', 'C', 'P', 'PP')";
   }
 
+  // --- เริ่มสร้างคำสั่ง SQL ---
   const query = `
+    /* ใช้ CTE (Common Table Expression) ชื่อ BaseData ในการเตรียมข้อมูลดิบขั้นแรก */
     WITH BaseData AS (
         SELECT 
-            tsw.saw_name, mws.thick, mws.length, RIGHT(mws.wood_code, 7) AS wood_code,
+            -- เลือกคอลัมน์ชื่อชุดเลื่อย
+            tsw.saw_name, 
+            -- เลือกคอลัมน์ความหนา
+            mws.thick, 
+            -- เลือกคอลัมน์ความยาว
+            mws.length, 
+            -- ตัดเอารหัสไม้เฉพาะ 7 ตัวท้าย (ตัด 2 ตัวหน้าทิ้ง)
+            RIGHT(mws.wood_code, 7) AS wood_code,
+            
+            -- คำนวณฝั่ง "ไม้ปกติ" (is_special = false)
+            -- หาผลรวมปริมาตรเฉพาะไม้ปกติ ถ้าใช่ให้ใช้ค่า volumn มาบวกกัน ถ้าไม่ใช่ให้บวก 0
             SUM(CASE WHEN mws.is_special = false THEN tsw.volumn ELSE 0 END) AS ab_volumn,
+            -- หาผลรวมจำนวนเงินเฉพาะไม้ปกติ
             SUM(CASE WHEN mws.is_special = false THEN tsw.net_price ELSE 0 END) AS ab_amount,
+            
+            -- คำนวณฝั่ง "ไม้พิเศษ" (is_special = true)
+            -- หาผลรวมปริมาตรเฉพาะไม้พิเศษ
             SUM(CASE WHEN mws.is_special = true THEN tsw.volumn ELSE 0 END) AS spc_volumn,
+            -- หาผลรวมจำนวนเงินเฉพาะไม้พิเศษ
             SUM(CASE WHEN mws.is_special = true THEN tsw.net_price ELSE 0 END) AS spc_amount
+            
+        -- ข้อมูลตารางหลัก (การเลื่อยไม้)
         FROM transaction_saw_woods tsw
+        -- เชื่อมตารางขนาดไม้ด้วย id (เก่า) และรหัสสาขา
         JOIN master_wood_sizes mws 
           on mws.old_id = tsw.wood_size_id 
           and tsw.branch_id = mws.branch_id
+          
+        -- กรองข้อมูล
+        -- ใส่เงื่อนไขเกรดที่เราสร้างไว้ข้างบน (อาจเป็น AB หรือ IN ('AB','C',...))
         WHERE ${gradeCondition}
+          -- เลือกช่วงวันที่ผลิต ($1, $2)
           AND DATE(tsw.produce_date) BETWEEN $1 AND $2
+          -- เลือกรหัสสาขา ($3)
           AND tsw.branch_id = $3
+          
+        -- จับกลุ่มข้อมูลเพื่อทำการ Sum เข้าด้วยกันตามชุดเลื่อย, ความหนา, ความยาว, และรหัสไม้
         GROUP BY tsw.saw_name, mws.thick, mws.length, RIGHT(mws.wood_code, 7)
     )
+    
+    /* ขั้นตอนที่ 2: นำตารางจำลอง BaseData มาประมวลผลต่อ (หาเปอร์เซ็นต์และราคาเฉลี่ย) ด้วย Window Function */
     SELECT 
         saw_name, thick, length, wood_code,
         ab_volumn, ab_amount,
+        
+        -- หาราคาเฉลี่ย (จำนวนเงิน / ปริมาตร) ของไม้ปกติ ถ้าปริมาตรเป็น 0 ให้กัน error คืนค่า 0
         CASE WHEN ab_volumn > 0 THEN ab_amount / ab_volumn ELSE 0 END AS ab_avg_price,
-        CASE WHEN SUM(ab_volumn) OVER (PARTITION BY saw_name, thick, length) > 0 THEN (ab_volumn / SUM(ab_volumn) OVER (PARTITION BY saw_name, thick, length)) * 100 ELSE 0 END AS ab_percent_qty,
+        
+        -- หาเปอร์เซ็นต์ (ไม้ปกติ): (ปริมาตรบรรทัดนี้ / ปริมาตรรวมทั้งหมดในชุดเลื่อย+หนา+ยาวกลุ่มนี้) * 100
+        -- SUM(...) OVER (...) คือ Window function ใช้หาผลรวมโดยไม่ต้อง GROUP BY ลดแถว
+        CASE WHEN SUM(ab_volumn) OVER (PARTITION BY saw_name, thick, length) > 0 
+             THEN (ab_volumn / SUM(ab_volumn) OVER (PARTITION BY saw_name, thick, length)) * 100 
+             ELSE 0 END AS ab_percent_qty,
+             
         spc_volumn, spc_amount,
+        
+        -- หาราคาเฉลี่ย (จำนวนเงิน / ปริมาตร) ของไม้พิเศษ
         CASE WHEN spc_volumn > 0 THEN spc_amount / spc_volumn ELSE 0 END AS spc_avg_price,
-        CASE WHEN SUM(spc_volumn) OVER (PARTITION BY saw_name, thick, length) > 0 THEN (spc_volumn / SUM(spc_volumn) OVER (PARTITION BY saw_name, thick, length)) * 100 ELSE 0 END AS spc_percent_qty
+        
+        -- หาเปอร์เซ็นต์ (ไม้พิเศษ) ใช้หลักการเดียวกับไม้ปกติ
+        CASE WHEN SUM(spc_volumn) OVER (PARTITION BY saw_name, thick, length) > 0 
+             THEN (spc_volumn / SUM(spc_volumn) OVER (PARTITION BY saw_name, thick, length)) * 100 
+             ELSE 0 END AS spc_percent_qty
+             
     FROM BaseData
+    -- เรียงลำดับผลลัพธ์
     ORDER BY saw_name, thick, length, wood_code;
   `;
 
+  // สั่งยิง SQL Query ไปยัง Database พร้อมตัวแปร และดึงแค่บรรทัดคำตอบ (rows) ออกมา
   const { rows } = await pool.query(query, params);
 
-  // --- คำนวณ Grand Total ---
+  // --- คำนวณ Grand Total (ยอดรวมทั้งรายงาน) ---
+  // กำหนดตัวแปรสะสมยอดเริ่มต้นเป็น 0
   let gt_ab_volumn = 0, gt_ab_amount = 0, gt_spc_volumn = 0, gt_spc_amount = 0;
   
+  // วนลูปทุกบรรทัดผลลัพธ์จาก Database เพื่อบวกสะสม
   rows.forEach(row => {
-    gt_ab_volumn += Number(row.ab_volumn || 0);
-    gt_ab_amount += Number(row.ab_amount || 0);
-    gt_spc_volumn += Number(row.spc_volumn || 0);
-    gt_spc_amount += Number(row.spc_amount || 0);
+    gt_ab_volumn += Number(row.ab_volumn || 0); // สะสมปริมาตรปกติ
+    gt_ab_amount += Number(row.ab_amount || 0); // สะสมจำนวนเงินปกติ
+    gt_spc_volumn += Number(row.spc_volumn || 0); // สะสมปริมาตรพิเศษ
+    gt_spc_amount += Number(row.spc_amount || 0); // สะสมจำนวนเงินพิเศษ
   });
 
+  // หายอดรวมปริมาตรสุทธิ (ปกติ + พิเศษ)
   const gt_all_volumn = gt_ab_volumn + gt_spc_volumn;
 
+  // สร้าง Object เก็บผลสรุป Grand Total พร้อมคำนวณ % และราคาเฉลี่ยภาพรวม
   const grandTotal = {
     ab_volumn: gt_ab_volumn,
     ab_amt: gt_ab_amount,
     spc_volumn: gt_spc_volumn,
     spc_amt: gt_spc_amount,
+    // % ของไม้ปกติต่อยอดรวมสุทธิ
     pct_all_ab: gt_all_volumn > 0 ? (gt_ab_volumn / gt_all_volumn) * 100 : 0,
+    // % ของไม้พิเศษต่อยอดรวมสุทธิ
     pct_all_spc: gt_all_volumn > 0 ? (gt_spc_volumn / gt_all_volumn) * 100 : 0,
+    // % แยกปกติ/พิเศษ (ตั้งไว้เป็น 100% เสมอเพราะเป็นผลรวมระดับบนสุด)
     pct_sep_ab: gt_ab_volumn > 0 ? 100 : 0, 
     pct_sep_spc: gt_spc_volumn > 0 ? 100 : 0,
+    // ราคาเฉลี่ยรวมไม้ปกติ
     avg_price_ab: gt_ab_volumn > 0 ? (gt_ab_amount / gt_ab_volumn) : 0,
+    // ราคาเฉลี่ยรวมไม้พิเศษ
     avg_price_spc: gt_spc_volumn > 0 ? (gt_spc_amount / gt_spc_volumn) : 0,
   };
 
   // --- จัดกลุ่มข้อมูล (Grouping) ---
+  // การใช้ reduce เพื่อแปลง Array โครงสร้างแบนๆ (Flat Table) จาก Database 
+  // ให้กลายเป็นโครงสร้าง Object แบบต้นไม้ซ้อนกัน (Tree structure) ตามลำดับ: ชุดเลื่อย > หนา > ยาว
   const groupedData = rows.reduce((acc, row) => {
+    // เตรียมตัวแปร (ชื่อชุดเลื่อย, ความหนา, ความยาว) ไว้ใช้เป็น Key ของกลุ่ม
     const s = row.saw_name || 'ไม่ระบุชุดเลื่อย';
     const t = row.thick;
     const l = row.length;
 
+    // ถ้ายังไม่เคยมีกลุ่ม "ชุดเลื่อย" นี้ ให้สร้างใหม่พร้อมเตรียมยอดรวมตั้งต้น
     if (!acc[s]) acc[s] = { saw_name: s, thicks: {}, total_ab_volumn: 0, total_spc_volumn: 0 };
+    // ถ้ายังไม่เคยมีกลุ่ม "ความหนา" ภายใต้ชุดเลื่อยนี้ ให้สร้างใหม่
     if (!acc[s].thicks[t]) acc[s].thicks[t] = { thick: t, lengths: {}, subTotal: { ab_volumn: 0, ab_amt: 0, spc_volumn: 0, spc_amt: 0 } };
+    // ถ้ายังไม่เคยมีกลุ่ม "ความยาว" ภายใต้ความหนานี้ ให้สร้างใหม่
     if (!acc[s].thicks[t].lengths[l]) acc[s].thicks[t].lengths[l] = { length: l, items: [], subTotal: { ab_volumn: 0, ab_amt: 0, spc_volumn: 0, spc_amt: 0 } };
 
+    // นำข้อมูลระดับล่างสุด (รายละเอียดรหัสไม้บรรทัดนี้) จับยัดใส่ Array ของกลุ่ม "ความยาว"
     acc[s].thicks[t].lengths[l].items.push({
       wood_code: row.wood_code,
       ab_volumn: Number(row.ab_volumn), ab_pct_qty: Number(row.ab_percent_qty),
@@ -1178,33 +1330,49 @@ const fetchWoodTypeAbData = async (start_date, end_date, branch_id, grade = 'AB'
       spc_price: Number(row.spc_avg_price), spc_amt: Number(row.spc_amount)
     });
 
+    // --- สะสมยอดรวม (SubTotal) กลับขึ้นไปยังกลุ่มชั้นบนต่างๆ ทันทีที่อ่านแต่ละบรรทัดเสร็จ ---
+    // 1. สะสมยอดระดับความยาว
     acc[s].thicks[t].lengths[l].subTotal.ab_volumn += Number(row.ab_volumn);
     acc[s].thicks[t].lengths[l].subTotal.ab_amt += Number(row.ab_amount);
     acc[s].thicks[t].lengths[l].subTotal.spc_volumn += Number(row.spc_volumn);
     acc[s].thicks[t].lengths[l].subTotal.spc_amt += Number(row.spc_amount);
 
+    // 2. สะสมยอดระดับความหนา
     acc[s].thicks[t].subTotal.ab_volumn += Number(row.ab_volumn);
     acc[s].thicks[t].subTotal.ab_amt += Number(row.ab_amount);
     acc[s].thicks[t].subTotal.spc_volumn += Number(row.spc_volumn);
     acc[s].thicks[t].subTotal.spc_amt += Number(row.spc_amount);
 
+    // 3. สะสมยอดระดับชุดเลื่อย (เก็บเฉพาะปริมาตรเพื่อใช้คำนวณ % สัดส่วนภายหลัง)
     acc[s].total_ab_volumn += Number(row.ab_volumn);
     acc[s].total_spc_volumn += Number(row.spc_volumn);
 
+    // ส่งคืนตัวสะสมเพื่อไปทำงานในลูปต่อไป
     return acc;
-  }, {});
+  }, {}); // เริ่มต้น reduce ด้วย Object ว่างๆ {}
 
+  // console.log(groupedData);
+  // --- ประมวลผลขั้นสุดท้าย (คำนวณ % ระดับกลุ่มย่อย และแปลง Object -> Array) ---
+  // Object.values() ทำการเปลี่ยน Object ที่ใช้ชื่อ Key จัดกลุ่ม เป็น Array ที่มีแต่ Value เปล่าๆ เพื่อให้ React .map() ได้
   const finalData = Object.values(groupedData).map(sawGroup => {
+    // ยอดรวมทั้งหมดของชุดเลื่อย
     sawGroup.total_all_volumn = sawGroup.total_ab_volumn + sawGroup.total_spc_volumn;
+    
+    // แปลงกลุ่มความหนาให้เป็น Array
     sawGroup.thicks = Object.values(sawGroup.thicks).map(thickGroup => {
+      // คำนวณเปอเซ็นต์ความหนา (แบบรวมทุกประเภท)
       thickGroup.pct_thick_all_ab = sawGroup.total_all_volumn > 0 ? (thickGroup.subTotal.ab_volumn / sawGroup.total_all_volumn) * 100 : 0;
       thickGroup.pct_thick_all_spc = sawGroup.total_all_volumn > 0 ? (thickGroup.subTotal.spc_volumn / sawGroup.total_all_volumn) * 100 : 0;
+      // คำนวณเปอเซ็นต์ความหนา (แบบแยกปกติกับพิเศษคิดสัดส่วนเฉพาะของตัวเอง)
       thickGroup.pct_thick_sep_ab = sawGroup.total_ab_volumn > 0 ? (thickGroup.subTotal.ab_volumn / sawGroup.total_ab_volumn) * 100 : 0;
       thickGroup.pct_thick_sep_spc = sawGroup.total_spc_volumn > 0 ? (thickGroup.subTotal.spc_volumn / sawGroup.total_spc_volumn) * 100 : 0;
+      // หาราคาเฉลี่ยต่อความหนา
       thickGroup.avg_price_ab = thickGroup.subTotal.ab_volumn > 0 ? (thickGroup.subTotal.ab_amt / thickGroup.subTotal.ab_volumn) : 0;
       thickGroup.avg_price_spc = thickGroup.subTotal.spc_volumn > 0 ? (thickGroup.subTotal.spc_amt / thickGroup.subTotal.spc_volumn) : 0;
 
+      // แปลงกลุ่มความยาวให้เป็น Array
       thickGroup.lengths = Object.values(thickGroup.lengths).map(lenGroup => {
+        // หา %ยาว: สัดส่วนของ "ความยาวนี้" เทียบกับ "ความหนานั้นทั้งหมด"
         lenGroup.subTotal.ab_pct_amt = thickGroup.subTotal.ab_volumn > 0 ? (lenGroup.subTotal.ab_volumn / thickGroup.subTotal.ab_volumn) * 100 : 0;
         lenGroup.subTotal.spc_pct_amt = thickGroup.subTotal.spc_volumn > 0 ? (lenGroup.subTotal.spc_volumn / thickGroup.subTotal.spc_volumn) * 100 : 0;
         return lenGroup;
@@ -1214,6 +1382,7 @@ const fetchWoodTypeAbData = async (start_date, end_date, branch_id, grade = 'AB'
     return sawGroup;
   });
 
+  // คืนค่าชุดข้อมูลที่พร้อมใช้ และผลรวมทั้งรายงาน
   return { finalData, grandTotal };
 };
 
@@ -1302,6 +1471,207 @@ const fetchProductionThickMilData = async (start_date, end_date, branch_id, grad
   };
 
   return { formattedData, grandTotal, lengthSummary };
+};
+
+// --- Helper Function สำหรับรายงานสรุปค่าแรงจัดเรียงไม้เปียก แยกรายคน ---
+const fetchWetWoodPerfDataHelper = async (branch_id, start_date, end_date, store_code) => {
+  const rows = await ReportModel.getWetWoodPerformanceReport({ branch_id, start_date, end_date, store_code });
+
+  // 1. ตั้งค่า Expected Columns ใหม่ 
+  const expectedColumns = [
+    { grade: 'AB', is_special: false },
+    { grade: 'AB', is_special: true },
+    { grade: 'C', is_special: false },
+    { grade: 'C', is_special: true },
+    { grade: 'P', is_special: false }, // 💡 P รวมทั้งหมด
+    { grade: 'PP', is_special: false } // 💡 PP รวมทั้งหมด
+  ];
+
+  const employeeMap = {};
+  
+  const grandTotal = { total_volumn: 0, total_net_wage: 0 };
+  expectedColumns.forEach(col => {
+    const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+    grandTotal[colKey] = { volumn: 0, net_wage: 0 };
+  });
+
+  let rowIndex = 1;
+
+  rows.forEach(row => {
+    const empCode = row.employee_code || '-';
+    const empName = row.employee_name || 'ไม่ระบุชื่อ';
+    const empKey = `${empCode}_${empName}`;
+
+    if (!employeeMap[empKey]) {
+      employeeMap[empKey] = {
+        row_no: rowIndex++,
+        employee_code: empCode,
+        employee_name: empName,
+        total_volumn: 0,
+        total_net_wage: 0,
+        grades: {}
+      };
+      expectedColumns.forEach(col => {
+        const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+        employeeMap[empKey].grades[colKey] = { volumn: 0, net_wage: 0 };
+      });
+    }
+
+    // 2. 💡 ลอจิกรวบยอด P และ PP
+    let isSpecial = row.is_special;
+    if (row.grade === 'P' || row.grade === 'PP') {
+      isSpecial = false; 
+    }
+
+    const colKey = `${row.grade}_${isSpecial ? 'spc' : 'norm'}`;
+    const vol = Number(row.volumn) || 0;
+    const wage = Number(row.net_wage) || 0;
+
+    if (employeeMap[empKey].grades[colKey] !== undefined) {
+      employeeMap[empKey].grades[colKey].volumn += vol;
+      employeeMap[empKey].grades[colKey].net_wage += wage;
+
+      employeeMap[empKey].total_volumn += vol;
+      employeeMap[empKey].total_net_wage += wage;
+
+      grandTotal[colKey].volumn += vol;
+      grandTotal[colKey].net_wage += wage;
+      grandTotal.total_volumn += vol;
+      grandTotal.total_net_wage += wage;
+    }
+  });
+
+  return { 
+    formattedData: Object.values(employeeMap), 
+    grandTotal,
+    expectedColumns 
+  };
+};
+
+// --- Helper Function สำหรับรายงานสรุปค่าแรงจัดเรียงไม้แห้ง แยกรายคน ---
+// หน้าที่หลัก: รับข้อมูลดิบ (Rows) จาก Database แล้วนำมาจัดกลุ่ม (Group By) ตาม "พนักงาน" 
+// เพื่อแปลงให้เป็นข้อมูลรูปแบบตาราง (Cross-tab) พร้อมคำนวณยอดรวม (Grand Total)
+const fetchDryWoodPerfDataHelper = async (branch_id, start_date, end_date, store_code) => {
+  
+  // 1. เรียกใช้งาน Model เพื่อ Query ดึงข้อมูลดิบจาก Database ตามเงื่อนไขที่ผู้ใช้ระบุมา
+  const rows = await ReportModel.getDryWoodPerformanceReport({ branch_id, start_date, end_date, store_code });
+
+  // 2. กำหนดโครงสร้างคอลัมน์ (เกรดไม้) ที่เราคาดหวังว่าจะนำไปโชว์ในแนวนอนบนหน้าเว็บ
+  // เกรด P และ PP เราจะบังคับรวม (Merge) ไม้พิเศษเข้ากับไม้ปกติ จึงตั้งค่าเป็น false อย่างเดียว
+  const expectedColumns = [
+    { grade: 'AB', is_special: false }, // AB ปกติ
+    { grade: 'AB', is_special: true },  // AB พิเศษ
+    { grade: 'C', is_special: false },  // C ปกติ
+    { grade: 'C', is_special: true },   // C พิเศษ
+    { grade: 'P', is_special: false },  // P รวมทั้งหมด (ปกติ + พิเศษ)
+    { grade: 'PP', is_special: false }  // PP รวมทั้งหมด (ปกติ + พิเศษ)
+  ];
+
+  // 3. สร้าง Object ว่างเพื่อเตรียมไว้สำหรับจัดกลุ่มข้อมูล โดยจะใช้รหัส+ชื่อพนักงานเป็น Key ในการแยกตะกร้า
+  const employeeMap = {};
+  
+  // 4. สร้าง Object เพื่อเตรียมเก็บผลรวมของคอลัมน์ทั้งหมด (Grand Total) ที่จะแสดงในแถวล่างสุดของตาราง
+  // ตั้งค่าเริ่มต้นของยอดรวมแนวนอน (ปริมาตรรวม, ค่าแรงรวม) เป็น 0
+  const grandTotal = { total_volumn: 0, total_net_wage: 0 };
+  
+  // วนลูปตามคอลัมน์ที่ตั้งไว้ เพื่อสร้างช่องเก็บยอดรวมของแต่ละเกรด (คอลัมน์) ในแนวตั้ง
+  expectedColumns.forEach(col => {
+    // สร้าง Key คอลัมน์ให้สั้นลง เช่น 'AB_norm' (ปกติ) หรือ 'AB_spc' (พิเศษ)
+    const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+    // กำหนดค่าเริ่มต้นยอดรวมแนวตั้งให้เกรดนั้นๆ เป็น 0 ทั้งปริมาตรและค่าแรง
+    grandTotal[colKey] = { volumn: 0, net_wage: 0 };
+  });
+
+  // 💡 ประกาศตัวแปรนับลำดับพนักงาน (Row Number) เริ่มต้นที่ 1
+  let rowIndex = 1;
+
+  // 5. เริ่มกระบวนการจัดกลุ่มข้อมูล: วนลูปอ่านข้อมูลดิบทีละบรรทัด (Row) ที่ได้มาจากฐานข้อมูล
+  rows.forEach(row => {
+    
+    // ดึงรหัสพนักงาน ถ้าไม่มีข้อมูลให้แทนที่ด้วย '-'
+    const empCode = row.employee_code || '-';
+    // ดึงชื่อพนักงาน ถ้าไม่มีข้อมูลให้แทนที่ด้วย 'ไม่ระบุชื่อ'
+    const empName = row.employee_name || 'ไม่ระบุชื่อ';
+    // นำรหัสและชื่อมาต่อกันเพื่อสร้าง Key ประจำตัวพนักงาน (เช่น "001_นายเอ") ใช้สำหรับเช็คความซ้ำซ้อน
+    const empKey = `${empCode}_${empName}`;
+
+    // เช็คว่าใน employeeMap มีตะกร้าของพนักงานคนนี้หรือยัง? (เครื่องหมาย ! คือ ยังไม่มี)
+    if (!employeeMap[empKey]) {
+      
+      // ถ้ายังไม่มี (เจอพนักงานคนนี้เป็นครั้งแรก) ให้สร้างตะกร้าข้อมูลใบใหม่ให้พนักงานคนนี้
+      employeeMap[empKey] = {
+        row_no: rowIndex++,      // 💡 เก็บเลขลำดับปัจจุบันลงไป แล้วบวกเพิ่ม (++) รอไว้ให้คนถัดไป
+        employee_code: empCode,  // เก็บข้อมูลรหัสพนักงาน
+        employee_name: empName,  // เก็บข้อมูลชื่อพนักงาน
+        total_volumn: 0,         // ยอดรวมปริมาตรทั้งหมดของพนักงานคนนี้ เริ่มที่ 0
+        total_net_wage: 0,       // ยอดรวมค่าแรงทั้งหมดของพนักงานคนนี้ เริ่มที่ 0
+        grades: {}               // Object ว่างๆ เตรียมไว้เก็บข้อมูลที่แยกตามเกรด
+      };
+      
+      // วนลูปสร้างช่องเก็บข้อมูลย่อย (Cell) ตามจำนวนเกรดที่เราตั้งไว้
+      expectedColumns.forEach(col => {
+        // สร้าง Key เช่น 'AB_norm'
+        const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+        // สร้างช่องเก็บข้อมูลปริมาตรและค่าแรงของเกรดนั้น เริ่มที่ 0
+        employeeMap[empKey].grades[colKey] = { volumn: 0, net_wage: 0 };
+      });
+    }
+
+    // 6. ดึงข้อมูลตัวเลขของบรรทัดปัจจุบันมาเตรียมไว้ เพื่อบวกสะสมเข้าในตะกร้า
+    // สร้างตัวแปรมารับค่า is_special จากฐานข้อมูลก่อน
+    let isSpecial = row.is_special;
+    
+    // 💡 ลอจิกสำคัญ: บังคับยุบรวม P และ PP 
+    // ถ้าเกรดที่อ่านมาคือ P หรือ PP เราจะบังคับให้กลายเป็นไม้ปกติเสมอ เพื่อให้มันไหลลงไปรวมในคอลัมน์เดียวกัน
+    if (row.grade === 'P' || row.grade === 'PP') {
+      isSpecial = false; 
+    }
+
+    // สร้าง Key ของคอลัมน์สำหรับบรรทัดปัจจุบัน (เช่น ถ้าเป็น P ก็จะกลายเป็น 'P_norm' เสมอ)
+    const colKey = `${row.grade}_${isSpecial ? 'spc' : 'norm'}`;
+    // แปลงค่าปริมาตรที่มาจาก DB ให้เป็นตัวเลข ถ้าพังหรือเป็นค่าว่างให้เป็น 0 ไว้ก่อน
+    const vol = Number(row.volumn) || 0;
+    // แปลงค่าแรงให้เป็นตัวเลข ถ้าพังหรือเป็นค่าว่างให้เป็น 0 ไว้ก่อน
+    const wage = Number(row.net_wage) || 0;
+
+    // เช็คเพื่อความปลอดภัย: เกรดที่อ่านมา มีอยู่ในโครงสร้างตะกร้าที่เราตั้งรับไว้หรือไม่? (ป้องกันเกรดหลง)
+    if (employeeMap[empKey].grades[colKey] !== undefined) {
+      
+      // --- การสะสมยอด 4 ระดับ ---
+      
+      // 6.1 บวกยอดระดับบุคคล (เฉพาะเกรดนั้นๆ)
+      // บวกปริมาตรสะสมเข้าไปในช่องเกรดของพนักงานคนนี้
+      employeeMap[empKey].grades[colKey].volumn += vol;
+      // บวกค่าแรงสะสมเข้าไปในช่องเกรดของพนักงานคนนี้
+      employeeMap[empKey].grades[colKey].net_wage += wage;
+
+      // 6.2 บวกยอดระดับบุคคล (รวมทุกเกรดเข้าด้วยกัน แถวขวาสุด)
+      // บวกปริมาตรรวมของพนักงานคนนี้ 
+      employeeMap[empKey].total_volumn += vol;
+      // บวกค่าแรงรวมของพนักงานคนนี้
+      employeeMap[empKey].total_net_wage += wage;
+
+      // 6.3 บวกยอดระดับ Grand Total (รวมทุกคน เฉพาะเกรดนั้นๆ แถวล่างสุด)
+      // บวกปริมาตรเข้ายอดรวมคอลัมน์ของเกรดนั้นๆ ระดับบริษัท
+      grandTotal[colKey].volumn += vol;
+      // บวกค่าแรงเข้ายอดรวมคอลัมน์ของเกรดนั้นๆ ระดับบริษัท
+      grandTotal[colKey].net_wage += wage;
+      
+      // 6.4 บวกยอดระดับ Grand Total สุทธิ (รวมทุกคน ทุกเกรด มุมขวาล่างสุด)
+      // บวกปริมาตรเข้ายอดรวมสุทธิทั้งรายงาน
+      grandTotal.total_volumn += vol;
+      // บวกค่าแรงเข้ายอดรวมสุทธิทั้งรายงาน
+      grandTotal.total_net_wage += wage;
+    }
+  });
+
+  // 7. จัดการข้อมูลก่อนส่งคืน (Return)
+  return { 
+    // Object.values() จะแปลง Object ที่เราใช้เป็นตะกร้า ให้กลายเป็น Array เพื่อให้ React นำไป .map() สร้างแถวได้
+    formattedData: Object.values(employeeMap), 
+    grandTotal,         // ยอดรวมทั้งหมด (Grand Total)
+    expectedColumns     // โครงสร้างคอลัมน์ (เอาไว้ให้ React สร้างหัวตารางและวนลูปสร้างคอลัมน์)
+  };
 };
 
 const reportController = {
@@ -1411,23 +1781,32 @@ const reportController = {
       res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานรูปแบบที่ 2' });
     }
   },
-  // ฟังก์ชัน API เดิมของ JSON 
+  // ประกาศฟังก์ชันไว้ภายใน Object reportController
   getAbWoodReport: async (req, res) => {
     try {
-      const { start_date, end_date, branch_id, grade} = req.query;
-      if (!branch_id || !start_date || !end_date) return res.status(400).json({ success: false, message: 'Missing parameters' });
+      // 💡 2. รับตัวแปรพารามิเตอร์ที่ Frontend ส่งมาทาง Query String (เช่น ?start_date=...&branch_id=...)
+      const { start_date, end_date, branch_id, grade } = req.query;
       
-      // รับค่าทั้ง data และ grandTotal
-      const result = await fetchWoodTypeAbData(start_date, end_date, branch_id ,grade);
+      // ถ้าระบุตัวแปรที่จำเป็นไม่ครบ ให้แจ้งเตือน (Bad Request) ป้องกันฐานข้อมูลพัง
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'Missing parameters' });
+      }
       
-      // แนบ grandTotal ไปใน JSON Response ด้วย
+      // นำตัวแปรทั้งหมดโยนเข้าไปให้ฟังก์ชัน Helper `fetchWoodTypeAbData` ที่อธิบายไปด้านบน ดำเนินการ
+      const result = await fetchWoodTypeAbData(start_date, end_date, branch_id, grade);
+      
+      // เมื่อคำนวณเสร็จ ส่งผลลัพธ์กลับในรูปแบบ JSON ให้ Frontend นำไปใช้งาน
+      // จะส่งกลับทั้งสถานะ (success), ข้อมูลจัดกลุ่มแล้ว (data) และยอดรวม (grandTotal)
       res.status(200).json({ 
         success: true, 
         data: result.finalData, 
         grandTotal: result.grandTotal 
       });
+      
     } catch (error) {
+      // หากโค้ดมีบัคหรือยิง Database ไม่สำเร็จ จะมาเข้าที่ Catch พิมพ์ Error ลง Log บน Server
       console.error(error);
+      // ส่งแจ้งเตือนว่าเกิดข้อผิดพลาดให้ Frontend
       res.status(500).json({ success: false, message: 'Server Error' });
     }
   },
@@ -1716,7 +2095,7 @@ const reportController = {
           </head>
           <body>
             <div class="title-box">
-              <h1>บริษัท วู้ดเวิร์ค จำกัด</h1>
+              <h1>บริษัท วู้ดเวอร์ค จำกัด</h1>
               <h2>รายงานการเบิกจ่ายแยกตาม ประเภทไม้</h2>
               <p>ตั้งแต่วันที่ ${start_date} ถึงวันที่ ${end_date}</p>
             </div>
@@ -2161,7 +2540,7 @@ const reportController = {
           </head>
           <body>
             <div class="title-box">
-              <h1>บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+              <h1>บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
               <h2>รายงานเปรียบเทียบราคาขายเฉลี่ย ตามแผนกและเกรดไม้</h2>
               <p>ตั้งแต่วันที่ ${start_date} ถึงวันที่ ${end_date} สโตร์: ${store_code || 'รวมทุกสโตร์'}</p>
             </div>
@@ -2489,7 +2868,7 @@ const reportController = {
           .border-b { border-bottom: 2px solid #555; } .border-t { border-top: 2px solid #555; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
             <h2 style="font-size:16px; margin:0;">รายงานการผลิต แยกตาม ความหนา-มิลไม้</h2>
             <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
           </div>
@@ -2828,7 +3207,7 @@ const reportController = {
           .border-t { border-top: 2px solid #333; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปผลงานนายม้า แยกตามเกรดคุณภาพไม้ (AB, C, P, PP)</h2>
             <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date} สโตร์: ทั้งหมด</p>
             <p style="margin:0;">แหล่งที่มา: ทั้งหมด | ประเภทไม้: ทั้งหมด | กลุ่มไม้: ทั้งหมด</p>
@@ -3305,7 +3684,7 @@ const reportController = {
           .border-t { border-top: 2px solid #333; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปผลผลิตไม้รายวันและประจำเดือน</h2>
             <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
           </div>
@@ -3675,6 +4054,8 @@ const reportController = {
       const { formattedData, grandTotalMap, uniqueLengths, expectedGrades } = await reportController.fetchSawerPerfLengthHelper(branch_id, start_date, end_date, grade_group, report_format);
       const isFormat2 = String(report_format) === '2';
 
+      const fs = require('fs');
+      const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
       let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
 
@@ -3682,13 +4063,13 @@ const reportController = {
       const allGradesLabel = expectedGrades.map(formatGradeLabel).join('+');
 
       let theadHtml = `
-        <tr style="background-color: #d1d5db;">
+        <tr style="background-color: #d1d5db; page-break-inside: avoid;">
           <th rowspan="2" style="width: 150px;">รหัส-ชื่อนายม้า</th>
           ${isFormat2 ? '<th rowspan="2" style="width: 80px;">รหัสแผนก</th>' : ''}
           ${expectedGrades.map(g => `<th colspan="${uniqueLengths.length + 1}">${formatGradeLabel(g)} (ลบ.ฟุต)</th>`).join('')}
           <th colspan="${uniqueLengths.length + 1}" style="background-color: #9ca3af;">${allGradesLabel} (ลบ.ฟุต)</th>
         </tr>
-        <tr style="background-color: #e5e7eb;">
+        <tr style="background-color: #e5e7eb; page-break-inside: avoid;">
           ${expectedGrades.map(() => uniqueLengths.map(l => `<th>${l}</th>`).join('') + '<th>รวม</th>').join('')}
           ${uniqueLengths.map(l => `<th style="background-color: #d1d5db;">${l}</th>`).join('')}
           <th style="background-color: #9ca3af;">รวม</th>
@@ -3699,13 +4080,20 @@ const reportController = {
       formattedData.forEach((emp) => {
         const empName = emp.employee_code ? `${emp.employee_code} ${emp.employee_name}` : emp.employee_name;
         
+        // 💡 ครอบข้อมูลของพนักงานแต่ละคนด้วย <tbody> เดี่ยวๆ เพื่อป้องกันไม่ให้ถูกตัดขาดกลางหน้ากระดาษ (Page break)
+        tbodyHtml += `<tbody style="page-break-inside: avoid;">`;
+
         if (isFormat2) {
           const saws = Object.values(emp.saws);
           saws.forEach((saw, sIdx) => {
             let volRow = `<tr>`;
-            // 💡 แก้ไข: นับ rowSpan ให้พอดีกับจำนวนชุดเลื่อย ไม่เกินลงไปทับแถวรวม
-            if (sIdx === 0) volRow += `<td rowspan="${saws.length * 2}" class="left pl" style="background-color: #fefce8; vertical-align: middle;">${empName}</td>`;
-            volRow += `<td class="left pl">${saw.saw_name}</td>`;
+            
+            // 💡 แก้ไข: นับ rowSpan ให้ครอบคลุม: (จำนวนชุดเลื่อย x 2 บรรทัดย่อย) + บรรทัด "รวม" สุทธิ 2 บรรทัด
+            if (sIdx === 0) {
+               volRow += `<td rowspan="${(saws.length * 2) + 2}" class="left pl" style="background-color: #fefce8; vertical-align: middle;">${empName}</td>`;
+            }
+            
+            volRow += `<td rowspan="2" class="left pl" style="vertical-align: middle;">${saw.saw_name}</td>`;
             expectedGrades.forEach(g => {
               uniqueLengths.forEach(l => { volRow += `<td>${saw.grades[g].lengths[l] > 0 ? saw.grades[g].lengths[l].toFixed(4) : '0.0000'}</td>`; });
               volRow += `<td class="bold bg-gray-light">${saw.grades[g].total > 0 ? saw.grades[g].total.toFixed(4) : '0.0000'}</td>`;
@@ -3713,7 +4101,7 @@ const reportController = {
             uniqueLengths.forEach(l => { volRow += `<td style="background-color: #eff6ff;">${saw.total_all_grades.lengths[l] > 0 ? saw.total_all_grades.lengths[l].toFixed(4) : '0.0000'}</td>`; });
             volRow += `<td class="bold" style="background-color: #dbeafe;">${saw.total_all_grades.total > 0 ? saw.total_all_grades.total.toFixed(4) : '0.0000'}</td></tr>`;
 
-            let pctRow = `<tr class="text-gray text-xs"><td></td>`;
+            let pctRow = `<tr class="text-gray text-xs">`;
             expectedGrades.forEach(g => {
               uniqueLengths.forEach(l => { pctRow += `<td>${saw.grades[g].pcts[l] > 0 ? saw.grades[g].pcts[l].toFixed(2) + '%' : '0.00%'}</td>`; });
               pctRow += `<td class="bold bg-gray-light">${saw.grades[g].pct_total > 0 ? saw.grades[g].pct_total.toFixed(2) + '%' : '0.00%'}</td>`;
@@ -3725,7 +4113,7 @@ const reportController = {
           });
 
           // 💡 แก้ไข: บรรทัดรวมพนักงาน ผสานเซลล์อย่างสมบูรณ์แบบ
-          let sumVol = `<tr class="bold" style="background-color: #e2efda; border-top: 1px solid #000;"><td colspan="2" rowspan="2" class="center" style="vertical-align: middle;">รวม</td>`;
+          let sumVol = `<tr class="bold" style="background-color: #e2efda; border-top: 1px solid #000;"><td rowspan="2" class="center" style="vertical-align: middle;">รวม</td>`;
           let sumPct = `<tr class="text-xs" style="background-color: #e2efda; border-bottom: 2px solid #555;">`;
           expectedGrades.forEach(g => {
             uniqueLengths.forEach(l => { 
@@ -3765,10 +4153,12 @@ const reportController = {
 
           tbodyHtml += volRow + pctRow;
         }
+        tbodyHtml += `</tbody>`; // ปิด tbody ของพนักงานคนนี้
       });
 
       // Grand Total
       if (grandTotalMap) {
+        tbodyHtml += `<tbody style="page-break-inside: avoid;">`;
         let gtVol = `<tr class="bold" style="background-color: #d1d5db; border-top: 2px solid #333;"><td colspan="${isFormat2 ? 2 : 1}" rowspan="2" class="center" style="vertical-align: middle;">รวมทั้งหมด</td>`;
         let gtPct = `<tr class="text-xs" style="background-color: #e5e7eb; border-bottom: 2px solid #333;">`;
         expectedGrades.forEach(g => {
@@ -3786,14 +4176,18 @@ const reportController = {
         gtVol += `<td style="background-color: #93c5fd; color: #1e3a8a;">${grandTotalMap['ALL'].total > 0 ? grandTotalMap['ALL'].total.toFixed(4) : '0.0000'}</td></tr>`;
         gtPct += `<td class="text-gray" style="background-color: #bfdbfe;">${grandTotalMap['ALL'].pct_total > 0 ? grandTotalMap['ALL'].pct_total.toFixed(2) + '%' : '0.00%'}</td></tr>`;
 
-        tbodyHtml += gtVol + gtPct;
+        tbodyHtml += gtVol + gtPct + `</tbody>`;
       }
 
+      // 💡 เพิ่มการตั้งค่า CSS page-break-inside: avoid; เพื่อบังคับไม่ให้เนื้อหาแต่ละชุดโดนหั่นกลางกระดาษ
       const htmlContent = `
         <html><head><style>
           @font-face { font-family: 'THSarabun'; src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype'); }
-          body { font-family: 'THSarabun', sans-serif; font-size: 11px; margin: 0; padding: 15px; }
-          table { width: 100%; border-collapse: collapse; }
+          body { font-family: 'THSarabun', sans-serif; font-size: 11px; margin: 0; padding: 10px; }
+          table { width: 100%; border-collapse: collapse; page-break-inside: auto; }
+          tr { page-break-inside: avoid; page-break-after: auto; }
+          thead { display: table-header-group; }
+          tfoot { display: table-footer-group; }
           th, td { border: 1px solid #777; padding: 3px; text-align: right; }
           th { font-weight: bold; text-align: center; }
           .left { text-align: left; } .center { text-align: center; } .pl { padding-left: 6px; } 
@@ -3801,18 +4195,29 @@ const reportController = {
           .text-gray { color: #6b7280; } .text-xs { font-size: 10px; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:10px;">
-            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวิร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปผลงานนายม้า แยกตามความยาวไม้</h2>
             <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date} | กลุ่มเกรดไม้: ${grade_group === 'AB_C' ? 'AB, C' : 'P, PP'}</p>
           </div>
-          <table><thead>${theadHtml}</thead><tbody>${tbodyHtml}</tbody></table>
+          <table><thead>${theadHtml}</thead>${tbodyHtml}</table>
         </body></html>
       `;
 
+      // ใช้ Global Browser เพื่อลดการบริโภคทรัพยากรของเซิร์ฟเวอร์
       const browser = await getBrowser(); 
       const page = await browser.newPage();
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ format: 'Legal', landscape: true, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
+      
+      // กำหนด load ให้โหลดข้อมูลและ CSS ให้เสร็จสมบูรณ์ก่อน
+      await page.setContent(htmlContent, { waitUntil: 'load' }); 
+      
+      const pdfBuffer = await page.pdf({ 
+        format: 'Legal', 
+        landscape: true, 
+        printBackground: true, 
+        // 💡 ปรับให้ Header ตารางโชว์ทุกหน้าอัตโนมัติด้วย display: table-header-group;
+        displayHeaderFooter: false, 
+        margin: { top: '15mm', bottom: '15mm', left: '10mm', right: '10mm' }
+      });
       await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');
@@ -3822,7 +4227,1154 @@ const reportController = {
       console.error(error);
       res.status(500).json({ success: false, message: 'Error PDF' });
     }
-  }
+  },
+
+  getWetWoodCover: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, wet_wood_type } = req.query;
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      const rows = await ReportModel.getWetWoodCoverReport({ branch_id, start_date, end_date, wet_wood_type });
+
+      // จัดกลุ่มข้อมูลตาม ประเภท (ปกติ/พิเศษ) และ เกรดไม้
+      const groupedData = {};
+      
+      rows.forEach(row => {
+        const typeName = row.is_special ? 'พิเศษ' : 'ปกติ';
+        const groupKey = `ไม้ ${row.grade || 'ไม่ระบุเกรด'} ${typeName}`;
+
+        if (!groupedData[groupKey]) {
+          groupedData[groupKey] = {
+            groupName: groupKey,
+            items: [],
+            sumAmount: 0,
+            sumVolumn: 0,
+            sumNetWage: 0
+          };
+        }
+
+        groupedData[groupKey].items.push(row);
+        groupedData[groupKey].sumAmount += Number(row.amount);
+        groupedData[groupKey].sumVolumn += Number(row.volumn);
+        groupedData[groupKey].sumNetWage += Number(row.net_wage);
+      });
+
+      res.json({
+        success: true,
+        data: {
+          header: {
+            start_date,
+            end_date,
+            wet_wood_type: wet_wood_type || 'ทั้งหมด'
+          },
+          groups: Object.values(groupedData)
+        }
+      });
+    } catch (error) {
+      console.error('Report Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานค่าแรงไม้เปียก' });
+    }
+  },
+
+  getWetWoodCoverFormat2: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, wet_wood_type } = req.query;
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      const rows = await ReportModel.getWetWoodCoverReportFormat2({ branch_id, start_date, end_date, wet_wood_type });
+      const groupedData = {};
+      
+      rows.forEach(row => {
+        const typeName = row.is_special ? 'พิเศษ' : 'ปกติ';
+        const empName = row.employee_code ? `${row.employee_code} - ${row.employee_name}` : 'ไม่ระบุพนักงาน';
+        
+        // ตัดส่วนของวันที่ออกไป จัดกลุ่มแค่พนักงานและเกรดไม้
+        const groupKey = `พนักงาน: ${empName} (ไม้ ${row.grade || 'ไม่ระบุเกรด'} ${typeName})`;
+
+        if (!groupedData[groupKey]) {
+          groupedData[groupKey] = {
+            groupName: groupKey,
+            items: [],
+            sumAmount: 0,
+            sumVolumn: 0,
+            sumNetWage: 0
+          };
+        }
+
+        groupedData[groupKey].items.push(row);
+        groupedData[groupKey].sumAmount += Number(row.amount);
+        groupedData[groupKey].sumVolumn += Number(row.volumn);
+        groupedData[groupKey].sumNetWage += Number(row.net_wage);
+      });
+
+      res.json({
+        success: true,
+        data: {
+          header: {
+            start_date,
+            end_date,
+            wet_wood_type: wet_wood_type || 'ทั้งหมด'
+          },
+          groups: Object.values(groupedData)
+        }
+      });
+    } catch (error) {
+      console.error('Report Error Format 2:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานค่าแรงไม้เปียกรูปแบบที่ 2' });
+    }
+  },
+
+  // --- ฟังก์ชันช่วยเหลือ (Helper) สำหรับดึงข้อมูลรายงานค่าแรงไม้เปียก ---
+  fetchWetWoodCoverDataHelper: async (branch_id, start_date, end_date, wet_wood_type, report_format) => {
+    let rows;
+    if (String(report_format) === '2') {
+      rows = await ReportModel.getWetWoodCoverReportFormat2({ branch_id, start_date, end_date, wet_wood_type });
+    } else {
+      rows = await ReportModel.getWetWoodCoverReport({ branch_id, start_date, end_date, wet_wood_type });
+    }
+
+    const groupedData = {};
+    let grandTotalAmount = 0;
+    let grandTotalVolumn = 0;
+    let grandTotalNetWage = 0;
+    
+    rows.forEach(row => {
+      const typeName = row.is_special ? 'พิเศษ' : 'ปกติ';
+      let groupKey;
+
+      if (String(report_format) === '2') {
+        const empName = row.employee_code ? `${row.employee_code} - ${row.employee_name}` : 'ไม่ระบุพนักงาน';
+        groupKey = `พนักงาน: ${empName} (ไม้ ${row.grade || 'ไม่ระบุเกรด'} ${typeName})`;
+      } else {
+        groupKey = `ไม้ ${row.grade || 'ไม่ระบุเกรด'} ${typeName}`;
+      }
+
+      if (!groupedData[groupKey]) {
+        groupedData[groupKey] = {
+          groupName: groupKey,
+          items: [],
+          sumAmount: 0,
+          sumVolumn: 0,
+          sumNetWage: 0
+        };
+      }
+
+      groupedData[groupKey].items.push(row);
+      groupedData[groupKey].sumAmount += Number(row.amount);
+      groupedData[groupKey].sumVolumn += Number(row.volumn);
+      groupedData[groupKey].sumNetWage += Number(row.net_wage);
+
+      grandTotalAmount += Number(row.amount);
+      grandTotalVolumn += Number(row.volumn);
+      grandTotalNetWage += Number(row.net_wage);
+    });
+
+    return { 
+        groups: Object.values(groupedData), 
+        grandTotal: { amount: grandTotalAmount, volumn: grandTotalVolumn, net_wage: grandTotalNetWage }
+    };
+  },
+
+  // --- Export Excel ---
+  exportWetWoodCoverExcel: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, wet_wood_type, report_format, branch_name } = req.query;
+      const { groups, grandTotal } = await reportController.fetchWetWoodCoverDataHelper(branch_id, start_date, end_date, wet_wood_type, report_format);
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Report');
+
+      worksheet.columns = [
+        { key: 'col1', width: 30 },
+        { key: 'col2', width: 15 },
+        { key: 'col3', width: 15 },
+        { key: 'col4', width: 20 }
+      ];
+
+      worksheet.addRow([branch_name || 'บริษัท วู้ดเวอร์ค จำกัด']).font = { bold: true, size: 14 };
+      worksheet.addRow(['รายงานค่าแรงไม้เปียก ใบปะหน้า']).font = { bold: true, size: 12 };
+      worksheet.addRow([`ตั้งแต่วันที่ ${start_date} ถึง ${end_date}`]);
+      worksheet.addRow([`ประเภทไม้ : ${wet_wood_type || 'ทั้งหมด'}`]);
+      worksheet.addRow([]);
+
+      const headerRow = worksheet.addRow(['รหัสสินค้า', 'จำนวนท่อน', 'ปริมาตร(ลบฟ)', 'ค่าแรง']);
+      headerRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
+        cell.font = { bold: true };
+        cell.alignment = { horizontal: 'center' };
+        cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+      });
+
+      groups.forEach(group => {
+        const groupRow = worksheet.addRow([group.groupName]);
+        groupRow.font = { bold: true };
+        worksheet.mergeCells(`A${groupRow.number}:D${groupRow.number}`);
+
+        group.items.forEach(item => {
+          const row = worksheet.addRow([
+            item.wood_code,
+            Number(item.amount),
+            Number(item.volumn),
+            Number(item.net_wage)
+          ]);
+          row.getCell(2).numFmt = '#,##0';
+          row.getCell(3).numFmt = '#,##0.0000';
+          row.getCell(4).numFmt = '#,##0.00';
+        });
+
+        const sumRow = worksheet.addRow([
+          `รวม ${group.groupName}`,
+          group.sumAmount,
+          group.sumVolumn,
+          group.sumNetWage
+        ]);
+        sumRow.font = { bold: true, color: { argb: 'FF4B5563' } };
+        sumRow.getCell(2).numFmt = '#,##0';
+        sumRow.getCell(3).numFmt = '#,##0.0000';
+        sumRow.getCell(4).numFmt = '#,##0.00';
+        
+        worksheet.addRow([]); 
+      });
+
+      if (grandTotal) {
+        const gtRow = worksheet.addRow(['รวมทั้งหมด', grandTotal.amount, grandTotal.volumn, grandTotal.net_wage]);
+        gtRow.font = { bold: true };
+        gtRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+        gtRow.getCell(2).numFmt = '#,##0';
+        gtRow.getCell(3).numFmt = '#,##0.0000';
+        gtRow.getCell(4).numFmt = '#,##0.00';
+      }
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=wet_wood_cover.xlsx');
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error Excel' });
+    }
+  },
+
+  // --- Export PDF ---
+  exportWetWoodCoverPDF: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, wet_wood_type, report_format, branch_name } = req.query;
+      const { groups, grandTotal } = await reportController.fetchWetWoodCoverDataHelper(branch_id, start_date, end_date, wet_wood_type, report_format);
+
+      const fs = require('fs');
+      const path = require('path');
+      const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
+      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+
+      let rowsHtml = '';
+      groups.forEach(group => {
+        rowsHtml += `<tr><td colspan="4" class="left pl bold" style="background-color: #f9fafb;">${group.groupName}</td></tr>`;
+        
+        group.items.forEach(item => {
+          rowsHtml += `
+            <tr>
+              <td class="left pl" style="padding-left: 20px;">${item.wood_code}</td>
+              <td>${Number(item.amount).toLocaleString()}</td>
+              <td>${Number(item.volumn).toFixed(4)}</td>
+              <td>${Number(item.net_wage).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+            </tr>`;
+        });
+        
+        rowsHtml += `
+          <tr class="bold text-gray border-b">
+            <td class="left pl">รวม ${group.groupName}</td>
+            <td>${group.sumAmount.toLocaleString()}</td>
+            <td>${group.sumVolumn.toFixed(4)}</td>
+            <td>${group.sumNetWage.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+          </tr>
+          <tr><td colspan="4" style="border: none; padding: 5px;"></td></tr>
+        `;
+      });
+
+      if (grandTotal) {
+        rowsHtml += `
+          <tr class="bold border-t" style="background-color: #f3f4f6; font-size: 14px;">
+            <td class="left pl">รวมทั้งหมด</td>
+            <td>${grandTotal.amount.toLocaleString()}</td>
+            <td>${grandTotal.volumn.toFixed(4)}</td>
+            <td>${grandTotal.net_wage.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+          </tr>
+        `;
+      }
+
+      const htmlContent = `
+        <html><head><style>
+          @font-face { font-family: 'THSarabun'; src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype'); }
+          body { font-family: 'THSarabun', sans-serif; font-size: 14px; margin: 0; padding: 20px; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #777; padding: 5px; text-align: right; }
+          th { font-weight: bold; text-align: center; background-color: #d1d5db; }
+          .left { text-align: left; } .pl { padding-left: 10px; } .bold { font-weight: bold; }
+          .text-gray { color: #4b5563; }
+          .border-b { border-bottom: 2px dotted #9ca3af; } .border-t { border-top: 2px solid #333; }
+        </style></head><body>
+          <div style="text-align:center; margin-bottom:20px;">
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานค่าแรงไม้เปียก ใบปะหน้า</h2>
+            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
+            <p style="margin:0;">ประเภทไม้: ${wet_wood_type || 'ทั้งหมด'}</p>
+          </div>
+          <table>
+            <thead><tr><th>รหัสสินค้า</th><th>จำนวนท่อน</th><th>ปริมาตร(ลบฟ)</th><th>ค่าแรง</th></tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+          <div style="margin-top:60px; width:100%; display:flex; justify-content:space-around; text-align:center;">
+            <div>........................................................<br/><br/>ผู้รายงาน</div>
+            <div>........................................................<br/><br/>ผู้จัดการโรงงาน</div>
+          </div>
+        </body></html>
+      `;
+
+      const browser = await getBrowser(); 
+      const page = await browser.newPage();
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
+      await page.close();
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="wet_wood_cover.pdf"');
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error PDF' });
+    }
+  },
+
+  // ─── Controller สำหรับรายงานค่าแรงไม้แห้ง ───
+  getDryWoodCover: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code } = req.query; // 💡 เพิ่ม store_code
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      const rows = await ReportModel.getDryWoodCoverReport({ branch_id, start_date, end_date, store_code }); // 💡 ส่ง store_code ให้ Model
+
+      const groupedData = {};
+      
+      rows.forEach(row => {
+        const typeName = row.is_special ? 'พิเศษ' : 'ปกติ';
+        const groupKey = `ไม้ ${row.grade || 'ไม่ระบุเกรด'} ${typeName}`;
+
+        if (!groupedData[groupKey]) {
+          groupedData[groupKey] = {
+            groupName: groupKey,
+            items: [],
+            sumAmount: 0,
+            sumVolumn: 0,
+            sumNetWage: 0
+          };
+        }
+
+        groupedData[groupKey].items.push(row);
+        groupedData[groupKey].sumAmount += Number(row.amount);
+        groupedData[groupKey].sumVolumn += Number(row.volumn);
+        groupedData[groupKey].sumNetWage += Number(row.net_wage);
+      });
+
+      res.json({
+        success: true,
+        data: {
+          header: { start_date, end_date, store_code: store_code || '104%' }, // 💡 แนบกลับไปแสดงผล
+          groups: Object.values(groupedData)
+        }
+      });
+    } catch (error) {
+      console.error('Report Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานค่าแรงไม้แห้ง' });
+    }
+  },
+
+  getDryWoodCoverFormat2: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code } = req.query; // 💡 เพิ่ม store_code
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      const rows = await ReportModel.getDryWoodCoverReportFormat2({ branch_id, start_date, end_date, store_code }); // 💡 ส่ง store_code ให้ Model
+      const groupedData = {};
+      
+      rows.forEach(row => {
+        const typeName = row.is_special ? 'พิเศษ' : 'ปกติ';
+        const empName = row.employee_code ? `${row.employee_code} - ${row.employee_name}` : 'ไม่ระบุพนักงาน';
+        const groupKey = `พนักงาน: ${empName} (ไม้ ${row.grade || 'ไม่ระบุเกรด'} ${typeName})`;
+
+        if (!groupedData[groupKey]) {
+          groupedData[groupKey] = {
+            groupName: groupKey,
+            items: [],
+            sumAmount: 0,
+            sumVolumn: 0,
+            sumNetWage: 0
+          };
+        }
+
+        groupedData[groupKey].items.push(row);
+        groupedData[groupKey].sumAmount += Number(row.amount);
+        groupedData[groupKey].sumVolumn += Number(row.volumn);
+        groupedData[groupKey].sumNetWage += Number(row.net_wage);
+      });
+
+      res.json({
+        success: true,
+        data: {
+          header: { start_date, end_date, store_code: store_code || '104%' }, // 💡 แนบกลับไปแสดงผล
+          groups: Object.values(groupedData)
+        }
+      });
+    } catch (error) {
+      console.error('Report Error Format 2:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานค่าแรงไม้แห้งรูปแบบที่ 2' });
+    }
+  },
+
+  // --- ฟังก์ชันช่วยเหลือ (Helper) สำหรับรายงานค่าแรงไม้แห้ง ---
+  fetchDryWoodCoverDataHelper: async (branch_id, start_date, end_date, store_code, report_format) => {
+    let rows;
+    if (String(report_format) === '2') {
+      rows = await ReportModel.getDryWoodCoverReportFormat2({ branch_id, start_date, end_date, store_code });
+    } else {
+      rows = await ReportModel.getDryWoodCoverReport({ branch_id, start_date, end_date, store_code });
+    }
+
+    const groupedData = {};
+    let grandTotalAmount = 0;
+    let grandTotalVolumn = 0;
+    let grandTotalNetWage = 0;
+    
+    rows.forEach(row => {
+      const typeName = row.is_special ? 'พิเศษ' : 'ปกติ';
+      let groupKey;
+
+      if (String(report_format) === '2') {
+        const empName = row.employee_code ? `${row.employee_code} - ${row.employee_name}` : 'ไม่ระบุพนักงาน';
+        groupKey = `พนักงาน: ${empName} (ไม้ ${row.grade || 'ไม่ระบุเกรด'} ${typeName})`;
+      } else {
+        groupKey = `ไม้ ${row.grade || 'ไม่ระบุเกรด'} ${typeName}`;
+      }
+
+      if (!groupedData[groupKey]) {
+        groupedData[groupKey] = {
+          groupName: groupKey,
+          items: [],
+          sumAmount: 0,
+          sumVolumn: 0,
+          sumNetWage: 0
+        };
+      }
+
+      groupedData[groupKey].items.push(row);
+      groupedData[groupKey].sumAmount += Number(row.amount);
+      groupedData[groupKey].sumVolumn += Number(row.volumn);
+      groupedData[groupKey].sumNetWage += Number(row.net_wage);
+
+      grandTotalAmount += Number(row.amount);
+      grandTotalVolumn += Number(row.volumn);
+      grandTotalNetWage += Number(row.net_wage);
+    });
+
+    return { 
+        groups: Object.values(groupedData), 
+        grandTotal: { amount: grandTotalAmount, volumn: grandTotalVolumn, net_wage: grandTotalNetWage }
+    };
+  },
+
+  // --- Export Excel ไม้แห้ง ---
+  exportDryWoodCoverExcel: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code, report_format, branch_name } = req.query;
+      const { groups, grandTotal } = await reportController.fetchDryWoodCoverDataHelper(branch_id, start_date, end_date, store_code, report_format);
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Report');
+
+      worksheet.columns = [
+        { key: 'col1', width: 30 },
+        { key: 'col2', width: 15 },
+        { key: 'col3', width: 15 },
+        { key: 'col4', width: 20 }
+      ];
+
+      worksheet.addRow([branch_name || 'บริษัท วู้ดเวอร์ค จำกัด']).font = { bold: true, size: 14 };
+      worksheet.addRow(['รายงานค่าแรงไม้แห้ง ใบปะหน้า']).font = { bold: true, size: 12 };
+      worksheet.addRow([`ตั้งแต่วันที่ ${start_date} ถึง ${end_date}`]);
+      worksheet.addRow([`รหัสสโตร์ : ${store_code || '104%'}`]);
+      worksheet.addRow([]);
+
+      const headerRow = worksheet.addRow(['รหัสสินค้า', 'จำนวนท่อน', 'ปริมาตร(ลบฟ)', 'ค่าแรง']);
+      headerRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
+        cell.font = { bold: true };
+        cell.alignment = { horizontal: 'center' };
+        cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+      });
+
+      groups.forEach(group => {
+        const groupRow = worksheet.addRow([group.groupName]);
+        groupRow.font = { bold: true };
+        worksheet.mergeCells(`A${groupRow.number}:D${groupRow.number}`);
+
+        group.items.forEach(item => {
+          const row = worksheet.addRow([
+            item.wood_code,
+            Number(item.amount),
+            Number(item.volumn),
+            Number(item.net_wage)
+          ]);
+          row.getCell(2).numFmt = '#,##0';
+          row.getCell(3).numFmt = '#,##0.0000';
+          row.getCell(4).numFmt = '#,##0.00';
+        });
+
+        const sumRow = worksheet.addRow([
+          `รวม ${group.groupName}`,
+          group.sumAmount,
+          group.sumVolumn,
+          group.sumNetWage
+        ]);
+        sumRow.font = { bold: true, color: { argb: 'FF4B5563' } };
+        sumRow.getCell(2).numFmt = '#,##0';
+        sumRow.getCell(3).numFmt = '#,##0.0000';
+        sumRow.getCell(4).numFmt = '#,##0.00';
+        
+        worksheet.addRow([]); 
+      });
+
+      if (grandTotal) {
+        const gtRow = worksheet.addRow(['รวมทั้งหมด', grandTotal.amount, grandTotal.volumn, grandTotal.net_wage]);
+        gtRow.font = { bold: true };
+        gtRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEDD5' } }; // โทนสีส้มอ่อน
+        gtRow.getCell(2).numFmt = '#,##0';
+        gtRow.getCell(3).numFmt = '#,##0.0000';
+        gtRow.getCell(4).numFmt = '#,##0.00';
+      }
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=dry_wood_cover.xlsx');
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error Excel' });
+    }
+  },
+
+  // --- Export PDF ไม้แห้ง ---
+  exportDryWoodCoverPDF: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code, report_format, branch_name } = req.query;
+      const { groups, grandTotal } = await reportController.fetchDryWoodCoverDataHelper(branch_id, start_date, end_date, store_code, report_format);
+
+      const fs = require('fs');
+      const path = require('path');
+      const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
+      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+
+      let rowsHtml = '';
+      groups.forEach(group => {
+        rowsHtml += `<tr><td colspan="4" class="left pl bold" style="background-color: #f9fafb;">${group.groupName}</td></tr>`;
+        
+        group.items.forEach(item => {
+          rowsHtml += `
+            <tr>
+              <td class="left pl" style="padding-left: 20px;">${item.wood_code}</td>
+              <td>${Number(item.amount).toLocaleString()}</td>
+              <td>${Number(item.volumn).toFixed(4)}</td>
+              <td>${Number(item.net_wage).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+            </tr>`;
+        });
+        
+        rowsHtml += `
+          <tr class="bold text-gray border-b">
+            <td class="left pl">รวม ${group.groupName}</td>
+            <td>${group.sumAmount.toLocaleString()}</td>
+            <td>${group.sumVolumn.toFixed(4)}</td>
+            <td style="color: #c2410c;">${group.sumNetWage.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+          </tr>
+          <tr><td colspan="4" style="border: none; padding: 5px;"></td></tr>
+        `;
+      });
+
+      if (grandTotal) {
+        rowsHtml += `
+          <tr class="bold border-t" style="background-color: #ffedd5; font-size: 14px;">
+            <td class="left pl">รวมทั้งหมด</td>
+            <td>${grandTotal.amount.toLocaleString()}</td>
+            <td>${grandTotal.volumn.toFixed(4)}</td>
+            <td style="color: #9a3412;">${grandTotal.net_wage.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+          </tr>
+        `;
+      }
+
+      const htmlContent = `
+        <html><head><style>
+          @font-face { font-family: 'THSarabun'; src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype'); }
+          body { font-family: 'THSarabun', sans-serif; font-size: 14px; margin: 0; padding: 20px; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #777; padding: 5px; text-align: right; }
+          th { font-weight: bold; text-align: center; background-color: #fff7ed; }
+          .left { text-align: left; } .pl { padding-left: 10px; } .bold { font-weight: bold; }
+          .text-gray { color: #4b5563; }
+          .border-b { border-bottom: 2px dotted #9ca3af; } .border-t { border-top: 2px solid #333; }
+        </style></head><body>
+          <div style="text-align:center; margin-bottom:20px;">
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานค่าแรงไม้แห้ง ใบปะหน้า</h2>
+            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
+            <p style="margin:0;">รหัสสโตร์: ${store_code || '104%'}</p>
+          </div>
+          <table>
+            <thead><tr><th>รหัสสินค้า</th><th>จำนวนท่อน</th><th>ปริมาตร(ลบฟ)</th><th>ค่าแรง</th></tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+          <div style="margin-top:60px; width:100%; display:flex; justify-content:space-around; text-align:center;">
+            <div>........................................................<br/><br/>ผู้รายงาน</div>
+            <div>........................................................<br/><br/>ผู้จัดการโรงงาน</div>
+          </div>
+        </body></html>
+      `;
+
+      // 💡 ใช้ getBrowser แบบเดียวกับรายงานอื่นเพื่อไม่ให้กิน RAM[cite: 7]
+      const browser = await getBrowser(); 
+      const page = await browser.newPage();
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
+      await page.close();
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="dry_wood_cover.pdf"');
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error PDF' });
+    }
+  },
+
+  // ─── รายงานสรุปค่าแรงจัดเรียงไม้เปียก แยกรายคน ───
+  getWetWoodPerformance: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code } = req.query;
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      const result = await fetchWetWoodPerfDataHelper(branch_id, start_date, end_date, store_code);
+
+      res.json({
+        success: true,
+        data: result.formattedData,
+        grandTotal: result.grandTotal,
+        expectedColumns: result.expectedColumns,
+        header: {
+          start_date,
+          end_date,
+          store_code: store_code || '21/00 - 21/99'
+        }
+      });
+    } catch (error) {
+      console.error('Report Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานสรุปค่าแรงจัดเรียงไม้เปียก' });
+    }
+  },
+
+  // --- Export Excel สรุปค่าแรงจัดเรียงไม้เปียก แยกรายคน ---
+  exportWetWoodPerfExcel: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code, branch_name } = req.query;
+      const { formattedData, grandTotal, expectedColumns } = await fetchWetWoodPerfDataHelper(branch_id, start_date, end_date, store_code);
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Wet Wood Perf');
+
+      // หัวกระดาษ
+      worksheet.addRow([branch_name || 'บริษัท วู้ดเวอร์ค จำกัด']).font = { bold: true, size: 14 };
+      worksheet.addRow(['รายงานสรุปค่าแรงเรียงไม้ แยกรายคน']).font = { bold: true, size: 12 };
+      worksheet.addRow([`ตั้งแต่วันที่ ${start_date} ถึง ${end_date}`]);
+      worksheet.addRow([`รหัสสโตร์ : ${store_code || '21/00 - 21/99'}`]);
+      worksheet.addRow([]);
+
+      // ─── สร้าง Header ตาราง 2 ชั้น ───
+      const header1 = ['รหัส', 'ชื่อพนักงาน'];
+      expectedColumns.forEach(col => {
+        header1.push(`ไม้แปรรูปอบแห้ง ${col.grade}${col.is_special ? ' (พิเศษ)' : ''}`);
+        header1.push(''); // ช่องว่างสำหรับการ Merge
+      });
+      header1.push('รวม');
+      header1.push('');
+
+      const h1Row = worksheet.addRow(header1);
+      h1Row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+      h1Row.font = { bold: true };
+      h1Row.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      const header2 = ['', ''];
+      expectedColumns.forEach(() => {
+        header2.push('ปริมาตร', 'จำนวนเงิน');
+      });
+      header2.push('ปริมาตร', 'จำนวนเงิน');
+
+      const h2Row = worksheet.addRow(header2);
+      h2Row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+      h2Row.font = { bold: true };
+      h2Row.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      // สั่ง Merge Cells ให้ Header
+      const startRow = h1Row.number;
+      worksheet.mergeCells(startRow, 1, startRow + 1, 1); // รหัส
+      worksheet.mergeCells(startRow, 2, startRow + 1, 2); // ชื่อ
+      
+      let colIdx = 3;
+      expectedColumns.forEach(() => {
+        worksheet.mergeCells(startRow, colIdx, startRow, colIdx + 1);
+        colIdx += 2;
+      });
+      worksheet.mergeCells(startRow, colIdx, startRow, colIdx + 1); // รวม
+
+      // กำหนดความกว้างคอลัมน์
+      worksheet.getColumn(1).width = 15;
+      worksheet.getColumn(2).width = 25;
+      for(let i = 3; i <= colIdx + 1; i++) worksheet.getColumn(i).width = 12;
+
+      // ─── ใส่ข้อมูล (Data) ───
+      formattedData.forEach(emp => {
+        const rowData = [emp.employee_code, emp.employee_name];
+        
+        expectedColumns.forEach(col => {
+          const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+          const cell = emp.grades[colKey];
+          rowData.push(cell ? Number(cell.volumn) : null);
+          rowData.push(cell ? Number(cell.net_wage) : null);
+        });
+
+        rowData.push(Number(emp.total_volumn));
+        rowData.push(Number(emp.total_net_wage));
+
+        const dRow = worksheet.addRow(rowData);
+        
+        // Format ตัวเลข
+        for(let i = 3; i <= rowData.length; i += 2) dRow.getCell(i).numFmt = '#,##0.0000';
+        for(let i = 4; i <= rowData.length; i += 2) dRow.getCell(i).numFmt = '#,##0.00';
+      });
+
+      // ─── ใส่ข้อมูล Grand Total ───
+      if (grandTotal) {
+        const gtRowData = ['รวมทั้งหมด', ''];
+        expectedColumns.forEach(col => {
+          const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+          const cell = grandTotal[colKey];
+          gtRowData.push(cell ? Number(cell.volumn) : null);
+          gtRowData.push(cell ? Number(cell.net_wage) : null);
+        });
+        gtRowData.push(Number(grandTotal.total_volumn));
+        gtRowData.push(Number(grandTotal.total_net_wage));
+
+        const gtRow = worksheet.addRow(gtRowData);
+        gtRow.font = { bold: true };
+        gtRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
+        worksheet.mergeCells(`A${gtRow.number}:B${gtRow.number}`);
+        gtRow.getCell(1).alignment = { horizontal: 'center' };
+
+        for(let i = 3; i <= gtRowData.length; i += 2) gtRow.getCell(i).numFmt = '#,##0.0000';
+        for(let i = 4; i <= gtRowData.length; i += 2) gtRow.getCell(i).numFmt = '#,##0.00';
+      }
+
+      // ตีเส้นขอบตาราง
+      worksheet.eachRow({ includeEmpty: true }, row => {
+        if(row.number >= startRow) {
+          row.eachCell({ includeEmpty: true }, cell => {
+            if (!cell.border) cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+          });
+        }
+      });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=wet_wood_perf.xlsx');
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error Excel' });
+    }
+  },
+
+  // --- Export PDF สรุปค่าแรงจัดเรียงไม้เปียก แยกรายคน ---
+  exportWetWoodPerfPDF: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code, branch_name } = req.query;
+      const { formattedData, grandTotal, expectedColumns } = await fetchWetWoodPerfDataHelper(branch_id, start_date, end_date, store_code);
+
+      const fs = require('fs');
+      const path = require('path');
+      const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
+      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+
+      // ─── สร้าง HTML ───
+      const getColumnLabel = (col) => `ไม้แปรรูปอบแห้ง ${col.grade}${col.is_special ? '<br/>(พิเศษ)' : ''}`;
+
+      let theadHtml = `
+        <tr class="bg-gray">
+          <th rowspan="2" style="width: 60px;">รหัส</th>
+          <th rowspan="2" class="left pl" style="width: 150px;">ชื่อพนักงาน</th>
+          ${expectedColumns.map(col => `<th colspan="2">${getColumnLabel(col)}</th>`).join('')}
+          <th colspan="2" class="bg-teal-light text-teal">รวม</th>
+        </tr>
+        <tr class="bg-gray-light">
+          ${expectedColumns.map(() => `<th>ปริมาตร</th><th>จำนวนเงิน</th>`).join('')}
+          <th class="bg-teal-light text-teal">ปริมาตร</th><th class="bg-teal-light text-teal">จำนวนเงิน</th>
+        </tr>
+      `;
+
+      let tbodyHtml = '';
+      formattedData.forEach((emp) => {
+        tbodyHtml += `<tr>
+          <td class="center text-gray-dark">${emp.employee_code}</td>
+          <td class="left pl">${emp.employee_name}</td>`;
+        
+        expectedColumns.forEach(col => {
+          const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+          const cellData = emp.grades[colKey];
+          tbodyHtml += `
+            <td>${cellData && cellData.volumn > 0 ? Number(cellData.volumn).toFixed(4) : ''}</td>
+            <td class="text-gray-dark bold">${cellData && cellData.net_wage > 0 ? Number(cellData.net_wage).toLocaleString(undefined, {minimumFractionDigits: 2}) : ''}</td>
+          `;
+        });
+
+        tbodyHtml += `
+          <td class="bg-teal-lighter bold text-teal">${Number(emp.total_volumn).toFixed(4)}</td>
+          <td class="bg-teal-lighter bold text-teal-dark">${Number(emp.total_net_wage).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+        </tr>`;
+      });
+
+      if (grandTotal) {
+        tbodyHtml += `<tr class="bg-gray-mid bold border-t">
+          <td colspan="2" class="center">รวมทั้งหมด</td>`;
+        expectedColumns.forEach(col => {
+          const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+          const gtCell = grandTotal[colKey];
+          tbodyHtml += `
+            <td>${gtCell && gtCell.volumn > 0 ? Number(gtCell.volumn).toFixed(4) : ''}</td>
+            <td class="text-gray-darker">${gtCell && gtCell.net_wage > 0 ? Number(gtCell.net_wage).toLocaleString(undefined, {minimumFractionDigits: 2}) : ''}</td>
+          `;
+        });
+        tbodyHtml += `
+          <td class="bg-teal-light text-teal-dark">${Number(grandTotal.total_volumn).toFixed(4)}</td>
+          <td class="bg-teal-light text-teal-darker">${Number(grandTotal.total_net_wage).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+        </tr>`;
+      }
+
+      const htmlContent = `
+        <html><head><style>
+          @font-face { font-family: 'THSarabun'; src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype'); }
+          body { font-family: 'THSarabun', sans-serif; font-size: 13px; margin: 0; padding: 20px; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #9ca3af; padding: 4px; text-align: right; }
+          th { font-weight: bold; text-align: center; }
+          .left { text-align: left; } .center { text-align: center; } .pl { padding-left: 6px; } 
+          .bold { font-weight: bold; }
+          .bg-gray { background-color: #f3f4f6; } .bg-gray-light { background-color: #f9fafb; } .bg-gray-mid { background-color: #e5e7eb; }
+          .bg-teal-light { background-color: #ccfbf1; } .bg-teal-lighter { background-color: #f0fdfa; }
+          .text-teal { color: #0f766e; } .text-teal-dark { color: #115e59; } .text-teal-darker { color: #134e4a; }
+          .text-gray-dark { color: #4b5563; } .text-gray-darker { color: #1f2937; }
+          .border-t { border-top: 2px solid #4b5563; }
+        </style></head><body>
+          <div style="text-align:center; margin-bottom:15px;">
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปค่าแรงเรียงไม้ แยกรายคน (ไม้เปียก)</h2>
+            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
+            <p style="margin:0;">รหัสสโตร์: ${store_code || '21/00 - 21/99'}</p>
+          </div>
+          <table><thead>${theadHtml}</thead><tbody>${tbodyHtml}</tbody></table>
+          <div style="margin-top:50px; width:100%; display:flex; justify-content:space-between; text-align:center; padding:0 50px;">
+            <div style="width:30%; display:inline-block;">............................................<br/><br/>ผู้รายงาน</div>
+            <div style="width:30%; display:inline-block;">............................................<br/><br/>ฝ่ายข้อมูลโรงงาน</div>
+            <div style="width:30%; display:inline-block;">............................................<br/><br/>ผู้จัดการโรงงาน</div>
+          </div>
+        </body></html>
+      `;
+
+      // ใช้ Global Browser เพื่อลดการกิน RAM[cite: 12]
+      const browser = await getBrowser(); 
+      const page = await browser.newPage();
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      const pdfBuffer = await page.pdf({ format: 'Legal', landscape: true, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
+      await page.close();
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="wet_wood_perf.pdf"');
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error PDF' });
+    }
+  },
+  
+  // ─── รายงานสรุปค่าแรงจัดเรียงไม้แห้ง แยกรายคน ───
+  getDryWoodPerformance: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code } = req.query;
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      const result = await fetchDryWoodPerfDataHelper(branch_id, start_date, end_date, store_code);
+
+      // console.log(result.formattedData[0].row_no);
+
+      res.json({
+        success: true,
+        data: result.formattedData,
+        grandTotal: result.grandTotal,
+        expectedColumns: result.expectedColumns,
+        header: {
+          start_date,
+          end_date,
+          store_code: store_code || '104%'
+        }
+      });
+    } catch (error) {
+      console.error('Report Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานสรุปค่าแรงจัดเรียงไม้แห้ง' });
+    }
+  },
+
+  // --- Export Excel สรุปค่าแรงจัดเรียงไม้แห้ง แยกรายคน ---
+  exportDryWoodPerfExcel: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code, branch_name } = req.query;
+      const { formattedData, grandTotal, expectedColumns } = await fetchDryWoodPerfDataHelper(branch_id, start_date, end_date, store_code);
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Dry Wood Perf');
+
+      worksheet.addRow([branch_name || 'บริษัท วู้ดเวอร์ค จำกัด']).font = { bold: true, size: 14 };
+      worksheet.addRow(['รายงานสรุปค่าแรงเรียงไม้แห้ง แยกรายคน']).font = { bold: true, size: 12 };
+      worksheet.addRow([`ตั้งแต่วันที่ ${start_date} ถึง ${end_date}`]);
+      worksheet.addRow([`รหัสสโตร์ : ${store_code || '104/00 - 104/99'}`]);
+      worksheet.addRow([]);
+
+      const header1 = ['รหัส', 'ชื่อพนักงาน'];
+      expectedColumns.forEach(col => {
+        header1.push(`ไม้แปรรูปอบแห้ง ${col.grade}${col.is_special ? ' (พิเศษ)' : ''}`);
+        header1.push(''); 
+      });
+      header1.push('รวม');
+      header1.push('');
+
+      const h1Row = worksheet.addRow(header1);
+      h1Row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+      h1Row.font = { bold: true };
+      h1Row.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      const header2 = ['', ''];
+      expectedColumns.forEach(() => {
+        header2.push('ปริมาตร', 'จำนวนเงิน');
+      });
+      header2.push('ปริมาตร', 'จำนวนเงิน');
+
+      const h2Row = worksheet.addRow(header2);
+      h2Row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+      h2Row.font = { bold: true };
+      h2Row.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      const startRow = h1Row.number;
+      worksheet.mergeCells(startRow, 1, startRow + 1, 1); 
+      worksheet.mergeCells(startRow, 2, startRow + 1, 2); 
+      
+      let colIdx = 3;
+      expectedColumns.forEach(() => {
+        worksheet.mergeCells(startRow, colIdx, startRow, colIdx + 1);
+        colIdx += 2;
+      });
+      worksheet.mergeCells(startRow, colIdx, startRow, colIdx + 1); 
+
+      worksheet.getColumn(1).width = 15;
+      worksheet.getColumn(2).width = 25;
+      for(let i = 3; i <= colIdx + 1; i++) worksheet.getColumn(i).width = 12;
+
+      formattedData.forEach(emp => {
+        const rowData = [emp.employee_code, emp.employee_name];
+        
+        expectedColumns.forEach(col => {
+          const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+          const cell = emp.grades[colKey];
+          rowData.push(cell ? Number(cell.volumn) : null);
+          rowData.push(cell ? Number(cell.net_wage) : null);
+        });
+
+        rowData.push(Number(emp.total_volumn));
+        rowData.push(Number(emp.total_net_wage));
+
+        const dRow = worksheet.addRow(rowData);
+        
+        for(let i = 3; i <= rowData.length; i += 2) dRow.getCell(i).numFmt = '#,##0.0000';
+        for(let i = 4; i <= rowData.length; i += 2) dRow.getCell(i).numFmt = '#,##0.00';
+      });
+
+      if (grandTotal) {
+        const gtRowData = ['รวมทั้งหมด', ''];
+        expectedColumns.forEach(col => {
+          const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+          const cell = grandTotal[colKey];
+          gtRowData.push(cell ? Number(cell.volumn) : null);
+          gtRowData.push(cell ? Number(cell.net_wage) : null);
+        });
+        gtRowData.push(Number(grandTotal.total_volumn));
+        gtRowData.push(Number(grandTotal.total_net_wage));
+
+        const gtRow = worksheet.addRow(gtRowData);
+        gtRow.font = { bold: true };
+        gtRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEDD5' } }; 
+        worksheet.mergeCells(`A${gtRow.number}:B${gtRow.number}`);
+        gtRow.getCell(1).alignment = { horizontal: 'center' };
+
+        for(let i = 3; i <= gtRowData.length; i += 2) gtRow.getCell(i).numFmt = '#,##0.0000';
+        for(let i = 4; i <= gtRowData.length; i += 2) gtRow.getCell(i).numFmt = '#,##0.00';
+      }
+
+      worksheet.eachRow({ includeEmpty: true }, row => {
+        if(row.number >= startRow) {
+          row.eachCell({ includeEmpty: true }, cell => {
+            if (!cell.border) cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+          });
+        }
+      });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=dry_wood_perf.xlsx');
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error Excel' });
+    }
+  },
+
+  // --- Export PDF สรุปค่าแรงจัดเรียงไม้แห้ง แยกรายคน ---
+  exportDryWoodPerfPDF: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date, store_code, branch_name } = req.query;
+      const { formattedData, grandTotal, expectedColumns } = await fetchDryWoodPerfDataHelper(branch_id, start_date, end_date, store_code);
+
+      const fs = require('fs');
+      const path = require('path');
+      const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
+      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+
+      const getColumnLabel = (col) => `ไม้แปรรูปอบแห้ง ${col.grade}${col.is_special ? '<br/>(พิเศษ)' : ''}`;
+
+      let theadHtml = `
+        <tr class="bg-gray">
+          <th rowspan="2" style="width: 60px;">รหัส</th>
+          <th rowspan="2" class="left pl" style="width: 150px;">ชื่อพนักงาน</th>
+          ${expectedColumns.map(col => `<th colspan="2">${getColumnLabel(col)}</th>`).join('')}
+          <th colspan="2" class="bg-orange-light text-orange">รวม</th>
+        </tr>
+        <tr class="bg-gray-light">
+          ${expectedColumns.map(() => `<th>ปริมาตร</th><th>จำนวนเงิน</th>`).join('')}
+          <th class="bg-orange-light text-orange">ปริมาตร</th><th class="bg-orange-light text-orange">จำนวนเงิน</th>
+        </tr>
+      `;
+
+      let tbodyHtml = '';
+      formattedData.forEach((emp) => {
+        tbodyHtml += `<tr>
+          <td class="center text-gray-dark">${emp.employee_code}</td>
+          <td class="left pl">${emp.employee_name}</td>`;
+        
+        expectedColumns.forEach(col => {
+          const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+          const cellData = emp.grades[colKey];
+          tbodyHtml += `
+            <td>${cellData && cellData.volumn > 0 ? Number(cellData.volumn).toFixed(4) : ''}</td>
+            <td class="text-gray-dark bold">${cellData && cellData.net_wage > 0 ? Number(cellData.net_wage).toLocaleString(undefined, {minimumFractionDigits: 2}) : ''}</td>
+          `;
+        });
+
+        tbodyHtml += `
+          <td class="bg-orange-lighter bold text-orange">${Number(emp.total_volumn).toFixed(4)}</td>
+          <td class="bg-orange-lighter bold text-orange-dark">${Number(emp.total_net_wage).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+        </tr>`;
+      });
+
+      if (grandTotal) {
+        tbodyHtml += `<tr class="bg-gray-mid bold border-t">
+          <td colspan="2" class="center">รวมทั้งหมด</td>`;
+        expectedColumns.forEach(col => {
+          const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
+          const gtCell = grandTotal[colKey];
+          tbodyHtml += `
+            <td>${gtCell && gtCell.volumn > 0 ? Number(gtCell.volumn).toFixed(4) : ''}</td>
+            <td class="text-gray-darker">${gtCell && gtCell.net_wage > 0 ? Number(gtCell.net_wage).toLocaleString(undefined, {minimumFractionDigits: 2}) : ''}</td>
+          `;
+        });
+        tbodyHtml += `
+          <td class="bg-orange-light text-orange-dark">${Number(grandTotal.total_volumn).toFixed(4)}</td>
+          <td class="bg-orange-light text-orange-darker">${Number(grandTotal.total_net_wage).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+        </tr>`;
+      }
+
+      const htmlContent = `
+        <html><head><style>
+          @font-face { font-family: 'THSarabun'; src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype'); }
+          body { font-family: 'THSarabun', sans-serif; font-size: 13px; margin: 0; padding: 20px; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #9ca3af; padding: 4px; text-align: right; }
+          th { font-weight: bold; text-align: center; }
+          .left { text-align: left; } .center { text-align: center; } .pl { padding-left: 6px; } 
+          .bold { font-weight: bold; }
+          .bg-gray { background-color: #f3f4f6; } .bg-gray-light { background-color: #f9fafb; } .bg-gray-mid { background-color: #e5e7eb; }
+          .bg-orange-light { background-color: #ffedd5; } .bg-orange-lighter { background-color: #fff7ed; }
+          .text-orange { color: #c2410c; } .text-orange-dark { color: #9a3412; } .text-orange-darker { color: #7c2d12; }
+          .text-gray-dark { color: #4b5563; } .text-gray-darker { color: #1f2937; }
+          .border-t { border-top: 2px solid #4b5563; }
+        </style></head><body>
+          <div style="text-align:center; margin-bottom:15px;">
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปค่าแรงเรียงไม้ แยกรายคน (ไม้แห้ง)</h2>
+            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
+            <p style="margin:0;">รหัสสโตร์: ${store_code || '104/00 - 104/99'}</p>
+          </div>
+          <table><thead>${theadHtml}</thead><tbody>${tbodyHtml}</tbody></table>
+          <div style="margin-top:50px; width:100%; display:flex; justify-content:space-between; text-align:center; padding:0 50px;">
+            <div style="width:30%; display:inline-block;">............................................<br/><br/>ผู้รายงาน</div>
+            <div style="width:30%; display:inline-block;">............................................<br/><br/>ฝ่ายข้อมูลโรงงาน</div>
+            <div style="width:30%; display:inline-block;">............................................<br/><br/>ผู้จัดการโรงงาน</div>
+          </div>
+        </body></html>
+      `;
+
+      // ใช้ Global Browser เพื่อความรวดเร็วและป้องกันแรมเต็ม[cite: 12]
+      const browser = await getBrowser(); 
+      const page = await browser.newPage();
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      const pdfBuffer = await page.pdf({ format: 'Legal', landscape: true, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
+      await page.close();
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="dry_wood_perf.pdf"');
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error PDF' });
+    }
+  },
+  
 };
 
 module.exports = reportController;
@@ -3962,6 +5514,137 @@ const transactionController = {
       console.error('Get Recal Logs Error:', error);
       res.status(500).json({ success: false, message: 'ดึงข้อมูลประวัติไม่สำเร็จ' });
     }
+  },
+
+  // ─── ส่วนที่เพิ่มใหม่สำหรับ นำเข้าข้อมูลไม้เปียก ───
+  syncWetWoods: async (req, res) => {
+    const { branch_id, start_date, end_date } = req.body;
+
+    if (!branch_id || !start_date || !end_date) {
+      return res.status(400).json({ success: false, message: 'กรุณาระบุสาขา และช่วงวันที่ให้ครบถ้วน' });
+    }
+
+    try {
+      // 1. เชื่อมต่อ MySQL ของสาขาที่ระบุ
+      const mysqlPool = await getMysqlConnection(branch_id);
+
+      // 2. ดึงค่าแรง (wage) ปัจจุบันจาก Postgres มาเตรียมไว้เพื่อคำนวณ
+      const wageMap = await TransactionModel.getUnitWagesByBranch(branch_id);
+
+      // 3. ดึงข้อมูลดิบจาก MySQL เก่า
+      const oldData = await TransactionModel.getOldWetWoodTransactions(mysqlPool, start_date, end_date);
+
+      // 3.1 สกัดเฉพาะ ID ที่ยังมีอยู่จริง เพื่อป้องกันข้อมูลค้าง
+      const activeIds = [...new Set(oldData.map(row => row.wood_size_amount_map_id))];
+
+      // 3.2 สั่งเคลียร์ข้อมูลที่ไม่มีแล้วในระบบเก่า
+      await TransactionModel.cleanupDeletedWetWoodTransactions(branch_id, start_date, end_date, activeIds);
+
+      if (oldData.length === 0) {
+        return res.json({ success: true, message: 'ไม่พบข้อมูลไม้เปียกในระบบเก่าสำหรับช่วงเวลานี้', total_synced: 0 });
+      }
+
+      // 4. กรองแถวที่ซ้ำซ้อนกันใน MySQL (ป้องกัน ON CONFLICT เออเร่อ) และเตรียมข้อมูลใส่ Array
+      const uniqueDataMap = new Map();
+      oldData.forEach(row => {
+        uniqueDataMap.set(row.wood_size_amount_map_id, row);
+      });
+      
+      const insertValues = Array.from(uniqueDataMap.values()).map(row => {
+        // จัดการวันที่ให้อยู่ในฟอร์แมต YYYY-MM-DD
+        let prodDate = row.produce_date;
+        if (prodDate instanceof Date) {
+          const year = prodDate.getFullYear();
+          const month = String(prodDate.getMonth() + 1).padStart(2, '0');
+          const day = String(prodDate.getDate()).padStart(2, '0');
+          prodDate = `${year}-${month}-${day}`;
+        }
+        
+        const unitWage = wageMap.get(row.wood_size_id) || 0; 
+        
+        return [
+          row.wood_size_amount_map_id,
+          branch_id,
+          row.barcode_id,
+          prodDate,
+          row.wood_size_id || null,
+          row.wet_wood_type_id || null,
+          row.sorter_id || null,
+          row.ws_customer_id || null,
+          row.amount || 0,
+          row.volumn || 0,
+          unitWage
+        ];
+      });
+
+      // 5. นำเข้าข้อมูลลงตารางใหม่ (Bulk Upsert)
+      const totalSynced = await TransactionModel.upsertWetWoodTransactions(insertValues);
+
+      res.json({ success: true, message: 'ซิงค์ข้อมูลไม้เปียกสำเร็จ', total_synced: totalSynced });
+
+    } catch (error) {
+      console.error('Wet Wood Sync Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการนำเข้าข้อมูลไม้เปียก' });
+    }
+  },
+
+  // ─── ส่วนที่เพิ่มใหม่สำหรับ นำเข้าข้อมูลไม้แห้ง ───
+  syncDryWoods: async (req, res) => {
+    const { branch_id, start_date, end_date } = req.body;
+
+    if (!branch_id || !start_date || !end_date) {
+      return res.status(400).json({ success: false, message: 'กรุณาระบุสาขา และช่วงวันที่ให้ครบถ้วน' });
+    }
+
+    try {
+      const mysqlPool = await getMysqlConnection(branch_id);
+      
+      // ดึงเรทค่าแรงทั้ง 2 แบบจาก PostgreSQL ของสาขานั้น
+      const wageMap = await TransactionModel.getDryWagesByBranch(branch_id);
+      const oldData = await TransactionModel.getOldDryWoodTransactions(mysqlPool, start_date, end_date);
+
+      const activeIds = [...new Set(oldData.map(row => row.wood_size_amount_map_id))];
+      await TransactionModel.cleanupDeletedDryWoodTransactions(branch_id, start_date, end_date, activeIds);
+
+      if (oldData.length === 0) {
+        return res.json({ success: true, message: 'ไม่พบข้อมูลไม้แห้งในระบบเก่าสำหรับช่วงเวลานี้', total_synced: 0 });
+      }
+
+      const uniqueDataMap = new Map();
+      oldData.forEach(row => uniqueDataMap.set(row.wood_size_amount_map_id, row));
+      const uniqueOldData = Array.from(uniqueDataMap.values());
+
+      const insertValues = uniqueOldData.map(row => {
+        let prodDate = row.produce_date;
+        if (prodDate instanceof Date) {
+          prodDate = `${prodDate.getFullYear()}-${String(prodDate.getMonth() + 1).padStart(2, '0')}-${String(prodDate.getDate()).padStart(2, '0')}`;
+        }
+        
+        // 💡 ตรรกะคิดค่าแรงไม้แห้ง: ถ้าเป็นสโตร์ 104/13 ใช้เรทตัดสั้น ไม่งั้นใช้เรทปกติ
+        const rates = wageMap.get(row.wood_size_id) || { wage: 0, wage_cut: 0 };
+        const unitWage = row.store_code === '104/13' ? rates.wage_cut : rates.wage;
+        
+        return [
+          row.wood_size_amount_map_id,
+          branch_id,
+          row.barcode_id,
+          prodDate,
+          row.wood_size_id || null,
+          row.wood_store_id || null,
+          row.sorter_id || null,
+          row.amount || 0,
+          row.volumn || 0,
+          unitWage
+        ];
+      });
+
+      const totalSynced = await TransactionModel.upsertDryWoodTransactions(insertValues);
+      res.json({ success: true, message: 'ซิงค์ข้อมูลไม้แห้งสำเร็จ', total_synced: totalSynced });
+
+    } catch (error) {
+      console.error('Dry Wood Sync Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการนำเข้าข้อมูลไม้แห้ง' });
+    }
   }
 };
 
@@ -4012,11 +5695,14 @@ const woodPriceController = {
   // ─── 3. ดาวน์โหลด (Export) ไฟล์ Excel Template ───
   exportExcel: async (req, res) => {
     try {
-      const { branch_id } = req.query;
+      const { branch_id ,paramExport} = req.query;
       if (!branch_id) return res.status(400).send('กรุณาระบุสาขา');
+      
 
       // นำ Model เดิมมา Reuse ใช้ดึงข้อมูลใส่ Excel
-      const rows = await WoodPriceModel.getWoodPrices({ branch_id });
+      const rows = await WoodPriceModel.getWoodPrices({branch_id ,paramExport});
+
+      const branchInfo = await WoodPriceModel.getBranchFileName(branch_id);
 
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('PriceUpdate');
@@ -4039,7 +5725,7 @@ const woodPriceController = {
       worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename=WoodPrice_Branch_${branch_id}.xlsx`);
+      res.setHeader('Content-Disposition', `attachment; filename=WoodPrice_Branch_${branchInfo}.xlsx`);
 
       await workbook.xlsx.write(res);
       res.end();
@@ -4053,40 +5739,57 @@ const woodPriceController = {
   // ─── 4. นำเข้า (Import) ราคาจากไฟล์ Excel ───
   importExcel: async (req, res) => {
     try {
+      // รับค่า รหัสสาขา (branch_id) จากฟอร์มที่ส่งมาหน้าเว็บ
       const branchId = req.body.branch_id;
+      // รับไฟล์ Excel ที่แนบมา (จัดการโดยไลบรารี multer ซึ่งโหลดไฟล์ไว้ในหน่วยความจำชั่วคราว)
       const file = req.file;
 
+      // ถ้าไม่มีสาขา หรือ ไม่มีไฟล์ส่งมา ให้ตอบกลับหน้าเว็บไปเลยว่า "ข้อมูลไม่ครบถ้วน"
       if (!branchId || !file) {
         return res.status(400).json({ success: false, message: 'ข้อมูลไม่ครบถ้วน (ไฟล์ หรือ สาขา)' });
       }
 
+      // สร้างกล่องสมุดงาน Excel (Workbook) เปล่าๆ ด้วยไลบรารี ExcelJS
       const workbook = new ExcelJS.Workbook();
+      // สั่งให้อ่านข้อมูลไฟล์ Excel จากหน่วยความจำ (Buffer) เข้าไปใน Workbook
       await workbook.xlsx.load(file.buffer); 
+      // เลือกดึงข้อมูลจาก Sheet แรก (index 1) มาทำงาน
       const worksheet = workbook.getWorksheet(1);
 
+      // สร้าง Array ว่างเตรียมเก็บข้อมูลที่จะใช้อัปเดต
       const updates = [];
 
+      // วนลูปอ่านข้อมูลใน Sheet ทีละบรรทัด (row)
       worksheet.eachRow((row, rowNumber) => {
+        // ข้ามบรรทัดที่ 1 (หัวตาราง) ให้เริ่มอ่านเฉพาะบรรทัดที่ 2 เป็นต้นไป
         if (rowNumber > 1) {
+          // ดึง "รหัสสินค้า" จากคอลัมน์ A (1) พร้อมตัดช่องว่างหน้า-หลัง (.trim)
           const woodCode = row.getCell(1).value?.toString().trim();
+          // ดึง "ราคาขาย" จากคอลัมน์ C (3) แล้วแปลงเป็นตัวเลขทศนิยม (Float)
           const unitPrice = parseFloat(row.getCell(3).value);
 
+          // เช็คว่า มีรหัสสินค้า และ ราคาต้องเป็นตัวเลขจริงๆ (!isNaN)
           if (woodCode && !isNaN(unitPrice)) {
+            // *** หัวใจสำคัญ *** เอาข้อมูลมาเรียงกันเป็น Array ชุดละ 3 ตัว: [ราคา, สาขา, รหัสสินค้า]
+            // สังเกตว่าเรายัด branchId ที่ได้จากหน้าเว็บ ประกบติดไปกับสินค้าทุกบรรทัดเลย!
             updates.push([unitPrice, branchId, woodCode]);
           }
         }
       });
 
+      // ถ้าวนลูปจบแล้ว พบว่าไฟล์ว่างเปล่า ไม่มีข้อมูลเลย ก็แจ้ง Error กลับไป
       if (updates.length === 0) {
         return res.status(400).json({ success: false, message: 'ไม่พบข้อมูลที่สามารถอัปเดตได้ในไฟล์ Excel' });
       }
 
-      // ส่ง Array ไปให้ Model อัปเดตฐานข้อมูลให้
+      // ส่ง Array `updates` ไปให้ฟังก์ชันใน Database จัดการอัปเดต แล้วรอรับ "จำนวนแถว" ที่อัปเดตสำเร็จ
       const updatedCount = await WoodPriceModel.updatePricesByCodes(branchId, updates);
 
+      // ส่งผลลัพธ์แจ้งหน้าเว็บว่าอัปโหลดและอัปเดตสำเร็จ พร้อมบอกจำนวนที่ทำได้
       res.json({ success: true, message: 'อัปโหลดสำเร็จ', updated_count: updatedCount });
 
     } catch (error) {
+      // ถ้าพังระหว่างทาง (เช่น ไฟล์พัง) ให้ล็อก Error และแจ้งเตือน
       console.error('Import excel error:', error);
       res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการอ่าน/บันทึกไฟล์ Excel' });
     }
@@ -4268,6 +5971,124 @@ const BranchModel = {
 };
 
 module.exports = BranchModel;
+</file>
+
+<file path="src/models/dashboardModel.js">
+const pool = require('../config/db');
+
+const DashboardModel = {
+  getOverviewData: async (branch_id) => {
+    // กำหนดเงื่อนไขสาขา ถ้ามี branch_id ส่งมา ให้กรองเฉพาะสาขานั้น
+    const branchCondition = branch_id ? `AND tsw.branch_id = $1` : '';
+    const params = branch_id ? [branch_id] : [];
+
+    // Query ดึงข้อมูล 7 วันย้อนหลัง 
+    const query = `
+      WITH BaseData AS (
+        SELECT tsw.produce_date, SUM(tsw.volumn) AS volumn, SUM(tsw.net_price) AS net_money, 'wood_saw' as wood_type
+        FROM transaction_saw_woods tsw
+        WHERE tsw.produce_date >= CURRENT_DATE - INTERVAL '7 days'
+          AND tsw.produce_date < CURRENT_DATE
+          ${branchCondition}
+        GROUP BY tsw.produce_date
+        
+        UNION ALL
+        
+        SELECT tsw.produce_date, SUM(tsw.volumn) AS volumn, SUM(tsw.net_wage) AS net_money, 'wood_wet' as wood_type
+        FROM transaction_wet_woods tsw
+        WHERE tsw.produce_date >= CURRENT_DATE - INTERVAL '7 days'
+          AND tsw.produce_date < CURRENT_DATE
+          ${branchCondition}
+        GROUP BY tsw.produce_date
+        
+        UNION ALL
+        
+        SELECT tsw.produce_date, SUM(tsw.volumn) AS volumn, SUM(tsw.net_wage) AS net_money, 'wood_dry' as wood_type
+        FROM transaction_dry_woods tsw
+        WHERE tsw.produce_date >= CURRENT_DATE - INTERVAL '7 days'
+          AND tsw.produce_date < CURRENT_DATE
+          ${branchCondition}
+        GROUP BY tsw.produce_date
+      ) 
+      SELECT 
+        produce_date
+        ,SUM(CASE WHEN wood_type = 'wood_saw' THEN volumn ELSE 0 END) AS volumn_saw
+        ,SUM(CASE WHEN wood_type = 'wood_saw' THEN net_money ELSE 0 END) AS net_money_saw
+        ,SUM(CASE WHEN wood_type = 'wood_wet' THEN volumn ELSE 0 END) AS volumn_wet
+        ,SUM(CASE WHEN wood_type = 'wood_wet' THEN net_money ELSE 0 END) AS net_money_wet
+        ,SUM(CASE WHEN wood_type = 'wood_dry' THEN volumn ELSE 0 END) AS volumn_dry
+        ,SUM(CASE WHEN wood_type = 'wood_dry' THEN net_money ELSE 0 END) AS net_money_dry
+      FROM BaseData
+      GROUP BY produce_date
+      ORDER BY produce_date DESC
+    `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
+
+  // เพิ่มฟังก์ชันนี้ต่อท้ายภายใน DashboardModel
+  getTopPerformers: async (branch_id) => {
+    // กำหนดเงื่อนไขสาขา
+    const branchCondition = branch_id ? `AND tsw.branch_id = $1` : '';
+    const params = branch_id ? [branch_id] : [];
+
+    // 1. ค้นหาอันดับ 1 แผนกเลื่อยไม้ (7 วันย้อนหลัง)
+    const querySaw = `
+        SELECT em.name AS emp_name, SUM(tsw.volumn) AS volumn, 'แผนกเลื่อยไม้' AS department
+        FROM transaction_saw_woods tsw
+        LEFT JOIN master_employees em ON em.old_id = tsw.sawer_id AND em.branch_id = tsw.branch_id
+        WHERE tsw.produce_date >= CURRENT_DATE - INTERVAL '7 days'
+          AND tsw.produce_date < CURRENT_DATE + INTERVAL '0 day'
+          ${branchCondition}
+        GROUP BY em.name
+        ORDER BY SUM(tsw.volumn) DESC LIMIT 1
+    `;
+
+    // 2. ค้นหาอันดับ 1 แผนกจัดเรียงไม้เปียก (7 วันย้อนหลัง)
+    const queryWet = `
+        SELECT em.name AS emp_name, SUM(tsw.volumn) AS volumn, 'แผนกจัดเรียงไม้เปียก' AS department
+        FROM transaction_wet_woods tsw
+        LEFT JOIN master_employees em ON em.old_id = tsw.sorter_id AND em.branch_id = tsw.branch_id
+        WHERE tsw.produce_date >= CURRENT_DATE - INTERVAL '7 days'
+          AND tsw.produce_date < CURRENT_DATE + INTERVAL '0 day'
+          ${branchCondition}
+        GROUP BY em.name
+        ORDER BY SUM(tsw.volumn) DESC LIMIT 1
+    `;
+
+    // 3. ค้นหาอันดับ 1 แผนกจัดเรียงไม้แห้ง (7 วันย้อนหลัง)
+    const queryDry = `
+        SELECT em.name AS emp_name, SUM(tsw.volumn) AS volumn, 'แผนกจัดเรียงไม้แห้ง' AS department
+        FROM transaction_dry_woods tsw
+        LEFT JOIN master_employees em ON em.old_id = tsw.sorter_id AND em.branch_id = tsw.branch_id
+        WHERE tsw.produce_date >= CURRENT_DATE - INTERVAL '7 days'
+          AND tsw.produce_date < CURRENT_DATE + INTERVAL '0 day'
+          ${branchCondition}
+        GROUP BY em.name
+        ORDER BY SUM(tsw.volumn) DESC LIMIT 1
+    `;
+
+    // ยิง Query ทั้ง 3 แผนกพร้อมกันเพื่อความรวดเร็ว
+    const [resSaw, resWet, resDry] = await Promise.all([
+        pool.query(querySaw, params),
+        pool.query(queryWet, params),
+        pool.query(queryDry, params)
+    ]);
+
+    const combined = [];
+    if (resSaw.rows.length > 0 && resSaw.rows[0].volumn > 0) combined.push(resSaw.rows[0]);
+    if (resWet.rows.length > 0 && resWet.rows[0].volumn > 0) combined.push(resWet.rows[0]);
+    if (resDry.rows.length > 0 && resDry.rows[0].volumn > 0) combined.push(resDry.rows[0]);
+
+    // นำแชมป์ของทั้ง 3 แผนก มาเรียงลำดับจากปริมาตรมากที่สุด ไปหาน้อยที่สุด
+    combined.sort((a, b) => Number(b.volumn) - Number(a.volumn));
+    
+    return combined;
+  }
+};
+
+module.exports = DashboardModel;
 </file>
 
 <file path="src/models/menuModel.js">
@@ -4484,8 +6305,8 @@ const ReportModel = {
     let query = `
       SELECT 
           concat(SUBSTRING(mws.wood_code FROM 6 FOR 2),'-',SUBSTRING(mws.wood_code FROM 3 FOR 3)) as thick_mil
-          ,mws.thick
-          ,mws.length
+          ,max(mws.thick) as thick
+	        ,max(mws.length) as length
           ,RIGHT(mws.wood_code, 7) AS wood_code
           ,SUM(tsw.volumn) AS ab_volumn
           ,SUM(tsw.net_price) AS ab_amount
@@ -4519,13 +6340,12 @@ const ReportModel = {
     
     query += `
       GROUP BY 
-        concat(SUBSTRING(mws.wood_code FROM 6 FOR 2),'-',SUBSTRING(mws.wood_code FROM 3 FOR 3)), 
-        mws.thick, 
-        mws.length, 
-        RIGHT(mws.wood_code, 7)
+        thick_mil, 
+	      wood_code,
+        mws.length
       ORDER BY 
         thick_mil ASC, 
-        mws.length ASC, 
+        mws.length ASC,
         wood_code ASC
     `;
 
@@ -4739,7 +6559,305 @@ const ReportModel = {
     const params = [branch_id, start_date, end_date];
     const { rows } = await pool.query(query, params);
     return rows;
-  }
+  },
+
+  // ==========================================
+  // ─── ส่วนที่เพิ่มใหม่: รายงานค่าแรงไม้เปียก (ใบปะหน้า) ───
+  // ==========================================
+  getWetWoodCoverReport: async (filters) => {
+    const { branch_id, start_date, end_date, wet_wood_type } = filters;
+
+    // Query ดึงข้อมูลและรวมผลยอด amount, volumn, net_wage
+    let query = `
+      SELECT 
+        ws.grade
+        , ws.is_special
+        , ws.wood_code
+        , SUM(tww.amount) AS amount
+        , SUM(tww.volumn) AS volumn
+        , SUM(tww.net_wage) AS net_wage
+      FROM transaction_wet_woods tww
+      LEFT JOIN master_wet_wood_types wwt ON wwt.old_id = tww.wet_wood_type_id AND wwt.branch_id = tww.branch_id 
+      LEFT JOIN master_employees em ON em.old_id = tww.sorter_id AND em.branch_id = tww.branch_id
+      LEFT JOIN master_wood_sizes ws ON ws.old_id = tww.wood_size_id AND ws.branch_id = tww.branch_id
+      WHERE 1=1 
+        AND tww.branch_id = $1
+        AND tww.produce_date BETWEEN $2 AND $3
+    `;
+
+    const params = [branch_id, start_date, end_date];
+
+    // เพิ่มเงื่อนไขค้นหาประเภทไม้ (ถ้ามีการระบุ)
+    if (wet_wood_type) {
+        query += ` AND wwt.code = $4`;
+        params.push(wet_wood_type);
+    }
+
+    query += `
+      GROUP BY 
+        ws.grade
+        , ws.is_special
+        , ws.wood_code
+      ORDER BY 
+        ws.grade ASC, 
+        ws.is_special ASC, 
+        ws.wood_code ASC
+    `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
+
+  // รูปแบบที่ 2: จัดกลุ่มตาม พนักงานจัดเรียง (ไม่แยกรายวัน)
+  getWetWoodCoverReportFormat2: async (filters) => {
+    const { branch_id, start_date, end_date, wet_wood_type } = filters;
+
+    let query = `
+      SELECT 
+        em.code AS employee_code
+        , em.name AS employee_name
+        , ws.grade
+        , ws.is_special
+        , ws.wood_code
+        , SUM(tww.amount) AS amount
+        , SUM(tww.volumn) AS volumn
+        , SUM(tww.net_wage) AS net_wage
+      FROM transaction_wet_woods tww
+      LEFT JOIN master_wet_wood_types wwt ON wwt.old_id = tww.wet_wood_type_id AND wwt.branch_id = tww.branch_id 
+      LEFT JOIN master_employees em ON em.old_id = tww.sorter_id AND em.branch_id = tww.branch_id
+      LEFT JOIN master_wood_sizes ws ON ws.old_id = tww.wood_size_id AND ws.branch_id = tww.branch_id
+      WHERE 1=1 
+        AND tww.branch_id = $1
+        AND tww.produce_date BETWEEN $2 AND $3
+    `;
+
+    const params = [branch_id, start_date, end_date];
+
+    if (wet_wood_type) {
+        query += ` AND wwt.code = $4`;
+        params.push(wet_wood_type);
+    }
+
+    query += `
+      GROUP BY 
+        em.code
+        , em.name
+        , ws.grade
+        , ws.is_special
+        , ws.wood_code
+      ORDER BY 
+        em.code ASC,
+        ws.grade ASC, 
+        ws.is_special ASC, 
+        ws.wood_code ASC
+    `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
+
+  // ==========================================
+  // ─── ส่วนที่เพิ่มใหม่: รายงานค่าแรงไม้แห้ง (ใบปะหน้า) ───
+  // ==========================================
+
+  // รูปแบบที่ 1: แบบปกติ
+  getDryWoodCoverReport: async (filters) => {
+    const { branch_id, start_date, end_date, store_code } = filters;
+
+    let query = `
+      SELECT 
+        ws.grade
+        , ws.is_special
+        , ws.wood_code
+        , SUM(tdw.amount) AS amount
+        , SUM(tdw.volumn) AS volumn
+        , SUM(tdw.net_wage) AS net_wage
+      FROM transaction_dry_woods tdw
+      LEFT JOIN master_wood_stores wt ON wt.old_id = tdw.wood_store_id AND wt.branch_id = tdw.branch_id 
+      LEFT JOIN master_wood_sizes ws ON ws.old_id = tdw.wood_size_id AND ws.branch_id = tdw.branch_id
+      WHERE 1=1 
+        AND tdw.branch_id = $1
+        AND tdw.produce_date BETWEEN $2 AND $3
+    `;
+
+    const params = [branch_id, start_date, end_date];
+
+    // 💡 ค้นหารหัสสโตร์: ถ้ามีการส่งค่ามา ให้ค้นหาแบบ LIKE 'ค่าที่ส่งมา%' ถ้าไม่มีให้หาที่ขึ้นต้นด้วย 104
+    if (store_code && store_code.trim() !== '') {
+        query += ` AND wt.code LIKE $4`;
+        params.push(`${store_code}%`);
+    } else {
+        query += ` AND wt.code LIKE '104%'`;
+    }
+
+    query += `
+      GROUP BY 
+        ws.grade
+        , ws.is_special
+        , ws.wood_code
+      ORDER BY 
+        ws.is_special ASC, 
+        ws.grade ASC, 
+        ws.wood_code ASC
+    `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
+
+  // รูปแบบที่ 2: แยกตามพนักงาน
+  getDryWoodCoverReportFormat2: async (filters) => {
+    const { branch_id, start_date, end_date, store_code } = filters;
+
+    let query = `
+      SELECT 
+        em.code AS employee_code
+        , em.name AS employee_name
+        , ws.grade
+        , ws.is_special
+        , ws.wood_code
+        , SUM(tdw.amount) AS amount
+        , SUM(tdw.volumn) AS volumn
+        , SUM(tdw.net_wage) AS net_wage
+      FROM transaction_dry_woods tdw
+      LEFT JOIN master_wood_stores wt ON wt.old_id = tdw.wood_store_id AND wt.branch_id = tdw.branch_id 
+      LEFT JOIN master_employees em ON em.old_id = tdw.sorter_id AND em.branch_id = tdw.branch_id
+      LEFT JOIN master_wood_sizes ws ON ws.old_id = tdw.wood_size_id AND ws.branch_id = tdw.branch_id
+      WHERE 1=1 
+        AND tdw.branch_id = $1
+        AND tdw.produce_date BETWEEN $2 AND $3
+    `;
+
+    const params = [branch_id, start_date, end_date];
+
+    // 💡 ค้นหารหัสสโตร์
+    if (store_code && store_code.trim() !== '') {
+        query += ` AND wt.code LIKE $4`;
+        params.push(`${store_code}%`);
+    } else {
+        query += ` AND wt.code LIKE '104%'`;
+    }
+
+    query += `
+      GROUP BY 
+        em.code
+        , em.name
+        , ws.grade
+        , ws.is_special
+        , ws.wood_code
+      ORDER BY 
+        em.code ASC,
+        ws.is_special ASC, 
+        ws.grade ASC, 
+        ws.wood_code ASC
+    `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
+
+  // ==========================================
+  // ─── รายงานสรุปค่าแรงจัดเรียงไม้เปียก แยกรายคน ───
+  // ==========================================
+  getWetWoodPerformanceReport: async (filters) => {
+    const { branch_id, start_date, end_date, store_code } = filters;
+
+    // ตรวจสอบ store_code (ถ้าไม่ได้ส่งมา หรือส่งมาแบบ Range ก็จัดการให้รองรับ)
+    // จากโจทย์: AND wwt.code BETWEEN '21/00' AND '21/99'
+    let storeCondition = "";
+    if (store_code) {
+        if (store_code.includes('-')) {
+            const [start, end] = store_code.split('-');
+            storeCondition = `AND wwt.code BETWEEN '${start.trim()}' AND '${end.trim()}'`;
+        } else {
+            storeCondition = `AND wwt.code = '${store_code.trim()}'`;
+        }
+    } else {
+        // ค่า Default ถ้าไม่ระบุ
+        storeCondition = `AND wwt.code BETWEEN '21/00' AND '21/99'`;
+    }
+
+    const query = `
+      SELECT 
+        em.code AS employee_code
+        , em.name AS employee_name
+        , ws.grade
+        , ws.is_special
+        , SUM(tww.volumn) AS volumn
+        , SUM(tww.net_wage) AS net_wage
+      FROM transaction_wet_woods tww
+      LEFT JOIN master_wet_wood_types wwt ON wwt.old_id = tww.wet_wood_type_id AND wwt.branch_id = tww.branch_id 
+      LEFT JOIN master_employees em ON em.old_id = tww.sorter_id AND em.branch_id = tww.branch_id
+      LEFT JOIN master_wood_sizes ws ON ws.old_id = tww.wood_size_id AND ws.branch_id = tww.branch_id
+      WHERE 1=1 
+        AND tww.branch_id = $1
+        AND tww.produce_date BETWEEN $2 AND $3
+        ${storeCondition}
+      GROUP BY 
+        em.code, em.name
+        , ws.grade
+        , ws.is_special
+      ORDER BY 
+        em.code ASC,
+        ws.grade ASC, 
+        ws.is_special ASC
+    `;
+
+    const params = [branch_id, start_date, end_date];
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
+
+  // ==========================================
+  // ─── รายงานสรุปค่าแรงจัดเรียงไม้แห้ง แยกรายคน ───
+  // ==========================================
+  getDryWoodPerformanceReport: async (filters) => {
+    const { branch_id, start_date, end_date, store_code } = filters;
+
+    // จัดการเงื่อนไขค้นหาสโตร์ไม้แห้ง (รองรับแบบช่วง - และแบบ LIKE)
+    let storeCondition = "";
+    if (store_code) {
+        if (store_code.includes('-')) {
+            const [start, end] = store_code.split('-');
+            storeCondition = `AND wst.code BETWEEN '${start.trim()}' AND '${end.trim()}'`;
+        } else {
+            storeCondition = `AND wst.code LIKE '${store_code.trim()}%'`;
+        }
+    } else {
+        // ค่า Default สำหรับไม้แห้ง
+        storeCondition = `AND wst.code LIKE '104%'`;
+    }
+
+    const query = `
+      SELECT 
+        em.code AS employee_code
+        , em.name AS employee_name
+        , ws.grade
+        , ws.is_special
+        , SUM(tdw.volumn) AS volumn
+        , ROUND(SUM(tdw.net_wage)::numeric, 2) AS net_wage
+      FROM transaction_dry_woods tdw
+      LEFT JOIN master_wood_stores wst ON wst.old_id = tdw.wood_store_id AND wst.branch_id = tdw.branch_id 
+      LEFT JOIN master_employees em ON em.old_id = tdw.sorter_id AND em.branch_id = tdw.branch_id
+      LEFT JOIN master_wood_sizes ws ON ws.old_id = tdw.wood_size_id AND ws.branch_id = tdw.branch_id
+      WHERE 1=1 
+        AND tdw.branch_id = $1
+        AND tdw.produce_date BETWEEN $2 AND $3
+        ${storeCondition}
+      GROUP BY 
+        em.code, em.name
+        , ws.grade
+        , ws.is_special
+      ORDER BY 
+        em.code ASC,
+        ws.grade ASC, 
+        ws.is_special ASC
+    `;
+
+    const params = [branch_id, start_date, end_date];
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
 };
 
 module.exports = ReportModel;
@@ -4774,7 +6892,7 @@ const TransactionModel = {
         a.produce_date, a.log_wood_type_id, a.log_wood_eval_size_id, a.ws_customer_id, 
         a.transaction_type_id, a.saw_time_id, a.saw_name, bc.barcode_id, 
         wsam.id AS wood_size_amount_map_id, wsam.amount,
-        round(((MID(wz.wood_code,6,1)+MID(wz.wood_code,7,1)/8)*(IF(MID(wz.wood_code,8,1)="A",10,IF(MID(wz.wood_code,8,1)="B",11,IF(MID(wz.wood_code,8,1)="C",12,IF(MID(wz.wood_code,8,1)="D",13,IF(MID(wz.wood_code,8,1)="E",14,IF(MID(wz.wood_code,8,1)="F",15,IF(MID(wz.wood_code,8,1)="G",16,IF(MID(wz.wood_code,8,1)="H",17,IF(MID(wz.wood_code,8,1)="I",18,IF(MID(wz.wood_code,8,1)="J",19,IF(MID(wz.wood_code,8,1)="K",20,MID(wz.wood_code,8,1))))))))))))+MID(wz.wood_code,9,1)/8)*(RIGHT(wz.wood_code,3)/100)*0.0228 * wsam.amount),4) as volumn,
+        round(((MID(wz.wood_code,6,1)+MID(wz.wood_code,7,1)/8)*(IF(MID(wz.wood_code,8,1)="A",10,IF(MID(wz.wood_code,8,1)="B",11,IF(MID(wz.wood_code,8,1)="C",12,IF(MID(wz.wood_code,8,1)="D",13,IF(MID(wz.wood_code,8,1)="E",14,IF(MID(wz.wood_code,8,1)="F",15,IF(MID(wz.wood_code,8,1)="G",16,IF(MID(wz.wood_code,8,1)="H",17,IF(MID(wz.wood_code,8,1)="I",18,IF(MID(wz.wood_code,8,1)="J",19,IF(MID(wz.wood_code,8,1)="K",20,MID(wz.wood_code,8,1))))))))))))+MID(wz.wood_code,9,1)/8)*(RIGHT(wz.wood_code,3)/100)*0.0228 * wsam.amount),5) as volumn,
         wz.id AS wood_size_id, wsam.saw_wood_type_id, a.sawer_id
       FROM (
         SELECT lwqc.*, rws.id as rws_id, rws.barcode_id, rws.produce_date, rws.sawer_id
@@ -5033,6 +7151,248 @@ const TransactionModel = {
     
     // 💡 แก้ไข: ใช้ result.rowCount ในการส่งกลับจำนวนแถวที่ถูกอัปเดตจริงๆ
     return result.rowCount; 
+  },
+
+  // ==========================================
+  // ─── ส่วนที่เพิ่มใหม่สำหรับ นำเข้าข้อมูลไม้เปียก ───
+  // ==========================================
+
+  // 1. ดึงค่าแรง (wage) จาก PostgreSQL ของสาขานั้น
+  getUnitWagesByBranch: async (branchId) => {
+    const query = `
+      SELECT old_id, wage 
+      FROM master_wood_sizes 
+      WHERE branch_id = $1
+    `;
+    const { rows } = await pool.query(query, [branchId]);
+    
+    const wageMap = new Map();
+    rows.forEach(row => {
+      wageMap.set(row.old_id, Number(row.wage) || 0);
+    });
+    return wageMap;
+  },
+
+  // 2. ดึงข้อมูล Transaction ไม้เปียก จาก MySQL เก่า
+  getOldWetWoodTransactions: async (mysqlPool, startDate, endDate) => {
+    const mysqlQuery = `
+      SELECT 
+        wsa.id AS wood_size_amount_map_id,
+        bc.barcode_id,
+        DATE(bc.date_create) AS produce_date,
+        ws.id AS wood_size_id,
+        mwd.wet_wood_type_id,
+        wsa.amount,
+        em.id AS sorter_id,
+        mwd.truck_company_id AS ws_customer_id,
+        round(((MID(ws.wood_code,6,1)+MID(ws.wood_code,7,1)/8)*(IF(MID(ws.wood_code,8,1)="A",10,IF(MID(ws.wood_code,8,1)="B",11,IF(MID(ws.wood_code,8,1)="C",12,IF(MID(ws.wood_code,8,1)="D",13,IF(MID(ws.wood_code,8,1)="E",14,IF(MID(ws.wood_code,8,1)="F",15,IF(MID(ws.wood_code,8,1)="G",16,IF(MID(ws.wood_code,8,1)="H",17,IF(MID(ws.wood_code,8,1)="I",18,IF(MID(ws.wood_code,8,1)="J",19,IF(MID(ws.wood_code,8,1)="K",20,MID(ws.wood_code,8,1))))))))))))+MID(ws.wood_code,9,1)/8)*(RIGHT(ws.wood_code,3)/100)*0.0228 * wsa.amount),5) as volumn
+      FROM mobile_wet_wood_data mwd
+      LEFT JOIN mobile_wet_wood_data_sorter_info mwds ON mwds.mobile_wet_wood_data_sorter_info_list_id = mwd.id
+      LEFT JOIN sorter_info si ON si.id = mwds.sorter_info_id
+      LEFT JOIN sorter_info_wood_size_amount_map swsa ON swsa.sorter_info_amount_map_id = si.id
+      LEFT JOIN wood_size_amount_map wsa ON wsa.id = swsa.wood_size_amount_map_id 
+      LEFT JOIN wood_size ws ON ws.id = wsa.wood_size_id
+      LEFT JOIN barcode bc ON bc.id = mwd.barcode_id
+      LEFT JOIN user us ON us.id = si.sorter_id
+      LEFT JOIN employee em ON em.code = us.username
+      WHERE 1=1
+        AND mwd.time_created >= ? AND mwd.time_created <= ?
+        AND wsa.id IS NOT null
+      GROUP BY wsa.id
+    `;
+    
+    // แปลงวันที่ให้รวมเวลา เพื่อดึงจาก time_created ได้แม่นยำ
+    const startDateTime = `${startDate} 00:00:00`;
+    const endDateTime = `${endDate} 23:59:59`;
+    
+    const [oldData] = await mysqlPool.query(mysqlQuery, [startDateTime, endDateTime]);
+    return oldData;
+  },
+
+  // 3. อัปเดตข้อมูลแบบ Bulk ลง PostgreSQL
+  upsertWetWoodTransactions: async (insertValues) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      const chunkSize = 3000;
+      let totalSynced = 0;
+
+      for (let i = 0; i < insertValues.length; i += chunkSize) {
+        const chunk = insertValues.slice(i, i + chunkSize);
+        
+        const upsertQuery = format(`
+          INSERT INTO transaction_wet_woods (
+            wood_size_amount_map_id, branch_id, barcode_id, produce_date, 
+            wood_size_id, wet_wood_type_id, sorter_id, ws_customer_id, 
+            amount, volumn, unit_wage
+          ) 
+          VALUES %L 
+          ON CONFLICT (branch_id, wood_size_amount_map_id) 
+          DO UPDATE SET 
+            barcode_id = EXCLUDED.barcode_id,
+            produce_date = EXCLUDED.produce_date,
+            wood_size_id = EXCLUDED.wood_size_id,
+            wet_wood_type_id = EXCLUDED.wet_wood_type_id,
+            sorter_id = EXCLUDED.sorter_id,
+            ws_customer_id = EXCLUDED.ws_customer_id,
+            amount = EXCLUDED.amount,
+            volumn = EXCLUDED.volumn,
+            unit_wage = EXCLUDED.unit_wage
+        `, chunk);
+
+        await client.query(upsertQuery);
+        totalSynced += chunk.length;
+      }
+
+      await client.query('COMMIT');
+      return totalSynced;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
+
+  // 4. ลบข้อมูลไม้เปียกที่ถูกเคลียร์ในระบบเก่า (เพื่อให้ข้อมูลตรงกันทั้งสองฝั่ง)
+  cleanupDeletedWetWoodTransactions: async (branchId, startDate, endDate, activeIds) => {
+    let query;
+    let params;
+
+    if (activeIds && activeIds.length > 0) {
+      query = `
+        DELETE FROM transaction_wet_woods
+        WHERE branch_id = $1
+          AND produce_date BETWEEN $2 AND $3
+          AND wood_size_amount_map_id != ALL($4::bigint[])
+      `;
+      params = [branchId, startDate, endDate, activeIds];
+    } else {
+      query = `
+        DELETE FROM transaction_wet_woods
+        WHERE branch_id = $1
+          AND produce_date BETWEEN $2 AND $3
+      `;
+      params = [branchId, startDate, endDate];
+    }
+
+    await pool.query(query, params);
+  },
+
+  // ==========================================
+  // ─── ส่วนที่เพิ่มใหม่สำหรับ นำเข้าข้อมูลไม้แห้ง ───
+  // ==========================================
+
+  // 1. ดึงเรทค่าแรงทั้ง 2 แบบ จาก PostgreSQL (เผื่อต้องอัปเดตเรทใหม่ในอนาคต)
+  getDryWagesByBranch: async (branchId) => {
+    const query = `
+      SELECT old_id, wage, wage_sorting_cut_wood 
+      FROM master_wood_sizes 
+      WHERE branch_id = $1
+    `;
+    const { rows } = await pool.query(query, [branchId]);
+    
+    const wageMap = new Map();
+    rows.forEach(row => {
+      wageMap.set(row.old_id, {
+        wage: Number(row.wage) || 0,
+        wage_cut: Number(row.wage_sorting_cut_wood) || 0
+      });
+    });
+    return wageMap;
+  },
+
+  // 2. ดึงข้อมูล Transaction ไม้แห้ง จาก MySQL เก่า
+  getOldDryWoodTransactions: async (mysqlPool, startDate, endDate) => {
+    const mysqlQuery = `
+      SELECT 
+        wsa.id AS wood_size_amount_map_id,
+        bc.barcode_id,
+        DATE(bc.date_create) AS produce_date,
+        ws.id AS wood_size_id,
+        mdd.wood_store_id,
+        wsa.amount,
+        em.id AS sorter_id,
+        st.code AS store_code, -- ดึง code มาเพื่อเช็คเงื่อนไขค่าแรงใน Node.js
+        round(((MID(ws.wood_code,6,1)+MID(ws.wood_code,7,1)/8)*(IF(MID(ws.wood_code,8,1)="A",10,IF(MID(ws.wood_code,8,1)="B",11,IF(MID(ws.wood_code,8,1)="C",12,IF(MID(ws.wood_code,8,1)="D",13,IF(MID(ws.wood_code,8,1)="E",14,IF(MID(ws.wood_code,8,1)="F",15,IF(MID(ws.wood_code,8,1)="G",16,IF(MID(ws.wood_code,8,1)="H",17,IF(MID(ws.wood_code,8,1)="I",18,IF(MID(ws.wood_code,8,1)="J",19,IF(MID(ws.wood_code,8,1)="K",20,MID(ws.wood_code,8,1))))))))))))+MID(ws.wood_code,9,1)/8)*(RIGHT(ws.wood_code,3)/100)*0.0228 * wsa.amount),5) as volumn
+      FROM mobile_dry_wood_data mdd
+      LEFT JOIN mobile_dry_wood_data_sorter_info mwds ON mwds.mobile_dry_wood_data_sorter_info_list_id = mdd.id
+      LEFT JOIN sorter_info si ON si.id = mwds.sorter_info_id
+      LEFT JOIN sorter_info_wood_size_amount_map swsa ON swsa.sorter_info_amount_map_id = si.id
+      LEFT JOIN wood_size_amount_map wsa ON wsa.id = swsa.wood_size_amount_map_id 
+      LEFT JOIN wood_size ws ON ws.id = wsa.wood_size_id
+      LEFT JOIN barcode bc ON bc.id = mdd.barcode_id
+      LEFT JOIN wood_zone_location wzl ON wzl.barcode_id = bc.id
+      LEFT JOIN user us ON us.id = si.sorter_id
+      LEFT JOIN employee em ON em.code = us.username
+      LEFT JOIN wood_store st ON st.id = mdd.wood_store_id
+      WHERE 1=1
+        AND wzl.date_created >= ? AND mdd.time_created <= ?
+        AND wsa.id IS NOT null
+      GROUP BY wsa.id
+    `;
+    
+    const startDateTime = `${startDate} 00:00:00`;
+    const endDateTime = `${endDate} 23:59:59`;
+    
+    const [oldData] = await mysqlPool.query(mysqlQuery, [startDateTime, endDateTime]);
+    return oldData;
+  },
+
+  // 3. อัปเดตข้อมูลแบบ Bulk ลง PostgreSQL
+  upsertDryWoodTransactions: async (insertValues) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const chunkSize = 3000;
+      let totalSynced = 0;
+
+      for (let i = 0; i < insertValues.length; i += chunkSize) {
+        const chunk = insertValues.slice(i, i + chunkSize);
+        const upsertQuery = format(`
+          INSERT INTO transaction_dry_woods (
+            wood_size_amount_map_id, branch_id, barcode_id, produce_date, 
+            wood_size_id, wood_store_id, sorter_id, 
+            amount, volumn, unit_wage
+          ) 
+          VALUES %L 
+          ON CONFLICT (branch_id, wood_size_amount_map_id) 
+          DO UPDATE SET 
+            barcode_id = EXCLUDED.barcode_id,
+            produce_date = EXCLUDED.produce_date,
+            wood_size_id = EXCLUDED.wood_size_id,
+            wood_store_id = EXCLUDED.wood_store_id,
+            sorter_id = EXCLUDED.sorter_id,
+            amount = EXCLUDED.amount,
+            volumn = EXCLUDED.volumn,
+            unit_wage = EXCLUDED.unit_wage
+        `, chunk);
+
+        await client.query(upsertQuery);
+        totalSynced += chunk.length;
+      }
+      await client.query('COMMIT');
+      return totalSynced;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
+
+  // 4. ลบข้อมูลไม้แห้งที่หายไป
+  cleanupDeletedDryWoodTransactions: async (branchId, startDate, endDate, activeIds) => {
+    let query; let params;
+    if (activeIds && activeIds.length > 0) {
+      query = `DELETE FROM transaction_dry_woods WHERE branch_id = $1 AND produce_date BETWEEN $2 AND $3 AND wood_size_amount_map_id != ALL($4::bigint[])`;
+      params = [branchId, startDate, endDate, activeIds];
+    } else {
+      query = `DELETE FROM transaction_dry_woods WHERE branch_id = $1 AND produce_date BETWEEN $2 AND $3`;
+      params = [branchId, startDate, endDate];
+    }
+    await pool.query(query, params);
   }
 };
 
@@ -5078,7 +7438,7 @@ const format = require('pg-format'); // 💡 ต้องมีบรรทั�
 const WoodPriceModel = {
   // ─── 1. ดึงข้อมูลราคาไม้เลื่อยตามสาขาและตัวกรอง ───
   getWoodPrices: async (filters) => {
-    const { branch_id, mil, thick, width, length, wood_code } = filters;
+    const { branch_id, mil, thick, width, length, wood_code ,paramExport} = filters;
     
     let query = `
       SELECT id, wood_code, thick, width, length, mil, unit_price 
@@ -5088,17 +7448,38 @@ const WoodPriceModel = {
     const params = [branch_id];
     let paramIndex = 2;
 
-    // ต่อ String ค้นหาตามเงื่อนไข (Dynamic Query)
+    // ต่อ String ค้นหาตามเงื่อนไข (Dynamic Query)ss
     if (mil) { query += `AND mil = $${paramIndex++}`; params.push(mil); }
     if (thick) { query += ` AND thick = $${paramIndex++}`; params.push(thick); }
     if (width) { query += ` AND width = $${paramIndex++}`; params.push(width); }
     if (length) { query += ` AND length = $${paramIndex++}`; params.push(length); }
     if (wood_code) { query += ` AND wood_code ILIKE $${paramIndex++}`; params.push(`%${wood_code}%`); }
-
-    query += ` ORDER BY thick ASC, width ASC, length ASC limit 500`; // 💡 เพิ่ม limit เพื่อป้องกันดึงข้อมูลเยอะเกินไป
+    
+    if (paramExport){
+      query += ` AND unit_price <> 0`;
+      query += ` ORDER BY thick ASC, width ASC, length ASC`;
+    }else{
+      query += ` AND unit_price <> 0`;
+      query += ` ORDER BY thick ASC, width ASC, length ASC limit 500`; // 💡 เพิ่ม limit เพื่อป้องกันดึงข้อมูลเยอะเกินไป
+    }
+    
 
     const { rows } = await pool.query(query, params);
     return rows;
+  },
+
+  getBranchFileName: async(branch_id) => {
+    
+    let query = `select branch_code from branches where id = $1 limit 1`;
+
+    const { rows } = await pool.query(query,[branch_id]);
+    // 💡 ถ้าระบบค้นเจอข้อมูล ให้ดึงเฉพาะข้อความ 'branch_code' ออกมาส่งกลับ
+    if (rows.length > 0) {
+        return rows[0].branch_code; 
+    }
+    
+    // 💡 ถ้าไม่เจอข้อมูล (เผื่อไว้) ให้ส่งคำว่า Unknown กลับไป
+    return 'Unknown';
   },
 
   // ─── 2. อัปเดตราคาแบบ Bulk (ตาม ID) - ใช้สำหรับหน้าเว็บ ───
@@ -5126,39 +7507,51 @@ const WoodPriceModel = {
 
   // ─── 🚀 3. แก้ไข: อัปเดตราคาแบบ Bulk สำหรับ Import Excel ให้เร็วขึ้น 100 เท่า ───
   updatePricesByCodes: async (branchId, updates) => {
+    // ขอเชื่อมต่อ Database จาก Pool (เพื่อใช้คำสั่ง Transaction)
     const client = await pool.connect();
     try {
+      // ใช้งาน Transaction: ป้องกันข้อมูลแหว่ง ถ้ามีพังระหว่างอัปเดต จะได้กู้ข้อมูลเดิมกลับมาทั้งหมด
       await client.query('BEGIN');
-      let updatedCount = 0;
+      let updatedCount = 0; // ตัวแปรเก็บจำนวนแถวที่อัปเดตได้จริง
       
-      // 💡 หั่นข้อมูลเป็นก้อน ก้อนละ 2,000 แถว เพื่อไม่ให้ Query ใหญ่เกินไป
+      // 💡 หั่นข้อมูลเป็นก้อน ก้อนละ 2,000 แถว เพราะ Query ของ Postgres รับ Parameter ได้จำกัดความยาว
       const chunkSize = 2000;
       
+      // วนลูปตามก้อนข้อมูล (เช่น ก้อนแรกรอบที่ 0-1999)
       for (let i = 0; i < updates.length; i += chunkSize) {
+        // ตัด Array ใหญ่ ให้เหลือเฉพาะชุดที่จะทำงานรอบนี้
         const chunk = updates.slice(i, i + chunkSize);
         
-        // 💡 สร้างคำสั่ง Bulk Update โดยการจับคู่รหัสสินค้ากับตารางเสมือน (VALUES)
+        // 💡 สร้างคำสั่ง Bulk Update โดยใช้ตัวช่วย `format` (%L จะแปลง Array เป็นค่า Value ให้ SQL อ่านได้)
         const updateQuery = format(`
           UPDATE master_wood_sizes AS m
           SET 
             unit_price = CAST(v.unit_price AS NUMERIC), 
             updated_at = CURRENT_TIMESTAMP 
+          -- สร้างตารางเสมือนที่ชื่อ v ขึ้นมาเทียบ (ประกอบด้วย ฟิลด์: ราคา, รหัสสาขา, รหัสไม้)
           FROM (VALUES %L) AS v(unit_price, branch_id, wood_code)
+          -- *** เงื่อนไขการอัปเดต (ดูคำตอบด้านล่าง) ***
           WHERE m.branch_id = CAST(v.branch_id AS INTEGER) 
             AND m.wood_code = CAST(v.wood_code AS VARCHAR) 
             AND m.type_id = 1;
         `, chunk);
 
+        // ยิงคำสั่ง SQL ที่สร้างเสร็จแล้วเข้าฐานข้อมูล
         const result = await client.query(updateQuery);
+        // นับว่าฐานข้อมูลอัปเดตไปจริงๆ กี่แถว
         updatedCount += result.rowCount; 
       }
       
+      // ยืนยันการเปลี่ยนแปลงข้อมูลลง Database อย่างเป็นทางการ
       await client.query('COMMIT');
+      // ส่งจำนวนแถวที่เปลี่ยนกลับไปให้ Controller
       return updatedCount;
     } catch (error) {
+      // ถ้ายิง Database แล้วระเบิด (Error) ให้ยกเลิกการเปลี่ยนแปลงทั้งหมด
       await client.query('ROLLBACK');
-      throw error;
+      throw error; // โยน Error ไปให้ตัวเรียกมัน (importExcel) ไปทำต่อ
     } finally {
+      // ปิดและคืน Connection ให้ระบบ
       client.release();
     }
   }
@@ -5201,6 +7594,17 @@ router.delete('/:id', verifyToken, checkPermission('/branches', 'delete'), branc
 // router.get('/allowed', verifyToken, checkPermission('/sync-master', 'view'), branchController.getAllowedBranches);
 
 router.get('/allowed', verifyToken, branchController.getAllowedBranches);
+
+module.exports = router;
+</file>
+
+<file path="src/routes/dashboardRoutes.js">
+const express = require('express');
+const router = express.Router();
+const dashboardController = require('../controllers/dashboardController');
+const verifyToken = require('../middlewares/authMiddleware');
+
+router.get('/summary', verifyToken, dashboardController.getDashboardSummary);
 
 module.exports = router;
 </file>
@@ -5306,6 +7710,26 @@ router.get('/sawer-performance-length', verifyToken, reportController.getSawerPe
 router.get('/sawer-performance-length/pdf', verifyToken, reportController.exportSawerPerformanceLengthPDF);
 router.get('/sawer-performance-length/excel', verifyToken, reportController.exportSawerPerformanceLengthExcel);
 
+router.get('/wet-wood-cover', verifyToken, reportController.getWetWoodCover);
+router.get('/wet-wood-cover-format2', verifyToken, reportController.getWetWoodCoverFormat2);
+router.get('/wet-wood-cover/pdf', verifyToken, reportController.exportWetWoodCoverPDF);
+router.get('/wet-wood-cover/excel', verifyToken, reportController.exportWetWoodCoverExcel);
+
+router.get('/dry-wood-cover', verifyToken, reportController.getDryWoodCover);
+router.get('/dry-wood-cover-format2', verifyToken, reportController.getDryWoodCoverFormat2);
+router.get('/dry-wood-cover/pdf', verifyToken, reportController.exportDryWoodCoverPDF);
+router.get('/dry-wood-cover/excel', verifyToken, reportController.exportDryWoodCoverExcel);
+
+// รายงานสรุปค่าแรงจัดเรียงไม้เปียก แยกรายคน
+router.get('/wet-wood-perf', verifyToken, reportController.getWetWoodPerformance);
+router.get('/wet-wood-perf/pdf', verifyToken, reportController.exportWetWoodPerfPDF);
+router.get('/wet-wood-perf/excel', verifyToken, reportController.exportWetWoodPerfExcel);
+
+// รายงานสรุปค่าแรงจัดเรียงไม้แห้ง แยกรายคน
+router.get('/dry-wood-perf', verifyToken, reportController.getDryWoodPerformance);
+router.get('/dry-wood-perf/pdf', verifyToken, reportController.exportDryWoodPerfPDF);
+router.get('/dry-wood-perf/excel', verifyToken, reportController.exportDryWoodPerfExcel);
+
 module.exports = router;
 </file>
 
@@ -5324,6 +7748,12 @@ router.get('/saw-woods', verifyToken, checkPermission('/check-saw-woods', 'view'
 // API สำหรับการคำนวณราคาย้อนหลัง
 router.post('/recalculate-prices', verifyToken, checkPermission('/recalculate-price', 'edit'), transactionController.recalculatePrices);
 router.get('/recal-logs', verifyToken, transactionController.getRecalLogs);
+
+// API ซิงค์ข้อมูลไม้เปียก (ต้องการสิทธิ์แอดมินหรือเพิ่มข้อมูล)
+router.post('/sync-wet-woods', verifyToken, checkPermission('/sync-wet-woods', 'add'), transactionController.syncWetWoods);
+
+// API ซิงค์ข้อมูลไม้แห้ง
+router.post('/sync-dry-woods', verifyToken, checkPermission('/sync-dry-woods', 'add'), transactionController.syncDryWoods);
 
 module.exports = router;
 </file>
@@ -5348,6 +7778,7 @@ const masterRoutes = require('./routes/masterRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const masterOptionsRoutes = require('./routes/masterOptionsRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 
 app.use('/api/master', masterRoutes);
@@ -5363,6 +7794,8 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/master-options', masterOptionsRoutes);
 
 app.use('/api/reports', reportRoutes);
+
+app.use('/api/dashboard', dashboardRoutes);
 
 // Test Route เพื่อตรวจสอบสถานะ
 app.get('/api/status', (req, res) => {
@@ -5381,7 +7814,7 @@ app.listen(PORT, () => {
 </file>
 
 <file path="Dockerfile">
-FROM node:18-alpine
+FROM node:22-alpine
 
 # กำหนดพื้นที่ทำงาน
 WORKDIR /app
@@ -5451,34 +7884,81 @@ coverage/
 </file>
 
 <file path=".env.example">
-PORT=3000
 # ==========================================
-# ⚙️ Database PostgreSQL (ระบบใหม่ - ศูนย์กลาง)
+# 1. ตั้งค่าสำหรับสร้างตู้ PostgreSQL (Docker ใช้ตอนสร้างตู้)
 # ==========================================
-DB_USER=postgres
-DB_PASSWORD=xxx
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=ww_system
+POSTGRES_USER=app_user
+POSTGRES_PASSWORD=xxx
+POSTGRES_DB=ww_sys
 
 # ==========================================
-# 🔗 Database MySQL 5.6 (ระบบเก่า - แยกตามสาขา)
+# 2. ตั้งค่า Backend Node.js
 # ==========================================
-# สาขา 18 (ตรัง)
+PORT=3000
+JWT_SECRET=ww_your_super_secret_key_ww_report_2026.
+
+# ⚙️ Database PostgreSQL (ระบบใหม่ - ศูนย์กลาง)
+DB_USER=app_user
+DB_PASSWORD=xxx
+DB_HOST=postgres-db
+DB_PORT=5432
+DB_NAME=ww_sys
+
+# ==========================================
+# 3. Database MySQL 5.6 (ระบบเก่า - แยกตามสาขา)
+# ==========================================
+# สาขา 1
 MYSQL_HOST_1=192.168.0.x
 MYSQL_USER_1=root
 MYSQL_PASSWORD_1=xxx
 MYSQL_PORT_1=3306
 MYSQL_DB_1=woodworkbarcode
 
-# สาขา 18 (ตรัง)
+# สาขา 12 (อ้างอิงตามชื่อตัวแปรในรูป)
 MYSQL_HOST_17=192.168.x.x
 MYSQL_USER_17=root
 MYSQL_PASSWORD_17=xxx
 MYSQL_PORT_17=3306
 MYSQL_DB_17=woodworkbarcode
+</file>
 
-JWT_SECRET=ww_your_super_secret_key_ppos_2026..
+<file path=".env.production">
+# ==========================================
+# 1. ตั้งค่าสำหรับสร้างตู้ PostgreSQL (Docker ใช้ตอนสร้างตู้)
+# ==========================================
+POSTGRES_USER=app_user
+POSTGRES_PASSWORD=xxx
+POSTGRES_DB=ww_sys
+
+# ==========================================
+# 2. ตั้งค่า Backend Node.js
+# ==========================================
+PORT=3000
+JWT_SECRET=ww_your_super_secret_key_ww_report_2026.
+
+# ⚙️ Database PostgreSQL (ระบบใหม่ - ศูนย์กลาง)
+DB_USER=app_user
+DB_PASSWORD=xxx
+DB_HOST=postgres-db
+DB_PORT=5432
+DB_NAME=ww_sys
+
+# ==========================================
+# 3. Database MySQL 5.6 (ระบบเก่า - แยกตามสาขา)
+# ==========================================
+# สาขา 1
+MYSQL_HOST_1=192.168.0.x
+MYSQL_USER_1=root
+MYSQL_PASSWORD_1=xxx
+MYSQL_PORT_1=3306
+MYSQL_DB_1=woodworkbarcode
+
+# สาขา 12 (อ้างอิงตามชื่อตัวแปรในรูป)
+MYSQL_HOST_17=192.168.x.x
+MYSQL_USER_17=root
+MYSQL_PASSWORD_17=xxx
+MYSQL_PORT_17=3306
+MYSQL_DB_17=woodworkbarcode
 </file>
 
 <file path=".gitignore">
@@ -5599,20 +8079,18 @@ repomix-backend-output.xml
 </file>
 
 <file path="query_update.txt">
-INSERT INTO public.menus(
-	id, menu_name, link, icon, sort_order, parent_id)
-	VALUES (14, 'รายงานราคาเฉลี่ย', '/average-price', 'fas fa-chart-line', 3, 11);
+INSERT INTO public.menus(id, menu_name, link, icon, sort_order, parent_id)
+VALUES (26, 'สรุปค่าแรง', '/wet-wood-perf', 'fas fa-fire-alt', 2, 17);
 
-INSERT INTO public.menus(
-	id, menu_name, link, icon, sort_order, parent_id)
-	VALUES (15, 'รายงานไม้เลื่อย แยกตาม ความหนา มิล', '/production-thick-mil-report', 'fas fa-chart-line', 4, 11);
+INSERT INTO public.group_permissions(id, group_id, menu_id, can_view, can_rpt, can_add, can_edit, can_delete, access_level)
+VALUES (31, 1, 26, true, true, true, true, true, 2);
 
-INSERT INTO public.group_permissions(
-	id, group_id, menu_id, can_view, can_rpt, can_add, can_edit, can_delete, access_level)
-	VALUES (20, 1, 15, true, true, true, true, true, 2);
+INSERT INTO public.menus(id, menu_name, link, icon, sort_order, parent_id)
+VALUES (27, 'สรุปค่าแรง', '/dry-wood-perf', 'fas fa-fire-alt', 2, 24);
 
-
-add column transaction_saw_woods.sawer_id
+-- อัปเดตสิทธิ์ให้ Admin 
+INSERT INTO public.group_permissions(id, group_id, menu_id, can_view, can_rpt, can_add, can_edit, can_delete, access_level)
+VALUES (32, 1, 27, true, true, true, true, true, 2);
 </file>
 
 <file path=".repomixignore">
