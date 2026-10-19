@@ -31,6 +31,7 @@ const cleanBool = (val, defaultVal = false) => {
 // ================================================================
 const masterController = {
   // ดึงหมวดหมู่ทั้งหมด
+  /*
   getCategories: async (req, res) => {
     try {
       const { rows } = await pool.query('SELECT id, name FROM categories WHERE is_active = true ORDER BY name ASC');
@@ -62,6 +63,7 @@ const masterController = {
       res.status(500).json({ success: false, message: 'Server error' });
     }
   },
+  */
 
   syncMasterData: async (req, res) => {
     const targetBranchId = cleanInt(req.body.branch_id, 0);
