@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+// require('./cronJobs'); // เปิดใช้งานระบบตั้งเวลาอัตโนมัติเบื้องหลัง
 
 const app = express();
 
