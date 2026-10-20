@@ -6,43 +6,128 @@ const ExcelJS = require('exceljs'); // <- ต้องมีบรรทัด�
 const fs = require('fs');      
 const path = require('path');  
 
-// 💡 ระบบแชร์ Browser ตัวเดียว (Global) แบบป้องกันการกดรัวๆ (Promise Caching)
+// ─────────────────────────────────────────────────────────────
+// 💡 ระบบ PDF กลาง: Browser ตัวเดียว + คิวจำกัดงานพร้อมกัน + ปิดแท็บเสมอ
+// ─────────────────────────────────────────────────────────────
+
+// escape ข้อความก่อนฝังลง HTML (กัน HTML injection จาก req.query)
+const esc = (v) =>
+  String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+// cache ฟอนต์ไว้ในหน่วยความจำ (ไม่อ่านไฟล์ + encode ใหม่ทุก request)
+const fontCache = new Map();
+const readFontCached = (fontPath) => {
+  if (!fontCache.has(fontPath)) {
+    fontCache.set(fontPath, fs.readFileSync(fontPath).toString('base64'));
+  }
+  return fontCache.get(fontPath);
+};
+
 let browserPromise = null;
 
+const launchBrowser = async () => {
+  const puppeteer = (await import('puppeteer')).default;
+
+  const args = ['--disable-dev-shm-usage']; // กัน /dev/shm เต็มใน Docker/Linux
+  if (process.platform !== 'win32') args.push('--disable-gpu');
+
+  // ⚠️ เปิดเฉพาะเมื่อจำเป็นจริง ๆ (เช่น Docker ที่ยังแก้ user namespace ไม่ได้)
+  // ตั้งค่า PUPPETEER_NO_SANDBOX=true ใน .env ของเครื่องนั้นเท่านั้น
+  const noSandbox = process.env.PUPPETEER_NO_SANDBOX === 'true';
+  if (noSandbox) args.push('--no-sandbox', '--disable-setuid-sandbox');
+
+  console.log(`🚀 Starting new Chrome browser instance... (sandbox: ${noSandbox ? 'OFF' : 'ON'})`);
+
+  const browser = await puppeteer.launch({
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+    headless: true, // ถ้าใช้ Puppeteer v22+ เปลี่ยนเป็น true ได้
+    args,
+  });
+
+  // ถ้า Chrome แครช/ถูกปิด ให้เคลียร์ เพื่อให้ request ถัดไปเปิดใหม่
+  browser.on('disconnected', () => {
+    console.warn('⚠️ Browser disconnected');
+    browserPromise = null;
+  });
+
+  return browser;
+};
+
 const getBrowser = async () => {
-  try {
-    // 1. ถ้ามีคิวเปิดบราวเซอร์อยู่แล้ว หรือเปิดทิ้งไว้แล้ว ให้รอใช้ตัวนั้น
-    if (browserPromise) {
+  if (browserPromise) {
+    try {
       const browser = await browserPromise;
-      
-      // ตรวจสอบสถานะการเชื่อมต่อ (รองรับทั้งแบบ function และ boolean เผื่อเวอร์ชันของ Puppeteer ต่างกัน)
-      const isConnected = typeof browser.isConnected === 'function' ? browser.isConnected() : browser.connected;
-      
-      if (isConnected) {
-        return browser;
-      }
+      const isConnected =
+        typeof browser.isConnected === 'function' ? browser.isConnected() : browser.connected;
+      if (isConnected) return browser;
+    } catch (_) {
+      // launch ครั้งก่อนล้มเหลว → ลองใหม่ด้านล่าง
     }
-    const puppeteer = (await import('puppeteer')).default;
-    // 2. ถ้ายังไม่เคยสร้าง หรือบราวเซอร์แครชไปแล้ว ให้สร้างขึ้นมาใหม่
-    console.log("🚀 Starting new Chrome browser instance...");
-    browserPromise = await puppeteer.launch({ 
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null, // <--- 💡 เพิ่มบรรทัดนี้เข้าไปครับ
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox', 
-        '--disable-dev-shm-usage', // ป้องกันปัญหาแรมเต็มใน Linux
-        '--disable-gpu'            // ลดการใช้ทรัพยากร
-        // ❌ เอา '--single-process' ออกไปเลยครับ เพราะเป็นตัวการทำให้แครชเมื่อดึง PDF หลายแท็บ
-      ],
-      headless: "new"
+    browserPromise = null;
+  }
+
+  // กำหนด promise แบบ synchronous เพื่อให้ request ที่เข้ามาพร้อมกันใช้ instance เดียวกัน
+  browserPromise = launchBrowser();
+  try {
+    return await browserPromise;
+  } catch (error) {
+    console.error('❌ Browser Launch Error:', error);
+    browserPromise = null;
+    throw error;
+  }
+};
+
+// คิวจำกัดจำนวนงาน PDF พร้อมกัน (ปรับได้ด้วย PDF_CONCURRENCY ใน .env)
+const PDF_CONCURRENCY = Number(process.env.PDF_CONCURRENCY) || 2;
+let pdfActive = 0;
+const pdfWaiters = [];
+const acquirePdfSlot = () =>
+  new Promise((resolve) => {
+    if (pdfActive < PDF_CONCURRENCY) {
+      pdfActive++;
+      resolve();
+    } else {
+      pdfWaiters.push(resolve);
+    }
+  });
+const releasePdfSlot = () => {
+  const next = pdfWaiters.shift();
+  if (next) next(); // ส่งต่อ slot ให้คิวถัดไป (pdfActive คงเดิม)
+  else pdfActive--;
+};
+
+// แปลง HTML → PDF Buffer (ปลอดภัย: ปิด JS, บล็อก request ภายนอก, ปิดแท็บเสมอ)
+const renderPdf = async (html, pdfOptions = {}) => {
+  await acquirePdfSlot();
+  let page;
+  try {
+    const browser = await getBrowser();
+    page = await browser.newPage();
+
+    // รายงานเป็น HTML ล้วน ไม่ต้องรัน script
+    await page.setJavaScriptEnabled(false);
+
+    // อนุญาตเฉพาะ data: (ฟอนต์ base64) — ทุกอย่างอื่นถูกบล็อก (กัน SSRF / โหลดของภายนอกค้าง)
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      const url = req.url();
+      if (url.startsWith('data:') || url === 'about:blank') return req.continue();
+      return req.abort();
     });
 
-    return await browserPromise;
+    // HTML ไม่มี resource ภายนอก จึงไม่ต้องรอ networkidle0
+    await page.setContent(html, { waitUntil: 'load', timeout: 60000 });
 
-  } catch (error) {
-    console.error("❌ Browser Launch Error:", error);
-    browserPromise = null; // รีเซ็ตเพื่อเคลียร์คิวให้กดลองใหม่ได้
-    throw error;
+    const pdf = await page.pdf({ ...pdfOptions, timeout: 120000 });
+    return Buffer.from(pdf); // Puppeteer v22+ คืน Uint8Array → แปลงเป็น Buffer ให้ res.send ใช้ได้
+  } finally {
+    if (page) await page.close().catch(() => {});
+    releasePdfSlot();
   }
 };
 
@@ -795,7 +880,7 @@ const reportController = {
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
       let fontBase64 = '';
       if (fs.existsSync(fontPath)) {
-        fontBase64 = fs.readFileSync(fontPath).toString('base64');
+        fontBase64 = readFontCached(fontPath);
       } else {
         console.warn('⚠️ ไม่พบไฟล์ฟอนต์ที่:', fontPath);
       }
@@ -971,14 +1056,14 @@ const reportController = {
             <div class="title-box">
               <h1>บริษัท วู้ดเวอร์ค จำกัด</h1>
               <h2>รายงานการเบิกจ่ายแยกตาม ประเภทไม้</h2>
-              <p>ตั้งแต่วันที่ ${start_date} ถึงวันที่ ${end_date}</p>
+              <p>ตั้งแต่วันที่ ${esc(start_date)} ถึงวันที่ ${esc(end_date)}</p>
             </div>
             <table>
               <thead>
                 <tr>
                   <th colspan="2">ขนาดไม้</th>
-                  <th>${grade}</th><th>% กว้าง</th><th>% ยาว</th><th>ราคาเฉลี่ย</th><th>จำนวนเงิน</th>
-                  <th>${grade} พิเศษ</th><th>% กว้าง</th><th>% ยาว</th><th>ราคาเฉลี่ย</th><th>จำนวนเงิน</th>
+                  <th>${esc(grade)}</th><th>% กว้าง</th><th>% ยาว</th><th>ราคาเฉลี่ย</th><th>จำนวนเงิน</th>
+                  <th>${esc(grade)} พิเศษ</th><th>% กว้าง</th><th>% ยาว</th><th>ราคาเฉลี่ย</th><th>จำนวนเงิน</th>
                 </tr>
               </thead>
               <tbody>
@@ -990,19 +1075,12 @@ const reportController = {
       `;
 
       // 💡 โค้ดใหม่ (ใช้ Browser ตัวเดิม แต่เปิด Tab ใหม่)
-      const browser = await getBrowser();
-      const page = await browser.newPage();
-
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ 
+      const pdfBuffer = await renderPdf(htmlContent, { 
         format: 'A4', 
         landscape: true, 
         printBackground: true,
         margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
       });
-
-      // 💡 สำคัญมาก: เปลี่ยนจาก browser.close() เป็น page.close() เพื่อปิดแค่ Tab ไม่ปิดโปรแกรมหลัก
-      await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="report.pdf"');
@@ -1329,7 +1407,7 @@ const reportController = {
 
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
       let fontBase64 = '';
-      if (fs.existsSync(fontPath)) fontBase64 = fs.readFileSync(fontPath).toString('base64');
+      if (fs.existsSync(fontPath)) fontBase64 = readFontCached(fontPath);
 
       let tableRows = '';
       rows.forEach((row) => {
@@ -1414,9 +1492,9 @@ const reportController = {
           </head>
           <body>
             <div class="title-box">
-              <h1>บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+              <h1>บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
               <h2>รายงานเปรียบเทียบราคาขายเฉลี่ย ตามแผนกและเกรดไม้</h2>
-              <p>ตั้งแต่วันที่ ${start_date} ถึงวันที่ ${end_date} สโตร์: ${store_code || 'รวมทุกสโตร์'}</p>
+              <p>ตั้งแต่วันที่ ${esc(start_date)} ถึงวันที่ ${esc(end_date)} สโตร์: ${esc(store_code || 'รวมทุกสโตร์')}</p>
             </div>
             <table>
               <thead>
@@ -1441,19 +1519,12 @@ const reportController = {
       `;
 
       // 💡 โค้ดใหม่ (ใช้ Browser ตัวเดิม แต่เปิด Tab ใหม่)
-      const browser = await getBrowser();
-      const page = await browser.newPage();
-
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ 
+      const pdfBuffer = await renderPdf(htmlContent, { 
         format: 'A4', 
         landscape: true, 
         printBackground: true,
         margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
       });
-
-      // 💡 สำคัญมาก: เปลี่ยนจาก browser.close() เป็น page.close() เพื่อปิดแค่ Tab ไม่ปิดโปรแกรมหลัก
-      await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="average_price_report.pdf"');
@@ -1669,7 +1740,7 @@ const reportController = {
       const fs = require('fs');
       const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
-      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+      let fontBase64 = fs.existsSync(fontPath) ? readFontCached(fontPath) : '';
 
       let rowsHtml = '';
       formattedData.forEach(tmGroup => {
@@ -1742,12 +1813,12 @@ const reportController = {
           .border-b { border-bottom: 2px solid #555; } .border-t { border-top: 2px solid #555; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
             <h2 style="font-size:16px; margin:0;">รายงานการผลิต แยกตาม ความหนา-มิลไม้</h2>
-            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
+            <p style="margin:0;">ตั้งแต่วันที่ ${esc(start_date)} ถึง ${esc(end_date)}</p>
           </div>
           <table>
-            <thead><tr><th colspan="2">ขนาดไม้</th><th>${grade}</th><th>% กว้าง</th><th>% ยาว</th><th>ราคา</th><th>จำนวนเงิน</th></tr></thead>
+            <thead><tr><th colspan="2">ขนาดไม้</th><th>${esc(grade)}</th><th>% กว้าง</th><th>% ยาว</th><th>ราคา</th><th>จำนวนเงิน</th></tr></thead>
             <tbody>${rowsHtml}</tbody>
           </table>
           <div style="width:50%; margin-top:20px;">
@@ -1761,19 +1832,12 @@ const reportController = {
 
       // const puppeteer = require('puppeteer');
       // 💡 โค้ดใหม่ (ใช้ Browser ตัวเดิม แต่เปิด Tab ใหม่)
-      const browser = await getBrowser();
-      const page = await browser.newPage();
-
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ 
+      const pdfBuffer = await renderPdf(htmlContent, { 
         format: 'A4', 
         landscape: true, 
         printBackground: true,
         margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
       });
-
-      // 💡 สำคัญมาก: เปลี่ยนจาก browser.close() เป็น page.close() เพื่อปิดแค่ Tab ไม่ปิดโปรแกรมหลัก
-      await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="report.pdf"');
@@ -1984,7 +2048,7 @@ const reportController = {
       const fs = require('fs');
       const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
-      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+      let fontBase64 = fs.existsSync(fontPath) ? readFontCached(fontPath) : '';
 
       let rowsHtml = '';
       formattedData.forEach((row) => {
@@ -2081,9 +2145,9 @@ const reportController = {
           .border-t { border-top: 2px solid #333; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปผลงานนายม้า แยกตามเกรดคุณภาพไม้ (AB, C, P, PP)</h2>
-            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date} สโตร์: ทั้งหมด</p>
+            <p style="margin:0;">ตั้งแต่วันที่ ${esc(start_date)} ถึง ${esc(end_date)} สโตร์: ทั้งหมด</p>
             <p style="margin:0;">แหล่งที่มา: ทั้งหมด | ประเภทไม้: ทั้งหมด | กลุ่มไม้: ทั้งหมด</p>
           </div>
           <table>
@@ -2112,19 +2176,12 @@ const reportController = {
 
       // const puppeteer = require('puppeteer');
       // 💡 โค้ดใหม่ (ใช้ Browser ตัวเดิม แต่เปิด Tab ใหม่)
-      const browser = await getBrowser();
-      const page = await browser.newPage();
-
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ 
+      const pdfBuffer = await renderPdf(htmlContent, { 
         format: 'A4', 
         landscape: true, 
         printBackground: true,
         margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
       });
-
-      // 💡 สำคัญมาก: เปลี่ยนจาก browser.close() เป็น page.close() เพื่อปิดแค่ Tab ไม่ปิดโปรแกรมหลัก
-      await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="sawer_performance.pdf"');
@@ -2457,7 +2514,7 @@ const reportController = {
       const fs = require('fs');
       const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
-      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+      let fontBase64 = fs.existsSync(fontPath) ? readFontCached(fontPath) : '';
 
       let rowsHtml = '';
       formattedData.forEach((month) => {
@@ -2558,9 +2615,9 @@ const reportController = {
           .border-t { border-top: 2px solid #333; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปผลผลิตไม้รายวันและประจำเดือน</h2>
-            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
+            <p style="margin:0;">ตั้งแต่วันที่ ${esc(start_date)} ถึง ${esc(end_date)}</p>
           </div>
           <table>
             <thead>
@@ -2580,19 +2637,12 @@ const reportController = {
 
       // const puppeteer = require('puppeteer');
       // 💡 โค้ดใหม่ (ใช้ Browser ตัวเดิม แต่เปิด Tab ใหม่)
-      const browser = await getBrowser();
-      const page = await browser.newPage();
-
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ 
+      const pdfBuffer = await renderPdf(htmlContent, { 
         format: 'A4', 
         landscape: true, 
         printBackground: true,
         margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
       });
-
-      // 💡 สำคัญมาก: เปลี่ยนจาก browser.close() เป็น page.close() เพื่อปิดแค่ Tab ไม่ปิดโปรแกรมหลัก
-      await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="daily_production.pdf"');
@@ -2931,7 +2981,7 @@ const reportController = {
       const fs = require('fs');
       const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
-      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+      let fontBase64 = fs.existsSync(fontPath) ? readFontCached(fontPath) : '';
 
       const formatGradeLabel = (g) => g === 'C_F' ? 'C สด' : g;
       const allGradesLabel = expectedGrades.map(formatGradeLabel).join('+');
@@ -3069,22 +3119,16 @@ const reportController = {
           .text-gray { color: #6b7280; } .text-xs { font-size: 10px; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:10px;">
-            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปผลงานนายม้า แยกตามความยาวไม้</h2>
-            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date} | กลุ่มเกรดไม้: ${grade_group === 'AB_C' ? 'AB, C' : 'P, PP'}</p>
+            <p style="margin:0;">ตั้งแต่วันที่ ${esc(start_date)} ถึง ${esc(end_date)} | กลุ่มเกรดไม้: ${grade_group === 'AB_C' ? 'AB, C' : 'P, PP'}</p>
           </div>
           <table><thead>${theadHtml}</thead>${tbodyHtml}</table>
         </body></html>
       `;
 
       // ใช้ Global Browser เพื่อลดการบริโภคทรัพยากรของเซิร์ฟเวอร์
-      const browser = await getBrowser(); 
-      const page = await browser.newPage();
-      
-      // กำหนด load ให้โหลดข้อมูลและ CSS ให้เสร็จสมบูรณ์ก่อน
-      await page.setContent(htmlContent, { waitUntil: 'load' }); 
-      
-      const pdfBuffer = await page.pdf({ 
+      const pdfBuffer = await renderPdf(htmlContent, { 
         format: 'Legal', 
         landscape: true, 
         printBackground: true, 
@@ -3092,7 +3136,6 @@ const reportController = {
         displayHeaderFooter: false, 
         margin: { top: '15mm', bottom: '15mm', left: '10mm', right: '10mm' }
       });
-      await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="sawer_length.pdf"');
@@ -3344,7 +3387,7 @@ const reportController = {
       const fs = require('fs');
       const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
-      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+      let fontBase64 = fs.existsSync(fontPath) ? readFontCached(fontPath) : '';
 
       let rowsHtml = '';
       groups.forEach(group => {
@@ -3394,10 +3437,10 @@ const reportController = {
           .border-b { border-bottom: 2px dotted #9ca3af; } .border-t { border-top: 2px solid #333; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:20px;">
-            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานค่าแรงไม้เปียก ใบปะหน้า</h2>
-            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
-            <p style="margin:0;">ประเภทไม้: ${wet_wood_type || 'ทั้งหมด'}</p>
+            <p style="margin:0;">ตั้งแต่วันที่ ${esc(start_date)} ถึง ${esc(end_date)}</p>
+            <p style="margin:0;">ประเภทไม้: ${esc(wet_wood_type || 'ทั้งหมด')}</p>
           </div>
           <table>
             <thead><tr><th>รหัสสินค้า</th><th>จำนวนท่อน</th><th>ปริมาตร(ลบฟ)</th><th>ค่าแรง</th></tr></thead>
@@ -3410,11 +3453,7 @@ const reportController = {
         </body></html>
       `;
 
-      const browser = await getBrowser(); 
-      const page = await browser.newPage();
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
-      await page.close();
+      const pdfBuffer = await renderPdf(htmlContent, { format: 'A4', printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="wet_wood_cover.pdf"');
@@ -3656,7 +3695,7 @@ const reportController = {
       const fs = require('fs');
       const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
-      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+      let fontBase64 = fs.existsSync(fontPath) ? readFontCached(fontPath) : '';
 
       let rowsHtml = '';
       groups.forEach(group => {
@@ -3706,10 +3745,10 @@ const reportController = {
           .border-b { border-bottom: 2px dotted #9ca3af; } .border-t { border-top: 2px solid #333; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:20px;">
-            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานค่าแรงไม้แห้ง ใบปะหน้า</h2>
-            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
-            <p style="margin:0;">รหัสสโตร์: ${store_code || '104%'}</p>
+            <p style="margin:0;">ตั้งแต่วันที่ ${esc(start_date)} ถึง ${esc(end_date)}</p>
+            <p style="margin:0;">รหัสสโตร์: ${esc(store_code || '104%')}</p>
           </div>
           <table>
             <thead><tr><th>รหัสสินค้า</th><th>จำนวนท่อน</th><th>ปริมาตร(ลบฟ)</th><th>ค่าแรง</th></tr></thead>
@@ -3723,11 +3762,7 @@ const reportController = {
       `;
 
       // 💡 ใช้ getBrowser แบบเดียวกับรายงานอื่นเพื่อไม่ให้กิน RAM[cite: 7]
-      const browser = await getBrowser(); 
-      const page = await browser.newPage();
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
-      await page.close();
+      const pdfBuffer = await renderPdf(htmlContent, { format: 'A4', printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="dry_wood_cover.pdf"');
@@ -3895,7 +3930,7 @@ const reportController = {
       const fs = require('fs');
       const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
-      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+      let fontBase64 = fs.existsSync(fontPath) ? readFontCached(fontPath) : '';
 
       // ─── สร้าง HTML ───
       const getColumnLabel = (col) => `ไม้แปรรูปอบแห้ง ${col.grade}${col.is_special ? '<br/>(พิเศษ)' : ''}`;
@@ -3967,10 +4002,10 @@ const reportController = {
           .border-t { border-top: 2px solid #4b5563; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปค่าแรงเรียงไม้ แยกรายคน (ไม้เปียก)</h2>
-            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
-            <p style="margin:0;">รหัสสโตร์: ${store_code || '21/00 - 21/99'}</p>
+            <p style="margin:0;">ตั้งแต่วันที่ ${esc(start_date)} ถึง ${esc(end_date)}</p>
+            <p style="margin:0;">รหัสสโตร์: ${esc(store_code || '21/00 - 21/99')}</p>
           </div>
           <table><thead>${theadHtml}</thead><tbody>${tbodyHtml}</tbody></table>
           <div style="margin-top:50px; width:100%; display:flex; justify-content:space-between; text-align:center; padding:0 50px;">
@@ -3982,11 +4017,7 @@ const reportController = {
       `;
 
       // ใช้ Global Browser เพื่อลดการกิน RAM[cite: 12]
-      const browser = await getBrowser(); 
-      const page = await browser.newPage();
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ format: 'Legal', landscape: true, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
-      await page.close();
+      const pdfBuffer = await renderPdf(htmlContent, { format: 'Legal', landscape: true, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="wet_wood_perf.pdf"');
@@ -4148,7 +4179,7 @@ const reportController = {
       const fs = require('fs');
       const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
-      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+      let fontBase64 = fs.existsSync(fontPath) ? readFontCached(fontPath) : '';
 
       const getColumnLabel = (col) => `ไม้แปรรูปอบแห้ง ${col.grade}${col.is_special ? '<br/>(พิเศษ)' : ''}`;
 
@@ -4219,10 +4250,10 @@ const reportController = {
           .border-t { border-top: 2px solid #4b5563; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปค่าแรงเรียงไม้ แยกรายคน (ไม้แห้ง)</h2>
-            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
-            <p style="margin:0;">รหัสสโตร์: ${store_code || '104/00 - 104/99'}</p>
+            <p style="margin:0;">ตั้งแต่วันที่ ${esc(start_date)} ถึง ${esc(end_date)}</p>
+            <p style="margin:0;">รหัสสโตร์: ${esc(store_code || '104/00 - 104/99')}</p>
           </div>
           <table><thead>${theadHtml}</thead><tbody>${tbodyHtml}</tbody></table>
           <div style="margin-top:50px; width:100%; display:flex; justify-content:space-between; text-align:center; padding:0 50px;">
@@ -4234,11 +4265,7 @@ const reportController = {
       `;
 
       // ใช้ Global Browser เพื่อความรวดเร็วและป้องกันแรมเต็ม[cite: 12]
-      const browser = await getBrowser(); 
-      const page = await browser.newPage();
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ format: 'Legal', landscape: true, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
-      await page.close();
+      const pdfBuffer = await renderPdf(htmlContent, { format: 'Legal', landscape: true, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="dry_wood_perf.pdf"');

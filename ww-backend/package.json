@@ -24,7 +24,7 @@
     "node-cron": "^4.6.0",
     "pg": "^8.23.0",
     "pg-format": "^1.0.4",
-    "puppeteer": "19.11.1",
+    "puppeteer": "^25.14.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
