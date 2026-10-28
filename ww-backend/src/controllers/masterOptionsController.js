@@ -37,6 +37,33 @@ const masterOptionsController = {
       console.error('Fetch Master Options Error:', error);
       res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงข้อมูลตัวเลือก' });
     }
+  },
+
+  // 1. เพิ่มฟังก์ชันดึงกลุ่มผู้ใช้งาน (Groups)
+  getGroups: async (req, res) => {
+    try {
+      // อ้างอิงจากโครงสร้างตาราง user_groups[cite: 1]
+      const query = `SELECT id, group_name FROM public.user_groups ORDER BY id ASC`;
+      const { rows } = await pool.query(query);
+      res.json({ success: true, data: rows });
+    } catch (error) {
+      console.error('Fetch Groups Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงข้อมูลกลุ่มผู้ใช้งาน' });
+    }
+  },
+
+  // 2. เพิ่มฟังก์ชันดึงแผนก (Departments)
+  getDepartments: async (req, res) => {
+    try {
+      // อ้างอิงจากโครงสร้าง FK fk_users_dept ที่ชี้ไปที่ตาราง departments[cite: 1]
+      // สมมติว่ามีคอลัมน์ id และ dept_name
+      const query = `SELECT id, dept_name FROM public.departments ORDER BY dept_name ASC`;
+      const { rows } = await pool.query(query);
+      res.json({ success: true, data: rows });
+    } catch (error) {
+      console.error('Fetch Departments Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงข้อมูลแผนก' });
+    }
   }
 };
 

@@ -23,6 +23,8 @@ const checkPermission = (menuLink, action) => {
                 JOIN public.menus m ON gp.menu_id = m.id
                 WHERE gp.group_id = $1 AND m.link = $2
             `, [groupId, menuLink]);
+            
+            // console.log(groupId,menuLink);
 
             const perm = permRes.rows[0];
             if (!perm) return res.status(403).json({ success: false, message: 'คุณไม่มีสิทธิ์เข้าถึงเมนูนี้' });

@@ -12,7 +12,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql
       # 👇 เพิ่มบรรทัดนี้กลับมา เพื่อให้ระบบดึงไฟล์ .sql ไปรันอัตโนมัติในครั้งแรก
-      - ./database-init:/docker-entrypoint-initdb.d
+      # - ./database-init:/docker-entrypoint-initdb.d
   # ตู้ Web UI สำหรับจัดการฐานข้อมูล (pgAdmin 4)
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -27,7 +27,7 @@ services:
 
   # 2. Backend (Node.js + Express)
   backend:
-    image: pasakorndev/my-backend:v1.0.0
+    image: pasakorndev/my-backend:v1.0.1
     restart: always
     env_file:
       - .env  # ใช้งานไฟล์ .env ความลับไฟล์เดียวกับ Database
@@ -36,7 +36,7 @@ services:
 
   # 3. Frontend (React + Vite)
   frontend:
-    image: pasakorndev/my-frontend:v1.0.0
+    image: pasakorndev/my-frontend:v1.0.1
     restart: always
 
   # 4. Nginx (Gateway / Reverse Proxy หน้าสุด)
