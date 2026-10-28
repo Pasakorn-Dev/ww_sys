@@ -124,8 +124,7 @@ const transactionController = {
   // ─── ดึงประวัติการประมวลผล ───
   getRecalLogs: async (req, res) => {
     try {
-      const { branch_id } = req.query;
-      const logs = await TransactionModel.getRecalLogs(branch_id);
+      const logs = await TransactionModel.getRecalLogs(req.scope.branchId);
       res.json({ success: true, data: logs });
     } catch (error) {
       console.error('Get Recal Logs Error:', error);

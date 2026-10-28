@@ -1,13 +1,27 @@
-// src/routes/authRoutes.js
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const authController = require('../controllers/authController');
 const verifyToken = require('../middlewares/authMiddleware');
+const { requireAdmin } = require('../middlewares/roleMiddleware');
 const checkPermission = require('../middlewares/permissionMiddleware');
 
-// Route เดิม
-router.post('/register', authController.register);
-router.post('/login', authController.login);
+// จำกัดการเดารหัสผ่าน: 10 ครั้ง / 15 นาที / IP (นับเฉพาะครั้งที่ล้มเหลว)
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 10,
+    skipSuccessfulRequests: true,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { success: false, message: 'พยายามเข้าสู่ระบบหลายครั้งเกินไป กรุณารอ 15 นาที' },
+});
+
+router.post('/login', loginLimiter, authController.login);
+router.post('/logout', authController.logout);
+router.get('/me', verifyToken, authController.me);
+
+// ⚠️ เดิมเป็น public (ใครก็สร้าง user/admin ได้) → ตอนนี้เฉพาะ Admin ที่ล็อกอินแล้ว
+router.post('/register', verifyToken, requireAdmin, authController.register);
 
 // Route ใหม่ สำหรับ Admin จัดการ User (ต้องล็อกอินและมีสิทธิ์ 'add' ในหน้าจัดการผู้ใช้)
 router.post(

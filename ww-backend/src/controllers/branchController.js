@@ -103,6 +103,7 @@ const branchController = {
                     accessLevel = Number(permRes.rows[0].access_level || 3);
                 }
             }
+            // console.log(groupId);
             // console.log(menuLink);
             // 4. เรียกใช้งาน Model
             const branches = await BranchModel.getAllowedBranches(userId, primaryBranchId, accessLevel);

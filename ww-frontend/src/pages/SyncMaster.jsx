@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
+import escapeHtml from '../utils/escapeHtml';
+import { getUser } from '../utils/session';
 
 export default function SyncMaster() {
   const [status, setStatus] = useState('idle');
@@ -32,9 +34,8 @@ export default function SyncMaster() {
 
   // ─── โหลดข้อมูลเริ่มต้น ───
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      const user = JSON.parse(storedUser);
+    const user = getUser();
+    if (user) {
       setCurrentUser(user);
       setIsAdmin(user.group_id === 1);
     }
@@ -73,7 +74,7 @@ export default function SyncMaster() {
 
     const confirm = await Swal.fire({
       title: 'ต้องการอัปเดตข้อมูลใช่หรือไม่?',
-      html: `ระบบจะดึงข้อมูลล่าสุดของ <b class="text-blue-600">${branchName}</b> มาไว้ในเครื่อง`,
+      html: `ระบบจะดึงข้อมูลล่าสุดของ <b class="text-blue-600">${escapeHtml(branchName)}</b> มาไว้ในเครื่อง`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#3b82f6',

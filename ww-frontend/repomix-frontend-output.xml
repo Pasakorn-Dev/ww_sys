@@ -81,6 +81,7 @@ src/
   services/
     apiFetch.js
   utils/
+    escapeHtml.js
     session.js
     theme.js
   App.css
@@ -373,11 +374,11 @@ export default function BranchPriceModal({ product, isOpen, onClose, onSaved }) 
 
 <file path="src/components/Layout.jsx">
 // src/components/Layout.jsx
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
 import apiFetch from '../services/apiFetch';
 import Swal from 'sweetalert2';
-import { clearSession } from '../utils/session';
+import { clearSession, getUser, setUser as saveUser } from '../utils/session';
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -385,6 +386,7 @@ export default function Layout() {
 
   // ─── State ────────────────────────────────────────────────
   const [user, setUser] = useState(null);
+  const verifiedRef = useRef(false); // ยืนยัน session กับเซิร์ฟเวอร์ครั้งเดียวต่อการเปิดหน้า
   const [menus, setMenus] = useState([]);
   const [expandedMenu, setExpandedMenu] = useState(null);
   
@@ -406,30 +408,31 @@ export default function Layout() {
 
   const toggleTheme = () => setTheme(theme === 'light' ? 'dark' : 'light');
 
-  // ─── Effect: ตรวจสอบ token + โหลดเมนู ─────────────────────
+  // ─── Effect: ตรวจสอบ session (cookie) + โหลดเมนู ─────────────────────
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-
-    if (!token || !storedUser || storedUser === 'undefined' || storedUser === 'null') {
-      clearSession();
-      navigate('/login', { replace: true });
-      return;
-    }
-
-    try {
-      setUser(JSON.parse(storedUser));
-    } catch (error) {
-      console.error('Invalid user session', error);
-      clearSession();
-      navigate('/login', { replace: true });
-      return;
-    }
+    // แสดงข้อมูลที่ cache ไว้ก่อนเพื่อไม่ให้หน้ากะพริบ แล้วยืนยันกับเซิร์ฟเวอร์ด้านล่าง
+    const cached = getUser();
+    if (cached) setUser(cached);
 
     let isMounted = true;
 
     (async () => {
       try {
+        // 1) ยืนยันตัวตนกับเซิร์ฟเวอร์ (อ่านจาก httpOnly cookie) — เป็นแหล่งข้อมูลจริงของ user
+        if (!verifiedRef.current) {
+          const me = await apiFetch('/auth/me');
+          if (!isMounted) return;
+          if (!me?.success) {
+            clearSession();
+            navigate('/login', { replace: true });
+            return;
+          }
+          verifiedRef.current = true;
+          setUser(me.data);
+          saveUser(me.data);
+        }
+
+        // 2) โหลดเมนูตามสิทธิ์
         const data = await apiFetch('/menus');
         if (!isMounted) return;
 
@@ -478,7 +481,10 @@ export default function Layout() {
   }, [navigate, location.pathname]);
 
   // ─── Handler: Logout ──────────────────────────────────────
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await apiFetch('/auth/logout', { method: 'POST' }); // ให้เซิร์ฟเวอร์ล้าง httpOnly cookie
+    } catch { /* ออกจากระบบฝั่ง client ต่อให้เรียกไม่สำเร็จ */ }
     clearSession();
     navigate('/login', { replace: true });
   };
@@ -688,34 +694,8 @@ export default function Layout() {
 
 <file path="src/config/api.js">
 // src/config/api.js
-
-// 1. อ่านค่า Base URL จาก .env (ถ้าไม่มีจะ Fallback ไปที่ localhost:5000/api)
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-
-/**
- * 2. ฟังก์ชันตัวช่วยยิง API (Fetch Wrapper)
- * ช่วยต่อ URL อัตโนมัติ และใส่ Header Authorization: Bearer <token> ให้อัตโนมัติ
- */
-export const apiFetch = async (endpoint, options = {}) => {
-  const token = localStorage.getItem('token');
-
-  // รวม Headers เริ่มต้นเข้ากับ Headers ที่ส่งเข้ามา
-  const headers = {
-    'Content-Type': 'application/json',
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-    ...options.headers,
-  };
-
-  // ตัด slash ข้างหน้าออกเพื่อความถูกต้อง (เช่น /menus หรือ menus ก็ทำงานได้)
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-
-  const response = await fetch(`${API_URL}${cleanEndpoint}`, {
-    ...options,
-    headers,
-  });
-
-  return response;
-};
+// คงไว้เพื่อ backward-compatible — ใช้ตัวเดียวกับ services/apiFetch (ไม่เก็บ token แล้ว)
+export { API_URL, default as apiFetch } from '../services/apiFetch';
 </file>
 
 <file path="src/hooks/useMasterOptions.js">
@@ -765,11 +745,17 @@ export default function useMasterOptions(branchId) {
 </file>
 
 <file path="src/pages/AddUser.jsx">
+// src/pages/AddUser.jsx
 import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
+import { getSessionUser } from '../utils/session';
 
 export default function Users() {
+  // ─── State: ข้อมูลผู้ใช้ปัจจุบันและสิทธิ์ ───
+  const [currentUser, setCurrentUser] = useState(null);
+  const [accessLevel, setAccessLevel] = useState(3);
+
   // ─── State สำหรับจัดการตารางและการค้นหา ───
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -797,39 +783,103 @@ export default function Users() {
   };
   const [formData, setFormData] = useState(initialFormState);
 
+  // ─── Helper: ตั้งค่าสี SweetAlert2 ให้รองรับ Dark Mode (เหมือน WoodPriceManager) ───
+  const getSwalTheme = () => ({
+    background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#ffffff',
+    color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#111827'
+  });
+
   // ─── 1. โหลดข้อมูลเมื่อเปิดหน้าจอ ───
   useEffect(() => {
-    fetchMasterData();
-    fetchUsers();
+    let isMounted = true;
+
+    const user = getSessionUser();
+    if (user) {
+      setCurrentUser(user);
+    }
+
+    const initPageData = async () => {
+      setIsFetchingUsers(true);
+      try {
+        const currentPath = window.location.pathname;
+
+        // ดึงข้อมูลตัวเลือกและรายการผู้ใช้งานพร้อมกัน
+        const [branchRes, groupRes, deptRes, usersRes] = await Promise.all([
+          apiFetch(`/branches/allowed?menu=${currentPath}`),
+          apiFetch('/master-options/groups'),
+          apiFetch('/master-options/departments'),
+          apiFetch(`/auth/manage/users?menu=${currentPath}`)
+        ]);
+
+        if (!isMounted) return;
+
+        if (branchRes?.success) {
+          setBranches(branchRes.data || []);
+          setAccessLevel(branchRes.access_level || 3);
+        }
+        if (groupRes?.success) setGroups(groupRes.data || []);
+        if (deptRes?.success) setDepartments(deptRes.data || []);
+
+        if (usersRes?.success) {
+          setUsers(usersRes.data || []);
+        } else {
+          Swal.fire({
+            icon: 'warning',
+            title: 'ถูกปฏิเสธ',
+            text: usersRes?.message || 'ไม่สามารถดึงข้อมูลผู้ใช้งานได้',
+            confirmButtonColor: '#3b82f6',
+            ...getSwalTheme()
+          });
+          setUsers([]);
+        }
+      } catch (error) {
+        console.error('Error initializing users page:', error);
+        if (isMounted) {
+          Swal.fire({
+            icon: 'error',
+            title: 'ข้อผิดพลาด',
+            text: 'ไม่สามารถดึงข้อมูลผู้ใช้งานได้',
+            ...getSwalTheme()
+          });
+        }
+      } finally {
+        if (isMounted) setIsFetchingUsers(false);
+      }
+    };
+
+    initPageData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const fetchMasterData = async () => {
-    try {
-      const currentPath = window.location.pathname;
-      const [branchRes, groupRes, deptRes] = await Promise.all([
-        apiFetch(`/branches/allowed?menu=${currentPath}`),
-        apiFetch('/master-options/groups'), 
-        apiFetch('/master-options/departments')
-      ]);
-      if (branchRes?.success) setBranches(branchRes.data);
-      if (groupRes?.success) setGroups(groupRes.data);
-      if (deptRes?.success) setDepartments(deptRes.data);
-    } catch (error) {
-      console.error('Error fetching master data:', error);
-    }
-  };
-
+  // ฟังก์ชันโหลดตารางผู้ใช้งานใหม่ (หลังเพิ่ม/แก้ไข/ลบ)
   const fetchUsers = async () => {
     setIsFetchingUsers(true);
     try {
-      // 💡 ต้องมี API GET /auth/manage/users ที่ Backend
       const currentPath = window.location.pathname;
-
       const res = await apiFetch(`/auth/manage/users?menu=${currentPath}`);
-      if (res?.success) setUsers(res.data);
+      if (res?.success) {
+        setUsers(res.data || []);
+      } else {
+        Swal.fire({
+          icon: 'warning',
+          title: 'ถูกปฏิเสธ',
+          text: res?.message || 'ไม่สามารถดึงข้อมูลผู้ใช้งานได้',
+          confirmButtonColor: '#3b82f6',
+          ...getSwalTheme()
+        });
+        setUsers([]);
+      }
     } catch (error) {
       console.error('Error fetching users:', error);
-      Swal.fire('ข้อผิดพลาด', 'ไม่สามารถดึงข้อมูลผู้ใช้งานได้', 'error');
+      Swal.fire({
+        icon: 'error',
+        title: 'ข้อผิดพลาด',
+        text: 'ไม่สามารถดึงข้อมูลผู้ใช้งานได้',
+        ...getSwalTheme()
+      });
     } finally {
       setIsFetchingUsers(false);
     }
@@ -845,24 +895,38 @@ export default function Users() {
   const openEditModal = async (userId) => {
     setEditingId(userId);
     setIsModalOpen(true);
-    
-    // ดึงข้อมูลผู้ใช้รายคนมาแปะในฟอร์ม
+
     try {
       const res = await apiFetch(`/auth/manage/user/${userId}`);
-      if (res?.success) {
+      if (res?.success && res?.data) {
         const u = res.data;
         setFormData({
-          username: u.username,
-          password: '', // ว่างไว้เสมอเพื่อความปลอดภัย
-          fullname: u.fullname,
+          username: u.username || '',
+          password: '', // เว้นว่างไว้เสมอเพื่อความปลอดภัย
+          fullname: u.fullname || '',
           group_id: u.group_id || '',
           branch_id: u.branch_id || '',
           dept_id: u.dept_id || '',
-          allowed_branches: u.allowed_branches || []
+          allowed_branches: Array.isArray(u.allowed_branches)
+            ? u.allowed_branches.map(Number)
+            : []
         });
+      } else {
+        Swal.fire({
+          icon: 'warning',
+          title: 'ไม่สามารถเปิดข้อมูลได้',
+          text: res?.message || 'ไม่พบข้อมูลผู้ใช้งาน',
+          ...getSwalTheme()
+        });
+        setIsModalOpen(false);
       }
     } catch (error) {
-      Swal.fire('ข้อผิดพลาด', 'ดึงข้อมูลผู้ใช้ล้มเหลว', 'error');
+      Swal.fire({
+        icon: 'error',
+        title: 'ข้อผิดพลาด',
+        text: 'ดึงข้อมูลผู้ใช้ล้มเหลว',
+        ...getSwalTheme()
+      });
       setIsModalOpen(false);
     }
   };
@@ -874,19 +938,57 @@ export default function Users() {
   };
 
   // ─── 3. Handlers ฟอร์มและการบันทึก ───
+  const handlePrimaryBranchChange = (e) => {
+    const newBranchId = e.target.value;
+    const numericBranchId = parseInt(newBranchId, 10);
+
+    setFormData((prev) => ({
+      ...prev,
+      branch_id: newBranchId,
+      // ลบสาขาหลักออกจากสาขาเพิ่มเติมอัตโนมัติ ป้องกันการบันทึกซ้ำซ้อน
+      allowed_branches: prev.allowed_branches.filter((id) => id !== numericBranchId)
+    }));
+  };
+
   const handleCheckboxChange = (e) => {
-    const value = parseInt(e.target.value);
-    setFormData(prev => {
+    const value = parseInt(e.target.value, 10);
+    setFormData((prev) => {
       const isChecked = e.target.checked;
-      const newAllowed = isChecked 
+      const newAllowed = isChecked
         ? [...prev.allowed_branches, value]
-        : prev.allowed_branches.filter(id => id !== value);
+        : prev.allowed_branches.filter((id) => id !== value);
       return { ...prev, allowed_branches: newAllowed };
     });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const cleanUsername = formData.username.trim();
+    const cleanFullname = formData.fullname.trim();
+    const cleanPassword = formData.password.trim();
+
+    if (!cleanUsername || !cleanFullname) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ข้อมูลไม่ครบถ้วน',
+        text: 'กรุณากรอก Username และ ชื่อ-นามสกุล ให้ครบถ้วน',
+        ...getSwalTheme()
+      });
+      return;
+    }
+
+    // ตรวจสอบความยาวรหัสผ่านขั้นต่ำ (กรณีเพิ่มผู้ใช้ใหม่ หรือกรณีกรอกรหัสผ่านใหม่ตอนแก้ไข)
+    if ((!editingId && cleanPassword.length < 6) || (editingId && cleanPassword !== '' && cleanPassword.length < 6)) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'รหัสผ่านสั้นเกินไป',
+        text: 'กรุณาตั้งรหัสผ่านอย่างน้อย 6 ตัวอักษรเพื่อความปลอดภัย',
+        ...getSwalTheme()
+      });
+      return;
+    }
+
     setLoading(true);
 
     const isEditMode = editingId !== null;
@@ -894,32 +996,63 @@ export default function Users() {
     const method = isEditMode ? 'PUT' : 'POST';
 
     try {
+      const primaryBranchId = parseInt(formData.branch_id, 10);
       const res = await apiFetch(url, {
         method,
         body: JSON.stringify({
-            ...formData,
-            group_id: parseInt(formData.group_id),
-            branch_id: parseInt(formData.branch_id),
-            dept_id: formData.dept_id ? parseInt(formData.dept_id) : null
+          username: cleanUsername,
+          password: cleanPassword,
+          fullname: cleanFullname,
+          group_id: parseInt(formData.group_id, 10),
+          branch_id: primaryBranchId,
+          dept_id: formData.dept_id ? parseInt(formData.dept_id, 10) : null,
+          allowed_branches: formData.allowed_branches.filter((id) => id !== primaryBranchId)
         })
       });
 
       if (res?.success) {
-        Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'บันทึกข้อมูลเรียบร้อย', timer: 1500, showConfirmButton: false });
+        Swal.fire({
+          icon: 'success',
+          title: 'สำเร็จ',
+          text: 'บันทึกข้อมูลเรียบร้อย',
+          timer: 1500,
+          showConfirmButton: false,
+          ...getSwalTheme()
+        });
         closeModal();
-        fetchUsers(); // โหลดตารางใหม่
+        fetchUsers();
       } else {
-        Swal.fire('ผิดพลาด', res?.message || 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+        Swal.fire({
+          icon: 'error',
+          title: 'ผิดพลาด',
+          text: res?.message || 'ไม่สามารถบันทึกข้อมูลได้',
+          ...getSwalTheme()
+        });
       }
     } catch (error) {
-      Swal.fire('ผิดพลาด', 'ระบบขัดข้อง โปรดลองใหม่', 'error');
+      Swal.fire({
+        icon: 'error',
+        title: 'ระบบขัดข้อง',
+        text: 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ โปรดลองใหม่',
+        ...getSwalTheme()
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  // ─── 4. ระบบลบผู้ใช้งาน ───
+  // ─── 4. ระบบลบผู้ใช้งาน (พร้อมระบบป้องกันการลบบัญชีตัวเอง) ───
   const handleDelete = (userId, fullname) => {
+    if (currentUser && Number(currentUser.id) === Number(userId)) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ไม่สามารถลบได้',
+        text: 'คุณไม่สามารถลบบัญชีของตัวเองที่กำลังใช้งานอยู่ได้',
+        ...getSwalTheme()
+      });
+      return;
+    }
+
     Swal.fire({
       title: 'ยืนยันการลบ?',
       text: `คุณต้องการลบผู้ใช้ "${fullname}" ใช่หรือไม่?`,
@@ -928,42 +1061,63 @@ export default function Users() {
       confirmButtonColor: '#d33',
       cancelButtonColor: '#3085d6',
       confirmButtonText: 'ใช่, ลบเลย!',
-      cancelButtonText: 'ยกเลิก'
+      cancelButtonText: 'ยกเลิก',
+      ...getSwalTheme()
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          // 💡 ต้องมี API DELETE /auth/manage/delete/:id ที่ Backend
           const res = await apiFetch(`/auth/manage/delete/${userId}`, { method: 'DELETE' });
           if (res?.success) {
-            Swal.fire('ลบแล้ว!', 'ผู้ใช้งานถูกลบออกจากระบบ', 'success');
+            Swal.fire({
+              icon: 'success',
+              title: 'ลบแล้ว!',
+              text: 'ผู้ใช้งานถูกลบออกจากระบบ',
+              timer: 1500,
+              showConfirmButton: false,
+              ...getSwalTheme()
+            });
             fetchUsers();
           } else {
-            Swal.fire('ล้มเหลว', res?.message || 'ไม่สามารถลบผู้ใช้นี้ได้', 'error');
+            Swal.fire({
+              icon: 'error',
+              title: 'ล้มเหลว',
+              text: res?.message || 'ไม่สามารถลบผู้ใช้นี้ได้',
+              ...getSwalTheme()
+            });
           }
         } catch (error) {
-          Swal.fire('ข้อผิดพลาด', 'ระบบขัดข้อง', 'error');
+          Swal.fire({
+            icon: 'error',
+            title: 'ข้อผิดพลาด',
+            text: 'ระบบขัดข้อง',
+            ...getSwalTheme()
+          });
         }
       }
     });
   };
 
-  // ─── ค้นหาข้อมูลแบบ Real-time ───
-  const filteredUsers = users.filter(user => 
-    user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.fullname.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // ─── ค้นหาข้อมูลแบบ Real-time (ป้องกันค่า null/undefined) ───
+  const filteredUsers = users.filter((user) => {
+    const q = searchQuery.toLowerCase();
+    const uname = (user.username || '').toLowerCase();
+    const fname = (user.fullname || '').toLowerCase();
+    return uname.includes(q) || fname.includes(q);
+  });
 
   return (
-    <div className="p-4 md:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+    <div className="p-4 md:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-300">
       <div className="max-w-7xl mx-auto">
         
         {/* Header & Controls */}
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6 flex flex-col md:flex-row justify-between items-center gap-4 transition-colors duration-300">
           <div>
             <h2 className="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-              <i className="fas fa-users text-blue-600"></i> จัดการผู้ใช้งาน
+              <i className="fas fa-users text-blue-600 dark:text-blue-400"></i> จัดการผู้ใช้งาน
             </h2>
-            <p className="text-sm text-gray-500 mt-1">ค้นหา เพิ่ม แก้ไข หรือลบผู้ใช้งานในระบบ</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              ค้นหา เพิ่ม แก้ไข หรือลบผู้ใช้งานในระบบ
+            </p>
           </div>
           
           <div className="flex w-full md:w-auto items-center gap-3">
@@ -976,7 +1130,7 @@ export default function Users() {
                 placeholder="ค้นหาชื่อ หรือ Username..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white text-sm transition-colors"
               />
             </div>
             <button 
@@ -989,7 +1143,7 @@ export default function Users() {
         </div>
 
         {/* Table */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden transition-colors duration-300">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead className="bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400 text-sm border-b dark:border-gray-700">
@@ -1001,34 +1155,61 @@ export default function Users() {
                   <th className="p-4 font-semibold text-center">จัดการ</th>
                 </tr>
               </thead>
-              <tbody className="text-sm divide-y dark:divide-gray-700">
+              <tbody className="text-sm divide-y divide-gray-200 dark:divide-gray-700">
                 {isFetchingUsers ? (
-                  <tr><td colSpan="5" className="p-8 text-center text-gray-500"><i className="fas fa-spinner fa-spin mr-2"></i> กำลังโหลด...</td></tr>
+                  <tr>
+                    <td colSpan="5" className="p-8 text-center text-gray-500 dark:text-gray-400">
+                      <i className="fas fa-spinner fa-spin mr-2 text-blue-600"></i> กำลังโหลด...
+                    </td>
+                  </tr>
                 ) : filteredUsers.length === 0 ? (
-                  <tr><td colSpan="5" className="p-8 text-center text-gray-500">ไม่พบข้อมูลผู้ใช้งาน</td></tr>
+                  <tr>
+                    <td colSpan="5" className="p-8 text-center text-gray-500 dark:text-gray-400">
+                      ไม่พบข้อมูลผู้ใช้งาน
+                    </td>
+                  </tr>
                 ) : (
-                  filteredUsers.map((u) => (
-                    <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
-                      <td className="p-4 font-medium text-gray-800 dark:text-gray-200">{u.username}</td>
-                      <td className="p-4 text-gray-600 dark:text-gray-300">{u.fullname}</td>
-                      <td className="p-4 text-gray-600 dark:text-gray-300">
-                        <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">
-                          {u.group_name || 'ไม่มี'}
-                        </span>
-                      </td>
-                      <td className="p-4 text-gray-600 dark:text-gray-300">{u.branch_name || '-'}</td>
-                      <td className="p-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => openEditModal(u.id)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="แก้ไข">
-                            <i className="fas fa-edit"></i>
-                          </button>
-                          <button onClick={() => handleDelete(u.id, u.fullname)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition" title="ลบ">
-                            <i className="fas fa-trash-alt"></i>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                  filteredUsers.map((u) => {
+                    const isSelf = currentUser && Number(currentUser.id) === Number(u.id);
+                    return (
+                      <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                        <td className="p-4 font-medium text-gray-800 dark:text-gray-200">
+                          {u.username}
+                          {isSelf && (
+                            <span className="ml-2 text-xs bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 px-2 py-0.5 rounded-full">
+                              คุณ
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-4 text-gray-600 dark:text-gray-300">{u.fullname}</td>
+                        <td className="p-4 text-gray-600 dark:text-gray-300">
+                          <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">
+                            {u.group_name || 'ไม่มี'}
+                          </span>
+                        </td>
+                        <td className="p-4 text-gray-600 dark:text-gray-300">{u.branch_name || '-'}</td>
+                        <td className="p-4 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => openEditModal(u.id)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition"
+                              title="แก้ไข"
+                            >
+                              <i className="fas fa-edit"></i>
+                            </button>
+                            <button
+                              onClick={() => handleDelete(u.id, u.fullname)}
+                              disabled={isSelf}
+                              className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition disabled:opacity-30 disabled:cursor-not-allowed"
+                              title={isSelf ? 'ไม่สามารถลบบัญชีที่กำลังใช้งานอยู่ได้' : 'ลบ'}
+                            >
+                              <i className="fas fa-trash-alt"></i>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -1056,11 +1237,16 @@ export default function Users() {
               <form id="userForm" onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Username <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      Username <span className="text-red-500">*</span>
+                    </label>
                     <input 
-                      type="text" required value={formData.username}
+                      type="text"
+                      required
+                      autoComplete="off"
+                      value={formData.username}
                       className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2.5 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-blue-500"
-                      onChange={e => setFormData({...formData, username: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                     />
                   </div>
                   <div>
@@ -1068,67 +1254,117 @@ export default function Users() {
                       Password {editingId ? <span className="text-xs text-gray-400 font-normal">(เว้นว่างหากไม่เปลี่ยน)</span> : <span className="text-red-500">*</span>}
                     </label>
                     <input 
-                      type="password" required={!editingId} value={formData.password} placeholder={editingId ? 'กรอกเมื่อต้องการเปลี่ยน...' : ''}
+                      type="password"
+                      required={!editingId}
+                      autoComplete="new-password"
+                      value={formData.password}
+                      placeholder={editingId ? 'กรอกเมื่อต้องการเปลี่ยน (อย่างน้อย 6 ตัวอักษร)...' : 'อย่างน้อย 6 ตัวอักษร'}
                       className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2.5 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-blue-500"
-                      onChange={e => setFormData({...formData, password: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">ชื่อ-นามสกุล <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      ชื่อ-นามสกุล <span className="text-red-500">*</span>
+                    </label>
                     <input 
-                      type="text" required value={formData.fullname}
+                      type="text"
+                      required
+                      value={formData.fullname}
                       className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2.5 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-blue-500"
-                      onChange={e => setFormData({...formData, fullname: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, fullname: e.target.value })}
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5 border-t border-gray-200 dark:border-gray-700 pt-6">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">กลุ่มสิทธิ์ (Role) <span className="text-red-500">*</span></label>
-                    <select required value={formData.group_id} onChange={e => setFormData({...formData, group_id: e.target.value})} className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2.5 bg-gray-50 dark:bg-gray-700 outline-none focus:ring-2 focus:ring-blue-500">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      กลุ่มสิทธิ์ (Role) <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      required
+                      value={formData.group_id}
+                      onChange={(e) => setFormData({ ...formData, group_id: e.target.value })}
+                      className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2.5 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-blue-500"
+                    >
                       <option value="">เลือกกลุ่ม...</option>
-                      {groups.map(g => <option key={g.id} value={g.id}>{g.group_name || g.name}</option>)}
+                      {groups.map((g) => (
+                        <option key={g.id} value={g.id}>{g.group_name || g.name}</option>
+                      ))}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">แผนก</label>
-                    <select value={formData.dept_id} onChange={e => setFormData({...formData, dept_id: e.target.value})} className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2.5 bg-gray-50 dark:bg-gray-700 outline-none focus:ring-2 focus:ring-blue-500">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      แผนก
+                    </label>
+                    <select
+                      value={formData.dept_id}
+                      onChange={(e) => setFormData({ ...formData, dept_id: e.target.value })}
+                      className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2.5 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-blue-500"
+                    >
                       <option value="">-- ไม่ระบุ --</option>
-                      {departments.map(d => <option key={d.id} value={d.id}>{d.dept_name || d.name}</option>)}
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.id}>{d.dept_name || d.name}</option>
+                      ))}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">สาขาหลัก <span className="text-red-500">*</span></label>
-                    <select required value={formData.branch_id} onChange={e => setFormData({...formData, branch_id: e.target.value})} className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2.5 bg-gray-50 dark:bg-gray-700 outline-none focus:ring-2 focus:ring-blue-500">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      สาขาหลัก <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      required
+                      value={formData.branch_id}
+                      onChange={handlePrimaryBranchChange}
+                      className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2.5 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-blue-500"
+                    >
                       <option value="">เลือกสาขาหลัก...</option>
-                      {branches.filter(b => b.id !== 0).map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
+                      {branches.filter((b) => b.id !== 0).map((b) => (
+                        <option key={b.id} value={b.id}>{b.branch_name}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
 
                 <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-5 rounded-lg">
-                  <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-3">สาขาเพิ่มเติมที่เข้าถึงได้ (สิทธิ์ระดับ 2)</label>
+                  <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-3">
+                    สาขาเพิ่มเติมที่เข้าถึงได้ (สิทธิ์ระดับ 2)
+                  </label>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {branches.filter(b => b.id !== 0 && b.id !== parseInt(formData.branch_id)).map(b => (
-                      <label key={b.id} className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                        <input 
-                          type="checkbox" value={b.id} checked={formData.allowed_branches.includes(b.id)} onChange={handleCheckboxChange}
-                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span>{b.branch_name}</span>
-                      </label>
-                    ))}
+                    {branches
+                      .filter((b) => b.id !== 0 && b.id !== parseInt(formData.branch_id, 10))
+                      .map((b) => (
+                        <label key={b.id} className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                          <input 
+                            type="checkbox"
+                            value={b.id}
+                            checked={formData.allowed_branches.includes(b.id)}
+                            onChange={handleCheckboxChange}
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>{b.branch_name}</span>
+                        </label>
+                      ))}
                   </div>
                 </div>
               </form>
             </div>
 
             <div className="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex justify-end gap-3">
-              <button onClick={closeModal} type="button" className="px-5 py-2.5 rounded-lg font-semibold bg-gray-200 text-gray-800 hover:bg-gray-300 transition">
+              <button
+                onClick={closeModal}
+                type="button"
+                className="px-5 py-2.5 rounded-lg font-semibold bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+              >
                 ยกเลิก
               </button>
-              <button form="userForm" type="submit" disabled={loading} className="px-6 py-2.5 rounded-lg font-semibold bg-blue-600 text-white hover:bg-blue-700 transition flex items-center gap-2">
+              <button
+                form="userForm"
+                type="submit"
+                disabled={loading}
+                className="px-6 py-2.5 rounded-lg font-semibold bg-blue-600 text-white hover:bg-blue-700 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-save"></i>}
                 {loading ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
               </button>
@@ -1145,7 +1381,7 @@ export default function Users() {
 <file path="src/pages/AveragePriceReport.jsx">
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import apiFetch from '../services/apiFetch';
+import apiFetch, { API_URL } from '../services/apiFetch';
 import useMasterOptions from '../hooks/useMasterOptions';
 
 import DatePicker from 'react-datepicker';
@@ -1369,11 +1605,10 @@ export default function AveragePriceReport() {
         branch_name: filters.branch_name
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/average-price/pdf?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate PDF');
@@ -1410,11 +1645,10 @@ export default function AveragePriceReport() {
         store_code: filters.store_code
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/average-price/excel?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate Excel');
@@ -1991,6 +2225,7 @@ export default function Branches() {
 import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
+import escapeHtml from '../utils/escapeHtml';
 import useMasterOptions from '../hooks/useMasterOptions';
 
 import DatePicker from 'react-datepicker';
@@ -2130,10 +2365,10 @@ export default function CheckSawWood() {
               <tbody class="${isDarkTheme ? 'text-gray-200' : 'text-gray-800'}">
                 ${items.map(item => `
                   <tr class="border-b ${isDarkTheme ? 'border-gray-700 hover:bg-gray-600/50' : 'hover:bg-gray-50'}">
-                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''}">${item.wood_code || '-'}</td>
-                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''}">${item.grade || '-'}</td>
-                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''} text-right">${item.amount}</td>
-                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''} text-right">${item.volumn}</td>
+                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''}">${escapeHtml(item.wood_code || '-')}</td>
+                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''}">${escapeHtml(item.grade || '-')}</td>
+                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''} text-right">${escapeHtml(item.amount)}</td>
+                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''} text-right">${escapeHtml(item.volumn)}</td>
                     <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''} text-right ${isDarkTheme ? 'text-blue-400' : 'text-blue-600'} font-semibold">${Number(item.net_price).toLocaleString()}</td>
                   </tr>
                 `).join('')}
@@ -2144,7 +2379,7 @@ export default function CheckSawWood() {
 
         Swal.fire({
           ...themeParams,
-          title: `<span class="text-lg">รายละเอียด Barcode: <span class="${isDarkTheme ? 'text-blue-400' : 'text-blue-600'}">${barcode_id}</span></span>`,
+          title: `<span class="text-lg">รายละเอียด Barcode: <span class="${isDarkTheme ? 'text-blue-400' : 'text-blue-600'}">${escapeHtml(barcode_id)}</span></span>`,
           html: htmlTable,
           width: '800px',
           showCloseButton: true,
@@ -2436,7 +2671,7 @@ export default function CheckSawWood() {
 <file path="src/pages/DailyProductionReport.jsx">
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import apiFetch from '../services/apiFetch';
+import apiFetch, { API_URL } from '../services/apiFetch';
 
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -2654,11 +2889,10 @@ export default function DailyProductionReport() {
         branch_name: filters.branch_name
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/daily-production/pdf?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate PDF');
@@ -2700,11 +2934,10 @@ export default function DailyProductionReport() {
         branch_id: filters.branch_id
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/daily-production/excel?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate Excel');
@@ -3264,7 +3497,7 @@ export default function Dashboard() {
 <file path="src/pages/DryWoodCoverReport.jsx">
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import apiFetch from '../services/apiFetch';
+import apiFetch, { API_URL } from '../services/apiFetch';
 
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -3378,11 +3611,10 @@ export default function DryWoodCoverReport() {
         branch_name: filters.branch_name
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/dry-wood-cover/pdf?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate PDF');
@@ -3427,11 +3659,10 @@ export default function DryWoodCoverReport() {
         branch_name: filters.branch_name
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/dry-wood-cover/excel?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate Excel');
@@ -3920,7 +4151,7 @@ export default function DryWoodDataReport() {
 <file path="src/pages/DryWoodPerformanceReport.jsx">
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import apiFetch from '../services/apiFetch';
+import apiFetch, { API_URL } from '../services/apiFetch';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { th } from 'date-fns/locale';
@@ -4151,11 +4382,10 @@ export default function DryWoodPerformanceReport() {
         branch_name: filters.branch_name
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/dry-wood-perf/pdf?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate PDF');
@@ -4198,11 +4428,10 @@ export default function DryWoodPerformanceReport() {
         branch_name: filters.branch_name
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/dry-wood-perf/excel?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate Excel');
@@ -4394,6 +4623,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
+import { setUser } from '../utils/session';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -4403,12 +4633,20 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // ─── Effect: ถ้ามี token อยู่แล้ว → ข้ามไป dashboard ──────
+  // ─── Effect: ถ้ามี session (cookie) ที่ยังใช้ได้อยู่แล้ว → ข้ามไป dashboard ──────
+  // ถามเซิร์ฟเวอร์ผ่าน /auth/me (JavaScript อ่าน cookie โดยตรงไม่ได้)
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      navigate('/dashboard', { replace: true });
-    }
+    let active = true;
+    (async () => {
+      try {
+        const data = await apiFetch('/auth/me');
+        if (active && data?.success) {
+          setUser(data.data);
+          navigate('/dashboard', { replace: true });
+        }
+      } catch { /* ยังไม่ได้ล็อกอิน */ }
+    })();
+    return () => { active = false; };
   }, [navigate]);
 
   // ─── Handler: Submit Login ────────────────────────────────
@@ -4422,9 +4660,9 @@ export default function Login() {
         body: JSON.stringify({ username, password }),
       });
 
-      if (data?.success && data?.token) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.data));
+      if (data?.success) {
+        // token ถูกตั้งเป็น httpOnly cookie โดยเซิร์ฟเวอร์ — เก็บเฉพาะโปรไฟล์สำหรับแสดงผล
+        setUser(data.data);
 
         Swal.fire({
           icon: 'success',
@@ -5096,7 +5334,7 @@ export default function ProductionCoverReport() {
 <file path="src/pages/ProductionThickMilReport.jsx">
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
-import apiFetch from '../services/apiFetch';
+import apiFetch, { API_URL } from '../services/apiFetch';
 import useMasterOptions from '../hooks/useMasterOptions';
 
 import DatePicker from 'react-datepicker';
@@ -5207,11 +5445,10 @@ export default function ProductionThickMilReport() {
         branch_name: filters.branch_name
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/production-thick-mil/pdf?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate PDF');
@@ -5248,11 +5485,10 @@ export default function ProductionThickMilReport() {
         store_code: filters.store_code
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/production-thick-mil/excel?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate Excel');
@@ -5541,6 +5777,7 @@ export default function ProductionThickMilReport() {
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
+import escapeHtml from '../utils/escapeHtml';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { th } from 'date-fns/locale';
@@ -5622,7 +5859,7 @@ export default function RecalculatePrice() {
 
     const confirm = await Swal.fire({
       title: 'เริ่มการคำนวณราคาใหม่?',
-      html: `สาขา <b>${branchName}</b><br/>วันที่ผลิต: <b>${format(parseISO(filters.produce_date), 'dd/MM/yyyy')}</b><br/><br/><span class="text-sm text-gray-500">ระบบจะทำการรันเบื้องหลัง คุณสามารถทำงานอื่นต่อได้ทันที</span>`,
+      html: `สาขา <b>${escapeHtml(branchName)}</b><br/>วันที่ผลิต: <b>${format(parseISO(filters.produce_date), 'dd/MM/yyyy')}</b><br/><br/><span class="text-sm text-gray-500">ระบบจะทำการรันเบื้องหลัง คุณสามารถทำงานอื่นต่อได้ทันที</span>`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'ยืนยัน',
@@ -5756,7 +5993,7 @@ export default function RecalculatePrice() {
 <file path="src/pages/SawerPerformanceByLengthReport.jsx">
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import apiFetch from '../services/apiFetch';
+import apiFetch, { API_URL } from '../services/apiFetch';
 
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -6151,11 +6388,10 @@ export default function SawerPerformanceByLengthReport() {
         branch_name: filters.branch_name
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/sawer-performance-length/pdf?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate PDF');
@@ -6199,11 +6435,10 @@ export default function SawerPerformanceByLengthReport() {
         report_format: filters.report_format
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/sawer-performance-length/excel?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate Excel');
@@ -6339,7 +6574,7 @@ export default function SawerPerformanceByLengthReport() {
 <file path="src/pages/SawerPerformanceReport.jsx">
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import apiFetch from '../services/apiFetch';
+import apiFetch, { API_URL } from '../services/apiFetch';
 
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -6613,11 +6848,10 @@ export default function SawerPerformanceReport() {
         report_format: filters.report_format // 💡 แนบรูปแบบรายงาน
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/sawer-performance/pdf?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate PDF');
@@ -6664,11 +6898,10 @@ export default function SawerPerformanceReport() {
         report_format: filters.report_format // 💡 แนบรูปแบบรายงาน
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/sawer-performance/excel?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate Excel');
@@ -6863,6 +7096,7 @@ export default function SawerPerformanceReport() {
 import { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
+import escapeHtml from '../utils/escapeHtml';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { th } from 'date-fns/locale';
@@ -6931,7 +7165,7 @@ export default function SyncDryWood() {
     const branchName = branches.find(b => Number(b.id) === Number(selectedBranch))?.branch_name;
     const confirm = await Swal.fire({
       title: 'ยืนยันการนำเข้าไม้แห้ง?',
-      html: `ดึงข้อมูลไม้แห้ง <b>${branchName}</b><br/>ตั้งแต่วันที่ <b>${format(parseISO(startDate), 'dd/MM/yyyy')}</b> ถึง <b>${format(parseISO(endDate), 'dd/MM/yyyy')}</b>`,
+      html: `ดึงข้อมูลไม้แห้ง <b>${escapeHtml(branchName)}</b><br/>ตั้งแต่วันที่ <b>${format(parseISO(startDate), 'dd/MM/yyyy')}</b> ถึง <b>${format(parseISO(endDate), 'dd/MM/yyyy')}</b>`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#ea580c',
@@ -7110,6 +7344,8 @@ export default function SyncDryWood() {
 import { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
+import escapeHtml from '../utils/escapeHtml';
+import { getUser } from '../utils/session';
 
 export default function SyncMaster() {
   const [status, setStatus] = useState('idle');
@@ -7141,9 +7377,8 @@ export default function SyncMaster() {
 
   // ─── โหลดข้อมูลเริ่มต้น ───
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      const user = JSON.parse(storedUser);
+    const user = getUser();
+    if (user) {
       setCurrentUser(user);
       setIsAdmin(user.group_id === 1);
     }
@@ -7182,7 +7417,7 @@ export default function SyncMaster() {
 
     const confirm = await Swal.fire({
       title: 'ต้องการอัปเดตข้อมูลใช่หรือไม่?',
-      html: `ระบบจะดึงข้อมูลล่าสุดของ <b class="text-blue-600">${branchName}</b> มาไว้ในเครื่อง`,
+      html: `ระบบจะดึงข้อมูลล่าสุดของ <b class="text-blue-600">${escapeHtml(branchName)}</b> มาไว้ในเครื่อง`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#3b82f6',
@@ -7380,6 +7615,7 @@ export default function SyncMaster() {
 import { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
+import escapeHtml from '../utils/escapeHtml';
 
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -7471,7 +7707,7 @@ export default function SyncSawWood() {
     const confirm = await Swal.fire({
       ...themeParams,
       title: 'ยืนยันการนำเข้าข้อมูล?',
-      html: `ดึงข้อมูลไม้เลื่อยของ <b>${branchName}</b><br/>ตั้งแต่วันที่ <b>${new Date(startDate).toLocaleDateString('th-TH')}</b> ถึง <b>${new Date(endDate).toLocaleDateString('th-TH')}</b>`,
+      html: `ดึงข้อมูลไม้เลื่อยของ <b>${escapeHtml(branchName)}</b><br/>ตั้งแต่วันที่ <b>${new Date(startDate).toLocaleDateString('th-TH')}</b> ถึง <b>${new Date(endDate).toLocaleDateString('th-TH')}</b>`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'ใช่, เริ่มดึงข้อมูล',
@@ -7632,6 +7868,7 @@ export default function SyncSawWood() {
 import { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
+import escapeHtml from '../utils/escapeHtml';
 
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -7723,7 +7960,7 @@ export default function SyncWetWood() {
     const confirm = await Swal.fire({
       ...themeParams,
       title: 'ยืนยันการนำเข้าข้อมูล?',
-      html: `ดึงข้อมูลไม้เปียกของ <b>${branchName}</b><br/>ตั้งแต่วันที่ <b>${new Date(startDate).toLocaleDateString('th-TH')}</b> ถึง <b>${new Date(endDate).toLocaleDateString('th-TH')}</b>`,
+      html: `ดึงข้อมูลไม้เปียกของ <b>${escapeHtml(branchName)}</b><br/>ตั้งแต่วันที่ <b>${new Date(startDate).toLocaleDateString('th-TH')}</b> ถึง <b>${new Date(endDate).toLocaleDateString('th-TH')}</b>`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'ใช่, เริ่มดึงข้อมูล',
@@ -7883,7 +8120,7 @@ export default function SyncWetWood() {
 <file path="src/pages/WetWoodCoverReport.jsx">
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import apiFetch from '../services/apiFetch';
+import apiFetch, { API_URL } from '../services/apiFetch';
 
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -8047,11 +8284,10 @@ export default function WetWoodCoverReport() {
         branch_name: filters.branch_name
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/wet-wood-cover/pdf?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate PDF');
@@ -8096,11 +8332,10 @@ export default function WetWoodCoverReport() {
         branch_name: filters.branch_name
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/wet-wood-cover/excel?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate Excel');
@@ -8570,7 +8805,7 @@ export default function WetWoodDataReport() {
 <file path="src/pages/WetWoodPerformanceReport.jsx">
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import apiFetch from '../services/apiFetch';
+import apiFetch, { API_URL } from '../services/apiFetch';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { th } from 'date-fns/locale';
@@ -8804,11 +9039,10 @@ export default function WetWoodPerformanceReport() {
         branch_name: filters.branch_name
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/wet-wood-perf/pdf?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate PDF');
@@ -8854,11 +9088,10 @@ export default function WetWoodPerformanceReport() {
         branch_name: filters.branch_name
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/wet-wood-perf/excel?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate Excel');
@@ -9048,7 +9281,8 @@ export default function WetWoodPerformanceReport() {
 <file path="src/pages/WoodPriceManager.jsx">
 import { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
-import apiFetch from '../services/apiFetch';
+import apiFetch, { API_URL } from '../services/apiFetch';
+import { getUser } from '../utils/session';
 
 export default function WoodPriceManager() {
   // ─── State: ข้อมูลและสิทธิ์ ───
@@ -9079,9 +9313,8 @@ export default function WoodPriceManager() {
   useEffect(() => {
     let isMounted = true; 
 
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      const user = JSON.parse(storedUser);
+    const user = getUser();
+    if (user) {
       setCurrentUser(user);
       setIsAdmin(user.group_id === 1);
     }
@@ -9205,7 +9438,7 @@ export default function WoodPriceManager() {
   };
 
   const handleExportExcel = () => {
-    window.open(`${import.meta.env.VITE_API_URL}/master/wood-prices/export?branch_id=${selectedBranch}&type_id=1&paramExport=true`, '_blank');
+    window.open(`${API_URL}/master/wood-prices/export?branch_id=${selectedBranch}&type_id=1&paramExport=true`, '_blank');
   };
 
   const handleImportExcel = async (e) => {
@@ -9225,13 +9458,12 @@ export default function WoodPriceManager() {
         color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#111827'
       });
       
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/master/wood-prices/import`, {
+      // apiFetch จัดการ cookie + CSRF header + FormData ให้อัตโนมัติ
+      const data = await apiFetch('/master/wood-prices/import', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
         body: formData
       });
-      const data = await res.json();
+      if (!data) return;
 
       if (data.success) {
         Swal.fire({ 
@@ -9437,7 +9669,7 @@ export default function WoodPriceManager() {
 // ─── 1. ส่วนการนำเข้า (Imports) เครื่องมือต่างๆ ───
 import React, { useState, useEffect } from 'react'; // นำเข้าไลบรารี React และ Hook ที่จำเป็น (useState จัดการข้อมูล, useEffect จัดการการโหลดหน้า)
 import Swal from 'sweetalert2'; // นำเข้าแพ็กเกจสำหรับทำ Popup แจ้งเตือนสวยงาม
-import apiFetch from '../services/apiFetch'; // นำเข้าฟังก์ชันที่เราเขียนไว้สำหรับยิง API ไปยัง Backend
+import apiFetch, { API_URL } from '../services/apiFetch'; // นำเข้าฟังก์ชันที่เราเขียนไว้สำหรับยิง API ไปยัง Backend
 import DatePicker from 'react-datepicker'; // นำเข้าปฏิทินสำหรับเลือกวันที่
 import 'react-datepicker/dist/react-datepicker.css'; // นำเข้าไฟล์ CSS เพื่อให้ปฏิทินแสดงผลได้ถูกต้องและสวยงาม
 import { th } from 'date-fns/locale'; // นำเข้าภาษาไทย เพื่อให้ปฏิทินแสดงเดือน/ปีเป็นภาษาไทย
@@ -9760,8 +9992,8 @@ export default function WoodTypeReport() {
       }).toString();
 
       // ขอไฟล์แบบ Blob (ก้อนข้อมูลไบนารี) จาก Backend
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/reports/wood-type-ab/pdf?${q}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      const res = await fetch(`${API_URL}/reports/wood-type-ab/pdf?${q}`, {
+        credentials: 'include'
       });
       if (!res.ok) throw new Error('Failed to generate PDF');
       
@@ -9788,8 +10020,8 @@ export default function WoodTypeReport() {
         grade: filters.grade
       }).toString();
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/reports/wood-type-ab/excel?${q}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      const res = await fetch(`${API_URL}/reports/wood-type-ab/excel?${q}`, {
+        credentials: 'include'
       });
       if (!res.ok) throw new Error('Failed to generate Excel');
       
@@ -9952,24 +10184,35 @@ export default function WoodTypeReport() {
 
 <file path="src/services/apiFetch.js">
 // src/services/apiFetch.js
+// ศูนย์กลางการเรียก API
+//  - ยืนยันตัวตนด้วย httpOnly cookie (credentials: 'include') — JavaScript ไม่เห็นและไม่เก็บ token
+//  - แนบ X-Requested-With เพื่อให้ผ่านการป้องกัน CSRF ของ backend
 import { clearSession } from '../utils/session';
 
-const BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+export const API_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+
+// path ที่ 401 หมายถึง "รหัสผ่านผิด" ไม่ใช่ "session หมดอายุ"
+const AUTH_FAIL_PATHS = ['/auth/login'];
 
 export default async function apiFetch(path, options = {}) {
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  const token = localStorage.getItem('token');
+  const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData;
 
-  const res = await fetch(`${BASE_URL}${cleanPath}`, {
+  const res = await fetch(`${API_URL}${cleanPath}`, {
     ...options,
+    credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
+      // FormData ต้องให้ browser ตั้ง Content-Type (boundary) เอง
+      ...(isForm ? {} : { 'Content-Type': 'application/json' }),
+      'X-Requested-With': 'XMLHttpRequest',
       ...options.headers,
     },
   });
 
-  if (res.status === 401) {
+  const data = await res.json().catch(() => ({ success: false, message: 'เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง' }));
+
+  // 401 = session หมดอายุ/ไม่ถูกต้อง → ล้างข้อมูลฝั่ง client แล้วกลับหน้า login
+  if (res.status === 401 && !AUTH_FAIL_PATHS.includes(cleanPath)) {
     clearSession();
     if (window.location.pathname !== '/login') {
       window.location.href = '/login';
@@ -9977,28 +10220,53 @@ export default async function apiFetch(path, options = {}) {
     return;
   }
 
-  // 2. ถ้าแค่ "ไม่มีสิทธิ์" (403) ไม่ต้องเตะออก ให้ดึง json ออกมาเพื่อแจ้งเตือนเฉยๆ
-  const data = await res.json();
-  
+  // 403 = ไม่มีสิทธิ์ (ไม่เตะออก ให้หน้าแจ้งเตือนเอง)
   if (res.status === 403) {
-      console.warn("Permission Denied:", data.message);
-      // ตัว API จะถูกส่งข้อมูลกลับไปให้ Component (เช่น หน้า SyncMaster)
-      // แจ้งเตือน Swal สีแดงๆ แทนการหลุดไปหน้า Login
-      return data; 
+    console.warn('Permission Denied:', data?.message);
   }
 
   return data;
 }
 </file>
 
+<file path="src/utils/escapeHtml.js">
+// src/utils/escapeHtml.js
+// escape ข้อความก่อนใส่ใน HTML string (ใช้กับ Swal `html:` และ template string อื่น ๆ)
+export default function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+</file>
+
 <file path="src/utils/session.js">
 // src/utils/session.js
-// ล้างข้อมูล session ทั้งหมด แต่เก็บค่าธีม (theme) ไว้
+// เก็บเฉพาะ "ข้อมูลโปรไฟล์สำหรับแสดงผล" ใน sessionStorage (หายเมื่อปิดแท็บ)
+//  - ไม่เก็บ token (token อยู่ใน httpOnly cookie ที่ JS อ่านไม่ได้)
+//  - ข้อมูลนี้แก้ได้ฝั่ง client จึงใช้แสดง UI เท่านั้น — สิทธิ์จริงตรวจที่ backend ทุก request
+const USER_KEY = 'user';
+
+export function getUser() {
+  try {
+    const raw = sessionStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setUser(user) {
+  try { sessionStorage.setItem(USER_KEY, JSON.stringify(user)); } catch { /* ignore */ }
+}
+
+// ล้างข้อมูล session ฝั่ง client แต่เก็บค่าธีม (theme) ไว้
 export function clearSession() {
-  let theme = null;
-  try { theme = localStorage.getItem('theme'); } catch { /* ignore */ }
-  try { localStorage.clear(); } catch { /* ignore */ }
-  try { if (theme) localStorage.setItem('theme', theme); } catch { /* ignore */ }
+  try { sessionStorage.removeItem(USER_KEY); } catch { /* ignore */ }
+  // เผื่อเหลือค่าเก่าจากเวอร์ชันก่อนหน้าที่เคยเก็บ token ไว้
+  try { localStorage.removeItem('token'); localStorage.removeItem('user'); } catch { /* ignore */ }
 }
 </file>
 
@@ -10579,6 +10847,7 @@ RUN npm run build
 FROM nginx:alpine
 
 COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
@@ -10586,7 +10855,7 @@ CMD ["nginx", "-g", "daemon off;"]
 
 <file path="index.html">
 <!doctype html>
-<html lang="en">
+<html lang="th">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -10594,16 +10863,8 @@ CMD ["nginx", "-g", "daemon off;"]
     <title>WW_Report System</title>
     
     <link rel="stylesheet" href="/fontawesome/css/all.min.css" crossorigin="anonymous" />
-    <!-- 💡 เพิ่ม Script ตรวจสอบ Theme ตรงนี้ (รันก่อน React จะเริ่มทำงาน) -->
-    <script>
-      (function () {
-        try {
-          if (localStorage.getItem('theme') === 'dark') {
-            document.documentElement.classList.add('dark');
-          }
-        } catch (e) {}
-      })();
-    </script>
+    <!-- ตั้งค่า Theme ก่อน React ทำงาน (ย้ายเป็นไฟล์แยก เพื่อให้ใช้ CSP script-src 'self' ได้) -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>
@@ -11851,6 +12112,16 @@ export default defineConfig({
     tailwindcss(),
     react(),
   ],
+  server: {
+    // ตอน dev ให้ Vite proxy /api ไปที่ backend → เบราว์เซอร์เห็นเป็น origin เดียวกัน
+    // (cookie SameSite=Strict ใช้ได้ ไม่ต้องเปิด CORS) ตรงกับ production ที่ใช้ /api ผ่าน Nginx
+    proxy: {
+      '/api': { target: process.env.VITE_DEV_API_TARGET || 'http://localhost:3000', changeOrigin: false },
+    },
+  },
+  build: {
+    sourcemap: false, // ไม่เปิดเผย source code ใน production
+  },
 })
 </file>
 

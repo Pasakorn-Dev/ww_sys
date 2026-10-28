@@ -59,7 +59,10 @@ src/
     woodPriceController.js
   middlewares/
     authMiddleware.js
+    branchScope.js
+    csrfMiddleware.js
     permissionMiddleware.js
+    roleMiddleware.js
   models/
     branchModel.js
     dashboardModel.js
@@ -77,6 +80,9 @@ src/
     menuRoutes.js
     reportRoutes.js
     transactionRoutes.js
+  utils/
+    authCookie.js
+    validateEnv.js
   cronJobs.js
   server.js
 .dockerignore
@@ -89,6 +95,7 @@ package.json
 query_update.txt
 repomix-output.md
 repomix-output.xml
+smoke-test.js
 </directory_structure>
 
 <files>
@@ -164,20 +171,41 @@ module.exports = { getMysqlConnection };
 const UserModel = require('../models/userModel');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { setAuthCookie, clearAuthCookie, JWT_EXPIRES_IN } = require('../utils/authCookie');
+
+// hash หลอก ใช้เปรียบเทียบตอนไม่พบ username เพื่อให้เวลาตอบสนองใกล้เคียงกัน (กัน username enumeration จาก timing)
+const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing', 10) // ใช้ cost เท่ากับ hash เดิมในระบบ (10);
+const BCRYPT_ROUNDS = 12;
+
+const publicUser = (user) => ({
+    id: user.id,
+    username: user.username,
+    fullname: user.fullname,
+    branch_id: user.branch_id,
+    branch_name: user.branch_name,
+    group_id: user.group_id,
+});
 
 const authController = {
-    // API สำหรับสร้างผู้ใช้งานใหม่ (Register)
+    // สร้างผู้ใช้ใหม่ — route นี้ต้องผ่าน verifyToken + requireAdmin (ดู authRoutes.js)
     register: async (req, res) => {
         try {
-            const { username, password, fullname, group_id, branch_id, dept_id } = req.body;
-            
-            const salt = await bcrypt.genSalt(10);
-            const hashedPassword = await bcrypt.hash(password, salt);
+            const { username, password, fullname, group_id, branch_id, dept_id } = req.body || {};
+
+            if (typeof username !== 'string' || username.trim().length < 3 || username.length > 50) {
+                return res.status(400).json({ success: false, message: 'ชื่อผู้ใช้ต้องมี 3-50 ตัวอักษร' });
+            }
+            if (typeof password !== 'string' || password.length < 10 || password.length > 72) {
+                // bcrypt ใช้ได้สูงสุด 72 bytes
+                return res.status(400).json({ success: false, message: 'รหัสผ่านต้องยาว 10-72 ตัวอักษร' });
+            }
+
+            const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
             const newUser = await UserModel.createUser({
-                username, password: hashedPassword, fullname, group_id, branch_id, dept_id
+                username: username.trim(), password: hashedPassword, fullname, group_id, branch_id, dept_id,
             });
-            
+
             res.status(201).json({ success: true, message: 'สร้างผู้ใช้งานสำเร็จ', data: newUser });
         } catch (error) {
             console.error(error);
@@ -188,6 +216,56 @@ const authController = {
         }
     },
 
+    login: async (req, res) => {
+        try {
+            const { username, password } = req.body || {};
+
+            // กัน NoSQL/type confusion และ input ผิดรูป
+            if (typeof username !== 'string' || typeof password !== 'string' || !username || !password || password.length > 72) {
+                return res.status(400).json({ success: false, message: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' });
+            }
+
+            const user = await UserModel.findByUsername(username);
+
+            // เปรียบเทียบ hash เสมอ แม้ไม่พบผู้ใช้ (กัน timing attack) และใช้ข้อความเดียวกัน (กัน username enumeration)
+            const isMatch = await bcrypt.compare(password, user ? user.password : DUMMY_HASH);
+            if (!user || !isMatch) {
+                console.warn(`[Auth] login failed username="${String(username).slice(0, 50)}" ip=${req.ip}`);
+                return res.status(401).json({ success: false, message: 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง' });
+            }
+
+            // payload เล็กที่สุด — สิทธิ์/สาขา/กลุ่ม ให้ดึงสดจาก DB ทุก request (เปลี่ยนสิทธิ์แล้วมีผลทันที)
+            const token = jwt.sign(
+                { id: user.id, username: user.username },
+                process.env.JWT_SECRET,
+                { expiresIn: JWT_EXPIRES_IN, algorithm: 'HS256' }
+            );
+
+            setAuthCookie(res, token);
+
+            // ไม่ส่ง token กลับใน body อีกต่อไป
+            res.json({ success: true, message: 'เข้าสู่ระบบสำเร็จ', data: publicUser(user) });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ success: false, message: 'Server Error' });
+        }
+    },
+
+    // ตรวจ session ปัจจุบัน + ดึงข้อมูลผู้ใช้สดจาก DB (frontend ใช้แทนการอ่านจาก localStorage)
+    me: async (req, res) => {
+        try {
+            const user = await UserModel.findById(req.user.id);
+            if (!user) {
+                clearAuthCookie(res);
+                return res.status(401).json({ success: false, message: 'ไม่พบผู้ใช้งาน' });
+            }
+            res.json({ success: true, data: publicUser(user) });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ success: false, message: 'Server Error' });
+        }
+    },
+    
     // API สำหรับให้ Admin สร้างผู้ใช้งานใหม่
     createUserAdmin: async (req, res) => {
         try {
@@ -266,8 +344,6 @@ const authController = {
         }
     },
 
-    // src/controllers/authController.js
-    // ... ภายใน object authController
     getUserInfo: async (req, res) => {
         try {
             const userId = req.params.id;
@@ -301,61 +377,11 @@ const authController = {
             res.status(500).json({ success: false, message: 'ไม่สามารถลบผู้ใช้นี้ได้ อาจมีข้อมูลเชื่อมโยงอยู่' });
         }
     },
-    // API สำหรับเข้าสู่ระบบ (Login)
-    login: async (req, res) => {
-        try {
-            const { username, password } = req.body;
-            const db = require('../config/db');
-            
-            // 1. ค้นหา User ในระบบ
-            const user = await UserModel.findByUsername(username);
-            if (!user) {
-                return res.status(401).json({ success: false, message: 'ไม่พบชื่อผู้ใช้งานนี้' });
-            }
 
-            // 2. ตรวจสอบรหัสผ่านว่าตรงกันไหม
-            const isMatch = await bcrypt.compare(password, user.password);
-            if (!isMatch) {
-                return res.status(401).json({ success: false, message: 'รหัสผ่านไม่ถูกต้อง' });
-            }
-
-            // 3. สร้าง JWT Token (ไม่ต้องดึง access_level ตอน login เพราะแยกตามเมนู)
-            const token = jwt.sign(
-                { 
-                    id: user.id, 
-                    username: user.username, 
-                    branch_id: user.branch_id,
-                    group_id: user.group_id
-                },
-                process.env.JWT_SECRET,
-                { expiresIn: '1d' } 
-            );
-
-            // Debug log
-            // console.log('=== Login Debug Info ===');
-            // console.log('Username:', user.username);
-            // console.log('Branch ID:', user.branch_id);
-            // console.log('Group ID:', user.group_id);
-            // console.log('Note: access_level จะดึงแยกตามเมนูแต่ละครั้ง');
-
-            res.json({ 
-                success: true, 
-                message: 'เข้าสู่ระบบสำเร็จ', 
-                token, 
-                data: { 
-                    id: user.id, 
-                    username: user.username, 
-                    fullname: user.fullname,
-                    branch_id: user.branch_id,
-                    branch_name: user.branch_name,
-                    group_id: user.group_id
-                } 
-            });
-        } catch (error) {
-            console.error(error);
-            res.status(500).json({ success: false, message: 'Server Error' });
-        }
-    }
+    logout: (req, res) => {
+        clearAuthCookie(res);
+        res.json({ success: true, message: 'ออกจากระบบแล้ว' });
+    },
 };
 
 module.exports = authController;
@@ -489,7 +515,8 @@ const DashboardModel = require('../models/dashboardModel');
 const dashboardController = {
   getDashboardSummary: async (req, res) => {
     try {
-      const { branch_id } = req.query;
+      // ใช้ branch_id ที่ผ่านการตรวจสิทธิ์แล้วจาก branchScope (ไม่เชื่อค่าดิบจาก query)
+      const branch_id = req.scope.branchId;
       // ดึงข้อมูล 7 วันย้อนหลังจาก Model เรียงจากวันที่ล่าสุด (DESC)
       const rows = await DashboardModel.getOverviewData(branch_id);
       
@@ -5669,8 +5696,7 @@ const transactionController = {
   // ─── ดึงประวัติการประมวลผล ───
   getRecalLogs: async (req, res) => {
     try {
-      const { branch_id } = req.query;
-      const logs = await TransactionModel.getRecalLogs(branch_id);
+      const logs = await TransactionModel.getRecalLogs(req.scope.branchId);
       res.json({ success: true, data: logs });
     } catch (error) {
       console.error('Get Recal Logs Error:', error);
@@ -5901,9 +5927,32 @@ const woodPriceController = {
   // ─── 2. บันทึกราคาจากการแก้ไขผ่านหน้าเว็บ (Inline Edit) ───
   bulkUpdate: async (req, res) => {
     try {
-      const { prices } = req.body; 
-      if (!prices || prices.length === 0) {
+      const { prices } = req.body || {};
+      if (!Array.isArray(prices) || prices.length === 0) {
         return res.status(400).json({ success: false, message: 'ไม่มีข้อมูลให้อัปเดต' });
+      }
+      if (prices.length > 5000) {
+        return res.status(400).json({ success: false, message: 'ส่งข้อมูลมากเกินไปในครั้งเดียว' });
+      }
+
+      // ตรวจรูปแบบข้อมูลทุกแถว
+      const valid = prices.every((p) =>
+        Number.isInteger(Number(p?.id)) && Number(p.id) > 0 &&
+        p.unit_price !== '' && p.unit_price !== null && Number.isFinite(Number(p.unit_price)) && Number(p.unit_price) >= 0
+      );
+      if (!valid) {
+        return res.status(400).json({ success: false, message: 'รูปแบบข้อมูลราคาไม่ถูกต้อง' });
+      }
+
+      // กัน IDOR: ทุก id ต้องเป็นของสาขาที่ user มีสิทธิ์เท่านั้น
+      const ids = prices.map((p) => Number(p.id));
+      const pool = require('../config/db');
+      const owner = await pool.query(
+        'SELECT DISTINCT branch_id FROM master_wood_sizes WHERE id = ANY($1::int[])', [ids]
+      );
+      const outOfScope = owner.rows.some((r) => !req.scope.allowedBranchIds.includes(Number(r.branch_id)));
+      if (outOfScope) {
+        return res.status(403).json({ success: false, message: 'มีรายการที่ไม่อยู่ในสาขาที่คุณมีสิทธิ์' });
       }
 
       await WoodPriceModel.updatePricesByIds(prices);
@@ -6026,34 +6075,147 @@ module.exports = woodPriceController;
 // src/middlewares/authMiddleware.js
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
+const { COOKIE_NAME } = require('../utils/authCookie');
 
+// อ่าน JWT จาก httpOnly cookie เท่านั้น (ไม่รับ Authorization header / query string แล้ว)
 const verifyToken = (req, res, next) => {
-    // 1. ดึง Token จาก Header ในช่อง Authorization
-    const authHeader = req.headers['authorization'];
-    
-    // รูปแบบที่ส่งมาจะเป็น "Bearer <token>" เราจึงต้อง split เพื่อเอาเฉพาะตัว <token>
-    const token = authHeader && authHeader.split(' ')[1];
+    const token = req.cookies?.[COOKIE_NAME];
 
-    // 2. ถ้าไม่มี Token ส่งมา ให้ปฏิเสธการเข้าถึง
     if (!token) {
-        return res.status(401).json({ success: false, message: 'ปฏิเสธการเข้าถึง กรุณาเข้าสู่ระบบ (No Token)' });
+        return res.status(401).json({ success: false, message: 'กรุณาเข้าสู่ระบบ' });
     }
 
     try {
-        // 3. ตรวจสอบความถูกต้องของ Token ด้วย JWT_SECRET
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
-        // 4. นำข้อมูล user ที่แกะได้จาก Token (เช่น id, username, branch_id) ไปแนบไว้กับ req
-        req.user = decoded; 
-        
-        // 5. ให้ทำงานในคำสั่งถัดไปได้ (ผ่านด่าน)
+        // ระบุ algorithm ชัดเจน กัน algorithm confusion
+        const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+        req.user = { id: decoded.id, username: decoded.username };
         next();
     } catch (error) {
-        return res.status(403).json({ success: false, message: 'Token ไม่ถูกต้องหรือหมดอายุ' });
+        // 401 = session ไม่ถูกต้อง/หมดอายุ → frontend จะพากลับหน้า login
+        return res.status(401).json({ success: false, message: 'Session หมดอายุ กรุณาเข้าสู่ระบบใหม่' });
     }
 };
 
 module.exports = verifyToken;
+</file>
+
+<file path="src/middlewares/branchScope.js">
+// src/middlewares/branchScope.js
+// บังคับ "สิทธิ์ตามสาขา" ที่ฝั่ง Server
+//   access_level 1 = ทุกสาขา | 2 = สาขาตั้งต้น + สาขาใน user_branches | 3 = สาขาตั้งต้นเท่านั้น
+// ห้ามเชื่อ branch_id ที่ client ส่งมาตรง ๆ — ต้องเช็คว่าอยู่ในสาขาที่ user มีสิทธิ์
+const db = require('../config/db');
+const BranchModel = require('../models/branchModel');
+
+const toPositiveInt = (v) => {
+    if (v === undefined || v === null || v === '') return null;
+    if (!/^\d+$/.test(String(v))) return NaN;
+    return Number(v);
+};
+
+// ระดับสิทธิ์สูงสุดที่ group นี้มี (ใช้กับ route ที่ไม่ผูกกับเมนูใดเมนูหนึ่ง เช่น dashboard)
+const getEffectiveAccessLevel = async (groupId) => {
+    const { rows } = await db.query(
+        `SELECT MIN(access_level) AS lvl FROM public.group_permissions WHERE group_id = $1 AND can_view = true`,
+        [groupId]
+    );
+    return Number(rows[0]?.lvl || 3);
+};
+
+/**
+ * @param {object}  opts
+ * @param {boolean} opts.required          ต้องส่ง branch_id มาเสมอ (default true)
+ * @param {boolean} opts.allowAll          อนุญาต branch_id=0 (ทุกสาขา) เฉพาะ level 1 (ใช้กับ sync)
+ * @param {boolean} opts.defaultToPrimary  ถ้าไม่ส่งมา → ใช้สาขาตั้งต้น (level 1 = ไม่กรอง)
+ * @param {boolean} opts.useMenuLevel      ใช้ access_level ของเมนูจาก checkPermission (default true)
+ */
+const branchScope = (opts = {}) => {
+    const { required = true, allowAll = false, defaultToPrimary = false, useMenuLevel = true } = opts;
+
+    return async (req, res, next) => {
+        try {
+            let userRow = null;
+            if (req.user.group_id === undefined || req.user.branch_id === undefined) {
+                const r = await db.query('SELECT group_id, branch_id FROM public.users WHERE id = $1', [req.user.id]);
+                userRow = r.rows[0];
+                if (!userRow) return res.status(401).json({ success: false, message: 'ไม่พบผู้ใช้งาน' });
+                req.user.group_id = userRow.group_id;
+                req.user.branch_id = userRow.branch_id;
+            }
+
+            // access_level: จากเมนู (checkPermission) → ไม่งั้นใช้ระดับสูงสุดของ group
+            let level = useMenuLevel && req.user.access_level ? Number(req.user.access_level) : null;
+            if (!level) level = await getEffectiveAccessLevel(req.user.group_id);
+
+            const raw = req.body?.branch_id ?? req.query?.branch_id;
+            const requested = toPositiveInt(raw);
+
+            if (Number.isNaN(requested)) {
+                return res.status(400).json({ success: false, message: 'branch_id ไม่ถูกต้อง' });
+            }
+
+            // รายการสาขาที่มีสิทธิ์
+            const allowed = await BranchModel.getAllowedBranches(req.user.id, req.user.branch_id, level);
+            const allowedIds = allowed.map((b) => Number(b.id));
+
+            let branchId = requested;
+
+            if (requested === 0) {
+                if (!(allowAll && level === 1)) {
+                    return res.status(403).json({ success: false, message: 'ไม่มีสิทธิ์ดำเนินการกับทุกสาขา' });
+                }
+            } else if (requested === null) {
+                if (defaultToPrimary) {
+                    branchId = level === 1 ? undefined : Number(req.user.branch_id);
+                } else if (required) {
+                    return res.status(400).json({ success: false, message: 'กรุณาระบุสาขา' });
+                }
+            } else if (!allowedIds.includes(requested)) {
+                return res.status(403).json({ success: false, message: 'คุณไม่มีสิทธิ์เข้าถึงข้อมูลของสาขานี้' });
+            }
+
+            req.scope = { accessLevel: level, branchId, allowedBranchIds: allowedIds };
+            next();
+        } catch (err) {
+            console.error('branchScope error:', err);
+            res.status(500).json({ success: false, message: 'Server Error (Branch Scope)' });
+        }
+    };
+};
+
+module.exports = { branchScope, getEffectiveAccessLevel };
+</file>
+
+<file path="src/middlewares/csrfMiddleware.js">
+// src/middlewares/csrfMiddleware.js
+// ป้องกัน CSRF เพิ่มอีกชั้นนอกจาก SameSite cookie สำหรับ request ที่แก้ไขข้อมูล (POST/PUT/PATCH/DELETE)
+//  1) ถ้ามี Origin header ต้องตรงกับโดเมนที่อนุญาต
+//  2) ต้องมี header X-Requested-With (ฟอร์มข้ามเว็บส่ง header นี้ไม่ได้โดยไม่ผ่าน CORS preflight)
+const SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+const allowedOrigins = () =>
+    (process.env.CORS_ORIGINS || '')
+        .split(',')
+        .map((s) => s.trim().replace(/\/$/, ''))
+        .filter(Boolean);
+
+module.exports = (req, res, next) => {
+    if (SAFE.has(req.method)) return next();
+
+    const origin = req.headers.origin;
+    if (origin) {
+        const list = allowedOrigins();
+        const sameHost = origin.replace(/^https?:\/\//, '') === req.headers.host;
+        if (!sameHost && !list.includes(origin)) {
+            return res.status(403).json({ success: false, message: 'Origin ไม่ได้รับอนุญาต' });
+        }
+    }
+
+    if (req.headers['x-requested-with'] !== 'XMLHttpRequest') {
+        return res.status(403).json({ success: false, message: 'คำขอไม่ถูกต้อง (CSRF)' });
+    }
+    next();
+};
 </file>
 
 <file path="src/middlewares/permissionMiddleware.js">
@@ -6123,6 +6285,29 @@ const checkPermission = (menuLink, action) => {
 };
 
 module.exports = checkPermission;
+</file>
+
+<file path="src/middlewares/roleMiddleware.js">
+// src/middlewares/roleMiddleware.js
+const db = require('../config/db');
+
+// อนุญาตเฉพาะ Admin (group_id = 1) — อ่านจาก DB ทุกครั้ง ไม่เชื่อค่าใน token
+const ADMIN_GROUP_ID = Number(process.env.ADMIN_GROUP_ID) || 1;
+
+const requireAdmin = async (req, res, next) => {
+    try {
+        const { rows } = await db.query('SELECT group_id FROM public.users WHERE id = $1', [req.user.id]);
+        if (!rows[0] || Number(rows[0].group_id) !== ADMIN_GROUP_ID) {
+            return res.status(403).json({ success: false, message: 'เฉพาะผู้ดูแลระบบเท่านั้น' });
+        }
+        next();
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, message: 'Server Error' });
+    }
+};
+
+module.exports = { requireAdmin, ADMIN_GROUP_ID };
 </file>
 
 <file path="src/models/branchModel.js">
@@ -6987,18 +7172,21 @@ const ReportModel = {
   getWetWoodPerformanceReport: async (filters) => {
     const { branch_id, start_date, end_date, store_code } = filters;
 
-    // ตรวจสอบ store_code (ถ้าไม่ได้ส่งมา หรือส่งมาแบบ Range ก็จัดการให้รองรับ)
-    // จากโจทย์: AND wwt.code BETWEEN '21/00' AND '21/99'
+    // ✅ ใช้ parameterized query ทั้งหมด (เดิมต่อ string ตรง ๆ → SQL Injection)
+    const params = [branch_id, start_date, end_date];
     let storeCondition = "";
     if (store_code) {
-        if (store_code.includes('-')) {
-            const [start, end] = store_code.split('-');
-            storeCondition = `AND wwt.code BETWEEN '${start.trim()}' AND '${end.trim()}'`;
+        const sc = String(store_code);
+        if (sc.includes('-')) {
+            const [start, end] = sc.split('-');
+            params.push(start.trim(), end.trim());
+            storeCondition = `AND wwt.code BETWEEN $4 AND $5`;
         } else {
-            storeCondition = `AND wwt.code = '${store_code.trim()}'`;
+            params.push(sc.trim());
+            storeCondition = `AND wwt.code = $4`;
         }
     } else {
-        // ค่า Default ถ้าไม่ระบุ
+        // ค่า Default ถ้าไม่ระบุ (ค่าคงที่ ไม่ได้มาจากผู้ใช้)
         storeCondition = `AND wwt.code BETWEEN '21/00' AND '21/99'`;
     }
 
@@ -7028,7 +7216,6 @@ const ReportModel = {
         ws.is_special ASC
     `;
 
-    const params = [branch_id, start_date, end_date];
     const { rows } = await pool.query(query, params);
     return rows;
   },
@@ -7039,17 +7226,21 @@ const ReportModel = {
   getDryWoodPerformanceReport: async (filters) => {
     const { branch_id, start_date, end_date, store_code } = filters;
 
-    // จัดการเงื่อนไขค้นหาสโตร์ไม้แห้ง (รองรับแบบช่วง - และแบบ LIKE)
+    // ✅ ใช้ parameterized query ทั้งหมด (เดิมต่อ string ตรง ๆ → SQL Injection)
+    const params = [branch_id, start_date, end_date];
     let storeCondition = "";
     if (store_code) {
-        if (store_code.includes('-')) {
-            const [start, end] = store_code.split('-');
-            storeCondition = `AND wst.code BETWEEN '${start.trim()}' AND '${end.trim()}'`;
+        const sc = String(store_code);
+        if (sc.includes('-')) {
+            const [start, end] = sc.split('-');
+            params.push(start.trim(), end.trim());
+            storeCondition = `AND wst.code BETWEEN $4 AND $5`;
         } else {
-            storeCondition = `AND wst.code LIKE '${store_code.trim()}%'`;
+            params.push(`${sc.trim().replace(/[\%_]/g, '\$&')}%`); // escape ตัวอักษรพิเศษของ LIKE
+            storeCondition = `AND wst.code LIKE $4`;
         }
     } else {
-        // ค่า Default สำหรับไม้แห้ง
+        // ค่า Default สำหรับไม้แห้ง (ค่าคงที่)
         storeCondition = `AND wst.code LIKE '104%'`;
     }
 
@@ -7079,7 +7270,6 @@ const ReportModel = {
         ws.is_special ASC
     `;
 
-    const params = [branch_id, start_date, end_date];
     const { rows } = await pool.query(query, params);
     return rows;
   },
@@ -7728,7 +7918,29 @@ const UserModel = {
         return result.rows[0];
     },
     
-    // สร้างผู้ใช้งานใหม่ พร้อมผูกสิทธิ์หลายสาขา (Transaction)
+    // หาผู้ใช้จาก id (ใช้กับ /auth/me) — ไม่ดึง password ออกมา
+    findById: async (id) => {
+        const query = `
+            SELECT u.id, u.username, u.fullname, u.branch_id, u.group_id, b.branch_name
+            FROM public.users u
+            LEFT JOIN public.branches b ON u.branch_id = b.id
+            WHERE u.id = $1
+        `;
+        const result = await db.query(query, [id]);
+        return result.rows[0];
+    },
+
+    // สร้างผู้ใช้งานใหม่ (ใช้ตอน Register / เพิ่มพนักงาน)
+    createUser: async (userData) => {
+        const { username, password, fullname, group_id, branch_id, dept_id } = userData;
+        const query = `
+            INSERT INTO public.users (username, password, fullname, group_id, branch_id, dept_id)
+            VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, username, fullname;
+        `;
+        const values = [username, password, fullname, group_id, branch_id, dept_id];
+        const result = await db.query(query, values);
+        return result.rows[0];
+    }// สร้างผู้ใช้งานใหม่ พร้อมผูกสิทธิ์หลายสาขา (Transaction)
     createUserAdmin: async (userData) => {
         const { username, password, fullname, group_id, branch_id, dept_id, allowed_branches } = userData;
         const client = await db.connect(); // ใช้ client สำหรับทำ Transaction
@@ -8022,16 +8234,30 @@ module.exports = WoodPriceModel;
 </file>
 
 <file path="src/routes/authRoutes.js">
-// src/routes/authRoutes.js
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const authController = require('../controllers/authController');
 const verifyToken = require('../middlewares/authMiddleware');
+const { requireAdmin } = require('../middlewares/roleMiddleware');
 const checkPermission = require('../middlewares/permissionMiddleware');
 
-// Route เดิม
-router.post('/register', authController.register);
-router.post('/login', authController.login);
+// จำกัดการเดารหัสผ่าน: 10 ครั้ง / 15 นาที / IP (นับเฉพาะครั้งที่ล้มเหลว)
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 10,
+    skipSuccessfulRequests: true,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { success: false, message: 'พยายามเข้าสู่ระบบหลายครั้งเกินไป กรุณารอ 15 นาที' },
+});
+
+router.post('/login', loginLimiter, authController.login);
+router.post('/logout', authController.logout);
+router.get('/me', verifyToken, authController.me);
+
+// ⚠️ เดิมเป็น public (ใครก็สร้าง user/admin ได้) → ตอนนี้เฉพาะ Admin ที่ล็อกอินแล้ว
+router.post('/register', verifyToken, requireAdmin, authController.register);
 
 // Route ใหม่ สำหรับ Admin จัดการ User (ต้องล็อกอินและมีสิทธิ์ 'add' ในหน้าจัดการผู้ใช้)
 router.post(
@@ -8094,8 +8320,9 @@ const express = require('express');
 const router = express.Router();
 const dashboardController = require('../controllers/dashboardController');
 const verifyToken = require('../middlewares/authMiddleware');
+const { branchScope } = require('../middlewares/branchScope');
 
-router.get('/summary', verifyToken, dashboardController.getDashboardSummary);
+router.get('/summary', verifyToken, branchScope({ required: false, defaultToPrimary: true, useMenuLevel: false }), dashboardController.getDashboardSummary);
 
 module.exports = router;
 </file>
@@ -8105,13 +8332,10 @@ const express = require('express');
 const router = express.Router();
 const masterOptionsController = require('../controllers/masterOptionsController');
 const verifyToken = require('../middlewares/authMiddleware');
+const { branchScope } = require('../middlewares/branchScope');
 
 // ดึงข้อมูลตัวเลือก (Dropdowns) ทั้งหมดตามสาขา
-router.get('/', verifyToken, masterOptionsController.getOptions);
-
-// เพิ่ม Route ใหม่สำหรับดึงกลุ่มและแผนก
-router.get('/groups', verifyToken, masterOptionsController.getGroups);
-router.get('/departments', verifyToken, masterOptionsController.getDepartments);
+router.get('/', verifyToken, branchScope({ useMenuLevel: false }), masterOptionsController.getOptions);
 
 module.exports = router;
 </file>
@@ -8124,9 +8348,18 @@ const masterController = require('../controllers/masterController');
 const woodPriceController = require('../controllers/woodPriceController'); // <--- เพิ่มตรงนี้
 const verifyToken = require('../middlewares/authMiddleware');
 const checkPermission = require('../middlewares/permissionMiddleware'); // นำเข้า Middleware เช็คสิทธิ์
+const { branchScope } = require('../middlewares/branchScope');
 
 // ตั้งค่า Multer ให้อ่านไฟล์เก็บไว้ใน Memory Buffer (ไม่เซฟลง Harddisk ให้รกเซิร์ฟเวอร์)
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024, files: 1 }, // จำกัด 5MB / 1 ไฟล์
+    fileFilter: (req, file, cb) => {
+        const okExt = /\.xlsx$/i.test(file.originalname);
+        const okMime = file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        okExt && okMime ? cb(null, true) : cb(new Error('รองรับเฉพาะไฟล์ .xlsx'));
+    },
+});
 
 // ทุกเส้นทางต้องผ่านการตรวจสอบ Token (Security)
 // router.get('/categories', verifyToken, masterController.getCategories);
@@ -8134,24 +8367,23 @@ const upload = multer({ storage: multer.memoryStorage() });
 // router.get('/units', verifyToken, masterController.getUnits);
 
 // เพิ่ม API ยิงคำสั่ง Sync ข้อมูล (เช็คสิทธิ์แอดมินหรือคนที่มีสิทธิ์กดเพิ่มข้อมูล)
-router.post('/sync', verifyToken, checkPermission('/sync-master', 'add'), masterController.syncMasterData);
+router.post('/sync', verifyToken, checkPermission('/sync-master', 'add'), branchScope({ allowAll: true }), masterController.syncMasterData);
 
 // ========================================================
 // 🪵 API สำหรับระบบจัดการราคาไม้เลื่อย (Wood Price Manager)
 // ========================================================
 // 1. ดึงรายการสินค้าและราคา (อ่านข้อมูล)
-router.get('/wood-prices', verifyToken, checkPermission('/wood-prices', 'view'), woodPriceController.getPrices);
+router.get('/wood-prices', verifyToken, checkPermission('/wood-prices', 'view'), branchScope(), woodPriceController.getPrices);
 
 // 2. บันทึกราคาจากการแก้ในหน้าเว็บ (Bulk Update)
-router.put('/wood-prices/bulk-update', verifyToken, checkPermission('/wood-prices', 'edit'), woodPriceController.bulkUpdate);
+router.put('/wood-prices/bulk-update', verifyToken, checkPermission('/wood-prices', 'edit'), branchScope({ required: false }), woodPriceController.bulkUpdate);
 
 // 3. ดาวน์โหลด (Export) Excel (ใช้สิทธิ์แค่ View ก็โหลดแม่แบบไปดูได้)
-router.get('/wood-prices/export', woodPriceController.exportExcel); 
-// หมายเหตุ: กรณี Export เป็นหน้าต่างใหม่ (window.open) มันส่ง Bearer Token ผ่าน Header ลำบาก 
-// เราอนุโลมเอา Token ออกเฉพาะเส้นทางนี้ชั่วคราว หรือใช้เทคนิคอื่นในการแนบสิทธิ์ได้ครับ
+router.get('/wood-prices/export', verifyToken, checkPermission('/wood-prices', 'view'), branchScope(), woodPriceController.exportExcel); 
+// ใช้ cookie ยืนยันตัวตน จึงเปิดด้วย window.open ได้โดยไม่ต้องส่ง token ผ่าน URL
 
 // 4. นำเข้า (Import) Excel
-router.post('/wood-prices/import', verifyToken, checkPermission('/wood-prices', 'edit'), upload.single('file'), woodPriceController.importExcel);
+router.post('/wood-prices/import', verifyToken, checkPermission('/wood-prices', 'edit'), upload.single('file'), branchScope(), woodPriceController.importExcel);
 
 module.exports = router;
 </file>
@@ -8173,57 +8405,63 @@ const express = require('express');
 const router = express.Router();
 const reportController = require('../controllers/reportController');
 const verifyToken = require('../middlewares/authMiddleware');
+const checkPermission = require('../middlewares/permissionMiddleware');
+const { branchScope } = require('../middlewares/branchScope');
 
-router.get('/production-cover', verifyToken, reportController.getProductionCover);
+// ทุก report ต้อง: 1) ล็อกอิน 2) มีสิทธิ์ view ของเมนูนั้น 3) branch_id ต้องอยู่ในสาขาที่ user มีสิทธิ์
+// (link ของเมนูต้องตรงกับ path ในตาราง public.menus / App.jsx)
+const guard = (menuLink) => [verifyToken, checkPermission(menuLink, 'view'), branchScope()];
+
+router.get('/production-cover', ...guard('/production-cover'), reportController.getProductionCover);
 // 💡 เพิ่มบรรทัดนี้สำหรับรูปแบบที่ 2
-router.get('/production-cover-format2', verifyToken, reportController.getProductionCoverFormat2);
+router.get('/production-cover-format2', ...guard('/production-cover'), reportController.getProductionCoverFormat2);
 
 // === เพิ่ม 2 บรรทัดนี้ สำหรับ PDF และ Excel ===
-router.get('/wood-type-ab', verifyToken, reportController.getAbWoodReport);
-router.get('/wood-type-ab/pdf', verifyToken, reportController.exportAbWoodReportPDF);
-router.get('/wood-type-ab/excel', verifyToken, reportController.exportAbWoodReportExcel);
+router.get('/wood-type-ab', ...guard('/wood-type-ab'), reportController.getAbWoodReport);
+router.get('/wood-type-ab/pdf', ...guard('/wood-type-ab'), reportController.exportAbWoodReportPDF);
+router.get('/wood-type-ab/excel', ...guard('/wood-type-ab'), reportController.exportAbWoodReportExcel);
 
-router.get('/average-price', verifyToken, reportController.getAveragePriceReport);
+router.get('/average-price', ...guard('/average-price'), reportController.getAveragePriceReport);
 // === เพิ่ม 2 บรรทัดนี้ สำหรับ PDF และ Excel ===
-router.get('/average-price/pdf', verifyToken, reportController.exportAveragePriceReportPDF);
-router.get('/average-price/excel', verifyToken, reportController.exportAveragePriceReportExcel);
+router.get('/average-price/pdf', ...guard('/average-price'), reportController.exportAveragePriceReportPDF);
+router.get('/average-price/excel', ...guard('/average-price'), reportController.exportAveragePriceReportExcel);
 
-router.get('/production-thick-mil', verifyToken, reportController.getProductionThickMil);
+router.get('/production-thick-mil', ...guard('/production-thick-mil-report'), reportController.getProductionThickMil);
 
-router.get('/production-thick-mil/pdf', verifyToken, reportController.exportProductionThickMilPDF);
-router.get('/production-thick-mil/excel', verifyToken, reportController.exportProductionThickMilExcel);
+router.get('/production-thick-mil/pdf', ...guard('/production-thick-mil-report'), reportController.exportProductionThickMilPDF);
+router.get('/production-thick-mil/excel', ...guard('/production-thick-mil-report'), reportController.exportProductionThickMilExcel);
 
-router.get('/sawer-performance', verifyToken, reportController.getSawerPerformance);
-router.get('/sawer-performance/pdf', verifyToken, reportController.exportSawerPerformancePDF);
-router.get('/sawer-performance/excel', verifyToken, reportController.exportSawerPerformanceExcel);
+router.get('/sawer-performance', ...guard('/sawer-performance'), reportController.getSawerPerformance);
+router.get('/sawer-performance/pdf', ...guard('/sawer-performance'), reportController.exportSawerPerformancePDF);
+router.get('/sawer-performance/excel', ...guard('/sawer-performance'), reportController.exportSawerPerformanceExcel);
 
-router.get('/daily-production', verifyToken, reportController.getDailyProduction);
-router.get('/daily-production/pdf', verifyToken, reportController.exportDailyProductionPDF);
-router.get('/daily-production/excel', verifyToken, reportController.exportDailyProductionExcel);
+router.get('/daily-production', ...guard('/daily-production'), reportController.getDailyProduction);
+router.get('/daily-production/pdf', ...guard('/daily-production'), reportController.exportDailyProductionPDF);
+router.get('/daily-production/excel', ...guard('/daily-production'), reportController.exportDailyProductionExcel);
 
-router.get('/sawer-performance-length', verifyToken, reportController.getSawerPerformanceByLength);
-router.get('/sawer-performance-length/pdf', verifyToken, reportController.exportSawerPerformanceLengthPDF);
-router.get('/sawer-performance-length/excel', verifyToken, reportController.exportSawerPerformanceLengthExcel);
+router.get('/sawer-performance-length', ...guard('/sawer-performance-length'), reportController.getSawerPerformanceByLength);
+router.get('/sawer-performance-length/pdf', ...guard('/sawer-performance-length'), reportController.exportSawerPerformanceLengthPDF);
+router.get('/sawer-performance-length/excel', ...guard('/sawer-performance-length'), reportController.exportSawerPerformanceLengthExcel);
 
-router.get('/wet-wood-cover', verifyToken, reportController.getWetWoodCover);
-router.get('/wet-wood-cover-format2', verifyToken, reportController.getWetWoodCoverFormat2);
-router.get('/wet-wood-cover/pdf', verifyToken, reportController.exportWetWoodCoverPDF);
-router.get('/wet-wood-cover/excel', verifyToken, reportController.exportWetWoodCoverExcel);
+router.get('/wet-wood-cover', ...guard('/wet-wood-cover'), reportController.getWetWoodCover);
+router.get('/wet-wood-cover-format2', ...guard('/wet-wood-cover'), reportController.getWetWoodCoverFormat2);
+router.get('/wet-wood-cover/pdf', ...guard('/wet-wood-cover'), reportController.exportWetWoodCoverPDF);
+router.get('/wet-wood-cover/excel', ...guard('/wet-wood-cover'), reportController.exportWetWoodCoverExcel);
 
-router.get('/dry-wood-cover', verifyToken, reportController.getDryWoodCover);
-router.get('/dry-wood-cover-format2', verifyToken, reportController.getDryWoodCoverFormat2);
-router.get('/dry-wood-cover/pdf', verifyToken, reportController.exportDryWoodCoverPDF);
-router.get('/dry-wood-cover/excel', verifyToken, reportController.exportDryWoodCoverExcel);
+router.get('/dry-wood-cover', ...guard('/dry-wood-cover'), reportController.getDryWoodCover);
+router.get('/dry-wood-cover-format2', ...guard('/dry-wood-cover'), reportController.getDryWoodCoverFormat2);
+router.get('/dry-wood-cover/pdf', ...guard('/dry-wood-cover'), reportController.exportDryWoodCoverPDF);
+router.get('/dry-wood-cover/excel', ...guard('/dry-wood-cover'), reportController.exportDryWoodCoverExcel);
 
 // รายงานสรุปค่าแรงจัดเรียงไม้เปียก แยกรายคน
-router.get('/wet-wood-perf', verifyToken, reportController.getWetWoodPerformance);
-router.get('/wet-wood-perf/pdf', verifyToken, reportController.exportWetWoodPerfPDF);
-router.get('/wet-wood-perf/excel', verifyToken, reportController.exportWetWoodPerfExcel);
+router.get('/wet-wood-perf', ...guard('/wet-wood-perf'), reportController.getWetWoodPerformance);
+router.get('/wet-wood-perf/pdf', ...guard('/wet-wood-perf'), reportController.exportWetWoodPerfPDF);
+router.get('/wet-wood-perf/excel', ...guard('/wet-wood-perf'), reportController.exportWetWoodPerfExcel);
 
 // รายงานสรุปค่าแรงจัดเรียงไม้แห้ง แยกรายคน
-router.get('/dry-wood-perf', verifyToken, reportController.getDryWoodPerformance);
-router.get('/dry-wood-perf/pdf', verifyToken, reportController.exportDryWoodPerfPDF);
-router.get('/dry-wood-perf/excel', verifyToken, reportController.exportDryWoodPerfExcel);
+router.get('/dry-wood-perf', ...guard('/dry-wood-perf'), reportController.getDryWoodPerformance);
+router.get('/dry-wood-perf/pdf', ...guard('/dry-wood-perf'), reportController.exportDryWoodPerfPDF);
+router.get('/dry-wood-perf/excel', ...guard('/dry-wood-perf'), reportController.exportDryWoodPerfExcel);
 
 module.exports = router;
 </file>
@@ -8234,29 +8472,89 @@ const router = express.Router();
 const transactionController = require('../controllers/transactionController');
 const verifyToken = require('../middlewares/authMiddleware');
 const checkPermission = require('../middlewares/permissionMiddleware');
+const { branchScope } = require('../middlewares/branchScope');
 
 // API ซิงค์ข้อมูลเลื่อยไม้ (ต้องการสิทธิ์แอดมินหรือเพิ่มข้อมูล)
-router.post('/sync-saw-woods', verifyToken, checkPermission('/sync-saw-woods', 'add'), transactionController.syncSawWoods);
+router.post('/sync-saw-woods', verifyToken, checkPermission('/sync-saw-woods', 'add'), branchScope(), transactionController.syncSawWoods);
 // ดึงข้อมูลนับไม้เลื่อย
-router.get('/saw-woods', verifyToken, checkPermission('/check-saw-woods', 'view'), transactionController.getSawWoods);
+router.get('/saw-woods', verifyToken, checkPermission('/check-saw-woods', 'view'), branchScope(), transactionController.getSawWoods);
 
 // API สำหรับการคำนวณราคาย้อนหลัง
-router.post('/recalculate-prices', verifyToken, checkPermission('/recalculate-price', 'edit'), transactionController.recalculatePrices);
-router.get('/recal-logs', verifyToken, transactionController.getRecalLogs);
+router.post('/recalculate-prices', verifyToken, checkPermission('/recalculate-price', 'edit'), branchScope(), transactionController.recalculatePrices);
+router.get('/recal-logs', verifyToken, checkPermission('/recalculate-price', 'view'), branchScope({ required: false, defaultToPrimary: true }), transactionController.getRecalLogs);
 
 // API ซิงค์ข้อมูลไม้เปียก (ต้องการสิทธิ์แอดมินหรือเพิ่มข้อมูล)
-router.post('/sync-wet-woods', verifyToken, checkPermission('/sync-wet-woods', 'add'), transactionController.syncWetWoods);
+router.post('/sync-wet-woods', verifyToken, checkPermission('/sync-wet-woods', 'add'), branchScope(), transactionController.syncWetWoods);
 
 // API ซิงค์ข้อมูลไม้แห้ง
-router.post('/sync-dry-woods', verifyToken, checkPermission('/sync-dry-woods', 'add'), transactionController.syncDryWoods);
+router.post('/sync-dry-woods', verifyToken, checkPermission('/sync-dry-woods', 'add'), branchScope(), transactionController.syncDryWoods);
 
 // ดึงข้อมูลรายละเอียดการนับไม้เปียก
-router.get('/wet-woods', verifyToken, checkPermission('/wet-wood-data', 'view'), transactionController.getWetWoods);
+router.get('/wet-woods', verifyToken, checkPermission('/wet-wood-data', 'view'), branchScope(), transactionController.getWetWoods);
 
 // ดึงข้อมูลรายละเอียดการนับไม้แห้ง
-router.get('/dry-woods', verifyToken, checkPermission('/dry-wood-data', 'view'), transactionController.getDryWoods);
+router.get('/dry-woods', verifyToken, checkPermission('/dry-wood-data', 'view'), branchScope(), transactionController.getDryWoods);
 
 module.exports = router;
+</file>
+
+<file path="src/utils/authCookie.js">
+// src/utils/authCookie.js
+// ตั้งค่า / ล้าง httpOnly cookie ที่เก็บ JWT (JavaScript ฝั่งเบราว์เซอร์อ่านไม่ได้)
+const COOKIE_NAME = 'access_token';
+
+const isProd = process.env.NODE_ENV === 'production';
+
+// อายุ cookie ต้องสัมพันธ์กับอายุ JWT (ค่าเริ่มต้น 8 ชั่วโมง = 1 กะทำงาน)
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
+const COOKIE_MAX_AGE_MS = Number(process.env.COOKIE_MAX_AGE_MS) || 8 * 60 * 60 * 1000;
+
+const baseOptions = () => ({
+    httpOnly: true,                                   // กัน XSS อ่าน token
+    secure: isProd && process.env.COOKIE_SECURE !== 'false', // ส่งผ่าน HTTPS เท่านั้นใน production
+    sameSite: process.env.COOKIE_SAMESITE || 'strict', // กัน CSRF (ถ้า FE/BE คนละโดเมนค่อยเปลี่ยนเป็น 'none')
+    path: '/api',                                     // ส่ง cookie เฉพาะตอนเรียก API
+    domain: process.env.COOKIE_DOMAIN || undefined,
+});
+
+const setAuthCookie = (res, token) => {
+    res.cookie(COOKIE_NAME, token, { ...baseOptions(), maxAge: COOKIE_MAX_AGE_MS });
+};
+
+const clearAuthCookie = (res) => {
+    // clearCookie ต้องใช้ options เดียวกับตอน set (ยกเว้น maxAge)
+    res.clearCookie(COOKIE_NAME, baseOptions());
+};
+
+module.exports = { COOKIE_NAME, JWT_EXPIRES_IN, setAuthCookie, clearAuthCookie };
+</file>
+
+<file path="src/utils/validateEnv.js">
+// src/utils/validateEnv.js
+// ตรวจสอบค่า .env สำคัญตอน start server — ถ้าไม่ปลอดภัยใน production ให้หยุดทันที
+const WEAK_PATTERNS = [/your_super/i, /secret_key_here/i, /changeme/i, /^ww_your/i];
+
+module.exports = function validateEnv() {
+    const isProd = process.env.NODE_ENV === 'production';
+    const problems = [];
+
+    const secret = process.env.JWT_SECRET || '';
+    if (secret.length < 32) problems.push('JWT_SECRET ต้องยาวอย่างน้อย 32 ตัวอักษร (แนะนำ 64+ แบบสุ่ม)');
+    if (WEAK_PATTERNS.some((re) => re.test(secret))) problems.push('JWT_SECRET ยังเป็นค่าตัวอย่าง ต้องสร้างค่าสุ่มใหม่');
+
+    if (isProd && !process.env.CORS_ORIGINS) problems.push('ต้องตั้ง CORS_ORIGINS ใน production');
+    if (!process.env.DB_PASSWORD) problems.push('ไม่ได้ตั้ง DB_PASSWORD');
+
+    if (problems.length) {
+        const msg = '[Config] พบปัญหาการตั้งค่า:\n - ' + problems.join('\n - ');
+        if (isProd) {
+            console.error(msg);
+            process.exit(1);
+        } else {
+            console.warn(msg + '\n(โหมดไม่ใช่ production จึงยังรันต่อได้)');
+        }
+    }
+};
 </file>
 
 <file path="src/cronJobs.js">
@@ -8309,57 +8607,100 @@ module.exports = cron;
 <file path="src/server.js">
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
+
+const validateEnv = require('./utils/validateEnv');
+validateEnv(); // ถ้า config ไม่ปลอดภัยใน production จะหยุดทันที
+
+const csrfMiddleware = require('./middlewares/csrfMiddleware');
 // require('./cronJobs'); // เปิดใช้งานระบบตั้งเวลาอัตโนมัติเบื้องหลัง
 
 const app = express();
 
-// Middlewares
-app.use(cors()); // อนุญาตให้ Frontend เชื่อมต่อเข้ามาได้
-app.use(express.json()); // ให้ Express อ่านข้อมูลแบบ JSON ได้
+// ซ่อน header ที่บอกว่าใช้ Express
+app.disable('x-powered-by');
+
+// อยู่หลัง Nginx / reverse proxy → ให้ req.ip และ rate limit ใช้ IP จริงของผู้ใช้
+// ปรับจำนวน proxy ได้ด้วย TRUST_PROXY (ค่าเริ่มต้น 1 ชั้น)
+app.set('trust proxy', Number(process.env.TRUST_PROXY ?? 1));
+
+// Security headers (HSTS, noSniff, frameguard ฯลฯ) — API ส่ง JSON อยู่แล้วจึงตั้ง CSP แบบเข้มได้
+app.use(helmet({
+    contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
+    crossOriginResourcePolicy: { policy: 'same-site' },
+}));
+
+// CORS: อนุญาตเฉพาะโดเมนใน CORS_ORIGINS และต้องเปิด credentials เพื่อให้ส่ง cookie ได้
+// (ถ้า FE+BE อยู่โดเมนเดียวกันผ่าน Nginx /api จะไม่ผ่าน CORS เลย)
+const allowedOrigins = (process.env.CORS_ORIGINS || '')
+    .split(',').map((s) => s.trim().replace(/\/$/, '')).filter(Boolean);
+if (process.env.NODE_ENV !== 'production') allowedOrigins.push('http://localhost:5173', 'http://127.0.0.1:5173');
+
+app.use(cors({
+    origin: (origin, cb) => (!origin || allowedOrigins.includes(origin)) ? cb(null, true) : cb(new Error('Not allowed by CORS')),
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'X-Requested-With'],
+}));
+
+app.use(cookieParser());
+app.use(express.json({ limit: '200kb' })); // จำกัดขนาด body กัน DoS
+
+// Rate limit ภาพรวมทั้ง API (กัน scraping / flood) — login มี limiter เข้มกว่าใน authRoutes
+app.use('/api', rateLimit({
+    windowMs: 60 * 1000,
+    limit: 300,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { success: false, message: 'คำขอมากเกินไป กรุณาลองใหม่ภายหลัง' },
+}));
+
+// กัน CSRF สำหรับ POST/PUT/DELETE
+app.use('/api', csrfMiddleware);
 
 // Routes
 const branchRoutes = require('./routes/branchRoutes');
 const authRoutes = require('./routes/authRoutes');
 const menuRoutes = require('./routes/menuRoutes');
-// const productRoutes = require('./routes/productRoutes'); // นำเข้าการจัดการเส้นทางสินค้า
 const masterRoutes = require('./routes/masterRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const masterOptionsRoutes = require('./routes/masterOptionsRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 
-
 app.use('/api/master', masterRoutes);
-
-app.use('/api/branches', branchRoutes); // เปิดใช้งาน API สาขา
-// app.use('/api/products', productRoutes); // เปิดใช้งาน API สินค้า
-
+app.use('/api/branches', branchRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/menus', menuRoutes); // เปิดใช้งาน API เมนู
-
+app.use('/api/menus', menuRoutes);
 app.use('/api/transactions', transactionRoutes);
-
 app.use('/api/master-options', masterOptionsRoutes);
-
 app.use('/api/reports', reportRoutes);
-
 app.use('/api/dashboard', dashboardRoutes);
 
-// Test Route เพื่อตรวจสอบสถานะ
-app.get('/api/status', (req, res) => {
-    res.json({
-        success: true,
-        message: 'Backend API พร้อมทำงาน! รอรับโครงสร้าง Database จากคุณ PPOS ครับ'
-    });
+// Health check (ไม่เปิดเผยรายละเอียดภายใน)
+app.get('/api/status', (req, res) => res.json({ success: true }));
+
+// 404
+app.use('/api', (req, res) => res.status(404).json({ success: false, message: 'ไม่พบ API ที่ร้องขอ' }));
+
+// Error handler กลาง — ไม่ส่ง stack trace / รายละเอียดภายในออกไปให้ client
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+    if (err.message === 'Not allowed by CORS') return res.status(403).json({ success: false, message: 'Origin ไม่ได้รับอนุญาต' });
+    if (err.type === 'entity.too.large') return res.status(413).json({ success: false, message: 'ข้อมูลมีขนาดใหญ่เกินไป' });
+    if (err.type === 'entity.parse.failed') return res.status(400).json({ success: false, message: 'รูปแบบข้อมูลไม่ถูกต้อง' });
+    if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ success: false, message: 'ไฟล์มีขนาดใหญ่เกินไป' });
+    console.error('[Unhandled Error]', err);
+    res.status(500).json({ success: false, message: 'Server Error' });
 });
 
-// ตั้งค่า Port (ดึงจาก .env ถ้าไม่มีให้ใช้ 5000)
-const PORT = process.env.PORT || 5000;
+process.on('unhandledRejection', (reason) => console.error('[unhandledRejection]', reason));
 
-app.listen(PORT, () => {
-    console.log(`[Backend] Server is running on port ${PORT}`);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`[Backend] Server is running on port ${PORT} (${process.env.NODE_ENV || 'development'})`));
 </file>
 
 <file path=".dockerignore">
@@ -8641,34 +8982,30 @@ temp/
 <file path="Dockerfile">
 FROM node:22-alpine
 
-# กำหนดพื้นที่ทำงาน
 WORKDIR /app
 
-# 1. ปิดไม่ให้ Puppeteer โหลด Chromium เอง (เพราะมักจะพังใน Docker) และชี้เป้าไปที่ตัวที่เราจะติดตั้ง
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+# Puppeteer ใช้ Chromium ของระบบ (ไม่โหลดเอง)
+ENV NODE_ENV=production \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-# 2. ติดตั้ง Chromium และไลบรารีที่จำเป็นสำหรับการเรนเดอร์ PDF
 RUN apk add --no-cache \
-    chromium \
-    nss \
-    freetype \
-    harfbuzz \
-    ca-certificates \
-    ttf-freefont
+    chromium nss freetype harfbuzz ca-certificates ttf-freefont
 
-# คัดลอกไฟล์ package.json ไปติดตั้งไลบรารีก่อน (เพื่อใช้ Cache)
 COPY package*.json ./
-RUN npm install
+# ติดตั้งเฉพาะ production dependencies
+RUN npm install --omit=dev && npm cache clean --force
 
-# คัดลอกโค้ดที่เหลือทั้งหมด
 COPY . .
 
-# แจ้งเตือนว่า Container นี้ทำงานที่พอร์ต 5000
+# ไม่รันเป็น root — ลดความเสียหายถ้า container ถูกเจาะ
+RUN chown -R node:node /app
+USER node
+
+# พอร์ตตรงกับ PORT ใน .env
 EXPOSE 3000
 
-# คำสั่งรัน Server (เช่น node server.js หรือ npm start)
-CMD ["npm", "start"]
+CMD ["node", "src/server.js"]
 </file>
 
 <file path="package.json">
@@ -8687,11 +9024,13 @@ CMD ["npm", "start"]
   "packageManager": "pnpm@10.34.5",
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
-    "html2pdf.js": "^0.14.0",
+    "express-rate-limit": "^8.1.0",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.4.0",
     "mysql2": "^3.24.4",
@@ -8703,6 +9042,9 @@ CMD ["npm", "start"]
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
 </file>
@@ -10664,6 +11006,130 @@ module.exports = checkPermission;
 </file>
 
 </files>
+</file>
+
+<file path="smoke-test.js">
+// Smoke test: จำลอง DB ด้วย fake pool แล้วยิง HTTP จริงเข้า Express
+process.env.NODE_ENV = 'development';
+process.env.JWT_SECRET = require('crypto').randomBytes(48).toString('hex');
+process.env.DB_PASSWORD = 'x';
+process.env.PORT = '3999';
+const path = require('path'); const bcrypt = require('bcrypt');
+const root = './src/';
+const hash = bcrypt.hashSync('Correct-Horse-1', 10);
+
+const users = {
+  1: { id: 1, username: 'admin', password: hash, fullname: 'Admin', branch_id: 1, group_id: 1, branch_name: 'B1' },
+  2: { id: 2, username: 'staff', password: hash, fullname: 'Staff', branch_id: 2, group_id: 2, branch_name: 'B2' },
+};
+const fakeDb = {
+  query: async (sql, params = []) => {
+    const q = sql.replace(/\s+/g, ' ');
+    if (/FROM public.users u LEFT JOIN public.branches b ON u.branch_id = b.id WHERE u.username/.test(q)) return { rows: [Object.values(users).find(u => u.username === params[0])].filter(Boolean) };
+    if (/WHERE u.id = \$1/.test(q)) return { rows: [users[params[0]]].filter(Boolean) };
+    if (/SELECT group_id, branch_id FROM public.users/.test(q)) return { rows: [users[params[0]]].filter(Boolean) };
+    if (/SELECT group_id FROM public.users/.test(q)) return { rows: [users[params[0]]].filter(Boolean) };
+    if (/FROM public.group_permissions gp JOIN public.menus m/.test(q)) {
+      // group 1: level 1 ; group 2: level 3 ; both can view
+      return { rows: [{ can_view: true, can_add: params[0] === 1, can_edit: params[0] === 1, can_delete: false, access_level: params[0] === 1 ? 1 : 3 }] };
+    }
+    if (/MIN\(access_level\)/.test(q)) return { rows: [{ lvl: params[0] === 1 ? 1 : 3 }] };
+    if (/SELECT \* FROM public.branches WHERE is_active = true ORDER BY id DESC/.test(q)) return { rows: [{ id: 1 }, { id: 2 }, { id: 3 }] };
+    if (/SELECT \* FROM public.branches WHERE id = \$1/.test(q)) return { rows: [{ id: params[0] }] };
+    if (/DISTINCT branch_id FROM master_wood_sizes/.test(q)) return { rows: [{ branch_id: 1 }] };
+    return { rows: [] };
+  },
+  connect: (cb) => cb && cb(null, null, () => {}),
+};
+require.cache[require.resolve(root + 'config/db.js')] = { id: 'db', filename: 'db', loaded: true, exports: fakeDb };
+// ReportModel จริงจะยิง DB → stub ให้คืน []
+const rm = require(root + 'models/reportModel.js');
+rm.getProductionCoverReport = async () => [{ ok: 1 }];
+require(root + 'server.js');
+
+const base = 'http://localhost:3999/api';
+const H = { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+const ck = (r) => (r.headers.getSetCookie?.() || []).map(c => c.split(';')[0]).join('; ');
+const results = [];
+const t = (name, ok, extra='') => { results.push(ok); console.log((ok ? 'PASS' : 'FAIL') + '  ' + name + (extra ? '  → ' + extra : '')); };
+
+(async () => {
+  await new Promise(r => setTimeout(r, 800));
+  // 1 wrong password
+  let r = await fetch(base + '/auth/login', { method: 'POST', headers: H, body: JSON.stringify({ username: 'admin', password: 'bad' }) });
+  t('login wrong password → 401', r.status === 401);
+  const r2 = await fetch(base + '/auth/login', { method: 'POST', headers: H, body: JSON.stringify({ username: 'nobody', password: 'bad' }) });
+  t('unknown user returns same message (no enumeration)', (await r2.json()).message === (await (await fetch(base + '/auth/login', { method: 'POST', headers: H, body: JSON.stringify({ username: 'admin', password: 'bad' }) })).json()).message);
+
+  // 2 login ok
+  r = await fetch(base + '/auth/login', { method: 'POST', headers: H, body: JSON.stringify({ username: 'admin', password: 'Correct-Horse-1' }) });
+  const setCookie = r.headers.getSetCookie()[0]; const body = await r.json();
+  t('login ok → 200', r.status === 200);
+  t('token NOT in response body', body.token === undefined);
+  t('cookie is HttpOnly', /HttpOnly/i.test(setCookie), setCookie.split(';').slice(1).join(';'));
+  t('cookie SameSite=Strict', /SameSite=Strict/i.test(setCookie));
+  const adminCookie = ck(r);
+
+  // staff login
+  r = await fetch(base + '/auth/login', { method: 'POST', headers: H, body: JSON.stringify({ username: 'staff', password: 'Correct-Horse-1' }) });
+  const staffCookie = ck(r);
+
+  // 3 /me
+  r = await fetch(base + '/auth/me', { headers: { Cookie: adminCookie } });
+  t('/auth/me with cookie → 200', r.status === 200);
+  r = await fetch(base + '/auth/me');
+  t('/auth/me without cookie → 401', r.status === 401);
+  r = await fetch(base + '/auth/me', { headers: { Authorization: 'Bearer ' + adminCookie.split('=')[1] } });
+  t('Bearer header no longer accepted → 401', r.status === 401);
+  r = await fetch(base + '/auth/me', { headers: { Cookie: 'access_token=garbage' } });
+  t('forged cookie → 401', r.status === 401);
+
+  // 4 register is protected
+  r = await fetch(base + '/auth/register', { method: 'POST', headers: H, body: JSON.stringify({ username: 'evil', password: 'Password-12345', group_id: 1 }) });
+  t('register without login → 401', r.status === 401);
+  r = await fetch(base + '/auth/register', { method: 'POST', headers: { ...H, Cookie: staffCookie }, body: JSON.stringify({ username: 'evil', password: 'Password-12345', group_id: 1 }) });
+  t('register as non-admin → 403', r.status === 403);
+
+  // 5 CSRF
+  r = await fetch(base + '/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: adminCookie } });
+  t('POST without X-Requested-With → 403 (CSRF)', r.status === 403);
+  r = await fetch(base + '/auth/logout', { method: 'POST', headers: { ...H, Origin: 'https://evil.example', Cookie: adminCookie } });
+  t('POST from foreign Origin → 403', r.status === 403);
+  r = await fetch(base + '/auth/logout', { method: 'POST', headers: H });
+  t('logout clears cookie', /access_token=;/.test(r.headers.getSetCookie()[0] || ''));
+
+  // 6 branch scope
+  r = await fetch(base + '/reports/production-cover?branch_id=2&start_date=2026-01-01&end_date=2026-01-02', { headers: { Cookie: staffCookie } });
+  t('staff (level3, branch 2) → own branch 2 allowed', r.status === 200, 'status ' + r.status);
+  r = await fetch(base + '/reports/production-cover?branch_id=1&start_date=2026-01-01&end_date=2026-01-02', { headers: { Cookie: staffCookie } });
+  t('staff → other branch 1 blocked 403', r.status === 403);
+  r = await fetch(base + '/reports/production-cover?start_date=2026-01-01&end_date=2026-01-02', { headers: { Cookie: staffCookie } });
+  t('missing branch_id → 400', r.status === 400);
+  r = await fetch(base + "/reports/production-cover?branch_id=2%20OR%201=1&start_date=a&end_date=b", { headers: { Cookie: staffCookie } });
+  t('non-numeric branch_id → 400', r.status === 400);
+  r = await fetch(base + '/reports/production-cover?branch_id=3&start_date=2026-01-01&end_date=2026-01-02', { headers: { Cookie: adminCookie } });
+  t('admin (level1) any branch → 200', r.status === 200);
+  r = await fetch(base + '/reports/production-cover?branch_id=1');
+  t('report without login → 401', r.status === 401);
+  r = await fetch(base + '/master/sync', { method: 'POST', headers: { ...H, Cookie: staffCookie }, body: JSON.stringify({ branch_id: 0 }) });
+  t('staff sync all branches (0) → 403', r.status === 403);
+  r = await fetch(base + '/dashboard/summary?branch_id=1', { headers: { Cookie: staffCookie } });
+  t('dashboard other branch → 403', r.status === 403);
+  r = await fetch(base + '/master/wood-prices/export?branch_id=1');
+  t('wood-prices export without login → 401 (was open)', r.status === 401);
+
+  // 7 headers
+  r = await fetch(base + '/status');
+  t('x-powered-by removed', !r.headers.get('x-powered-by'));
+  t('helmet headers present', !!r.headers.get('x-content-type-options') && !!r.headers.get('content-security-policy'));
+
+  // 8 rate limit login
+  let last; for (let i = 0; i < 12; i++) last = await fetch(base + '/auth/login', { method: 'POST', headers: H, body: JSON.stringify({ username: 'admin', password: 'bad' + i }) });
+  t('login brute-force limited → 429', last.status === 429);
+
+  console.log(`\n${results.filter(Boolean).length}/${results.length} passed`);
+  process.exit(results.every(Boolean) ? 0 : 1);
+})();
 </file>
 
 </files>

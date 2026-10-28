@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
+import escapeHtml from '../utils/escapeHtml';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { th } from 'date-fns/locale';
@@ -82,7 +83,7 @@ export default function RecalculatePrice() {
 
     const confirm = await Swal.fire({
       title: 'เริ่มการคำนวณราคาใหม่?',
-      html: `สาขา <b>${branchName}</b><br/>วันที่ผลิต: <b>${format(parseISO(filters.produce_date), 'dd/MM/yyyy')}</b><br/><br/><span class="text-sm text-gray-500">ระบบจะทำการรันเบื้องหลัง คุณสามารถทำงานอื่นต่อได้ทันที</span>`,
+      html: `สาขา <b>${escapeHtml(branchName)}</b><br/>วันที่ผลิต: <b>${format(parseISO(filters.produce_date), 'dd/MM/yyyy')}</b><br/><br/><span class="text-sm text-gray-500">ระบบจะทำการรันเบื้องหลัง คุณสามารถทำงานอื่นต่อได้ทันที</span>`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'ยืนยัน',

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
-import apiFetch from '../services/apiFetch';
+import apiFetch, { API_URL } from '../services/apiFetch';
+import { getUser } from '../utils/session';
 
 export default function WoodPriceManager() {
   // ─── State: ข้อมูลและสิทธิ์ ───
@@ -31,9 +32,8 @@ export default function WoodPriceManager() {
   useEffect(() => {
     let isMounted = true; 
 
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      const user = JSON.parse(storedUser);
+    const user = getUser();
+    if (user) {
       setCurrentUser(user);
       setIsAdmin(user.group_id === 1);
     }
@@ -157,7 +157,7 @@ export default function WoodPriceManager() {
   };
 
   const handleExportExcel = () => {
-    window.open(`${import.meta.env.VITE_API_URL}/master/wood-prices/export?branch_id=${selectedBranch}&type_id=1&paramExport=true`, '_blank');
+    window.open(`${API_URL}/master/wood-prices/export?branch_id=${selectedBranch}&type_id=1&paramExport=true`, '_blank');
   };
 
   const handleImportExcel = async (e) => {
@@ -177,13 +177,12 @@ export default function WoodPriceManager() {
         color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#111827'
       });
       
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/master/wood-prices/import`, {
+      // apiFetch จัดการ cookie + CSRF header + FormData ให้อัตโนมัติ
+      const data = await apiFetch('/master/wood-prices/import', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
         body: formData
       });
-      const data = await res.json();
+      if (!data) return;
 
       if (data.success) {
         Swal.fire({ 

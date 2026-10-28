@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
+import escapeHtml from '../utils/escapeHtml';
 
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -92,7 +93,7 @@ export default function SyncWetWood() {
     const confirm = await Swal.fire({
       ...themeParams,
       title: 'ยืนยันการนำเข้าข้อมูล?',
-      html: `ดึงข้อมูลไม้เปียกของ <b>${branchName}</b><br/>ตั้งแต่วันที่ <b>${new Date(startDate).toLocaleDateString('th-TH')}</b> ถึง <b>${new Date(endDate).toLocaleDateString('th-TH')}</b>`,
+      html: `ดึงข้อมูลไม้เปียกของ <b>${escapeHtml(branchName)}</b><br/>ตั้งแต่วันที่ <b>${new Date(startDate).toLocaleDateString('th-TH')}</b> ถึง <b>${new Date(endDate).toLocaleDateString('th-TH')}</b>`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'ใช่, เริ่มดึงข้อมูล',

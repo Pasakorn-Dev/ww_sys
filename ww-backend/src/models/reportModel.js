@@ -646,18 +646,21 @@ const ReportModel = {
   getWetWoodPerformanceReport: async (filters) => {
     const { branch_id, start_date, end_date, store_code } = filters;
 
-    // ตรวจสอบ store_code (ถ้าไม่ได้ส่งมา หรือส่งมาแบบ Range ก็จัดการให้รองรับ)
-    // จากโจทย์: AND wwt.code BETWEEN '21/00' AND '21/99'
+    // ✅ ใช้ parameterized query ทั้งหมด (เดิมต่อ string ตรง ๆ → SQL Injection)
+    const params = [branch_id, start_date, end_date];
     let storeCondition = "";
     if (store_code) {
-        if (store_code.includes('-')) {
-            const [start, end] = store_code.split('-');
-            storeCondition = `AND wwt.code BETWEEN '${start.trim()}' AND '${end.trim()}'`;
+        const sc = String(store_code);
+        if (sc.includes('-')) {
+            const [start, end] = sc.split('-');
+            params.push(start.trim(), end.trim());
+            storeCondition = `AND wwt.code BETWEEN $4 AND $5`;
         } else {
-            storeCondition = `AND wwt.code = '${store_code.trim()}'`;
+            params.push(sc.trim());
+            storeCondition = `AND wwt.code = $4`;
         }
     } else {
-        // ค่า Default ถ้าไม่ระบุ
+        // ค่า Default ถ้าไม่ระบุ (ค่าคงที่ ไม่ได้มาจากผู้ใช้)
         storeCondition = `AND wwt.code BETWEEN '21/00' AND '21/99'`;
     }
 
@@ -687,7 +690,6 @@ const ReportModel = {
         ws.is_special ASC
     `;
 
-    const params = [branch_id, start_date, end_date];
     const { rows } = await pool.query(query, params);
     return rows;
   },
@@ -698,17 +700,21 @@ const ReportModel = {
   getDryWoodPerformanceReport: async (filters) => {
     const { branch_id, start_date, end_date, store_code } = filters;
 
-    // จัดการเงื่อนไขค้นหาสโตร์ไม้แห้ง (รองรับแบบช่วง - และแบบ LIKE)
+    // ✅ ใช้ parameterized query ทั้งหมด (เดิมต่อ string ตรง ๆ → SQL Injection)
+    const params = [branch_id, start_date, end_date];
     let storeCondition = "";
     if (store_code) {
-        if (store_code.includes('-')) {
-            const [start, end] = store_code.split('-');
-            storeCondition = `AND wst.code BETWEEN '${start.trim()}' AND '${end.trim()}'`;
+        const sc = String(store_code);
+        if (sc.includes('-')) {
+            const [start, end] = sc.split('-');
+            params.push(start.trim(), end.trim());
+            storeCondition = `AND wst.code BETWEEN $4 AND $5`;
         } else {
-            storeCondition = `AND wst.code LIKE '${store_code.trim()}%'`;
+            params.push(`${sc.trim().replace(/[\%_]/g, '\$&')}%`); // escape ตัวอักษรพิเศษของ LIKE
+            storeCondition = `AND wst.code LIKE $4`;
         }
     } else {
-        // ค่า Default สำหรับไม้แห้ง
+        // ค่า Default สำหรับไม้แห้ง (ค่าคงที่)
         storeCondition = `AND wst.code LIKE '104%'`;
     }
 
@@ -738,7 +744,6 @@ const ReportModel = {
         ws.is_special ASC
     `;
 
-    const params = [branch_id, start_date, end_date];
     const { rows } = await pool.query(query, params);
     return rows;
   },

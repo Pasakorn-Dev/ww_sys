@@ -24,9 +24,32 @@ const woodPriceController = {
   // ─── 2. บันทึกราคาจากการแก้ไขผ่านหน้าเว็บ (Inline Edit) ───
   bulkUpdate: async (req, res) => {
     try {
-      const { prices } = req.body; 
-      if (!prices || prices.length === 0) {
+      const { prices } = req.body || {};
+      if (!Array.isArray(prices) || prices.length === 0) {
         return res.status(400).json({ success: false, message: 'ไม่มีข้อมูลให้อัปเดต' });
+      }
+      if (prices.length > 5000) {
+        return res.status(400).json({ success: false, message: 'ส่งข้อมูลมากเกินไปในครั้งเดียว' });
+      }
+
+      // ตรวจรูปแบบข้อมูลทุกแถว
+      const valid = prices.every((p) =>
+        Number.isInteger(Number(p?.id)) && Number(p.id) > 0 &&
+        p.unit_price !== '' && p.unit_price !== null && Number.isFinite(Number(p.unit_price)) && Number(p.unit_price) >= 0
+      );
+      if (!valid) {
+        return res.status(400).json({ success: false, message: 'รูปแบบข้อมูลราคาไม่ถูกต้อง' });
+      }
+
+      // กัน IDOR: ทุก id ต้องเป็นของสาขาที่ user มีสิทธิ์เท่านั้น
+      const ids = prices.map((p) => Number(p.id));
+      const pool = require('../config/db');
+      const owner = await pool.query(
+        'SELECT DISTINCT branch_id FROM master_wood_sizes WHERE id = ANY($1::int[])', [ids]
+      );
+      const outOfScope = owner.rows.some((r) => !req.scope.allowedBranchIds.includes(Number(r.branch_id)));
+      if (outOfScope) {
+        return res.status(403).json({ success: false, message: 'มีรายการที่ไม่อยู่ในสาขาที่คุณมีสิทธิ์' });
       }
 
       await WoodPriceModel.updatePricesByIds(prices);

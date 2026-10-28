@@ -3,26 +3,27 @@ const router = express.Router();
 const transactionController = require('../controllers/transactionController');
 const verifyToken = require('../middlewares/authMiddleware');
 const checkPermission = require('../middlewares/permissionMiddleware');
+const { branchScope } = require('../middlewares/branchScope');
 
 // API ซิงค์ข้อมูลเลื่อยไม้ (ต้องการสิทธิ์แอดมินหรือเพิ่มข้อมูล)
-router.post('/sync-saw-woods', verifyToken, checkPermission('/sync-saw-woods', 'add'), transactionController.syncSawWoods);
+router.post('/sync-saw-woods', verifyToken, checkPermission('/sync-saw-woods', 'add'), branchScope(), transactionController.syncSawWoods);
 // ดึงข้อมูลนับไม้เลื่อย
-router.get('/saw-woods', verifyToken, checkPermission('/check-saw-woods', 'view'), transactionController.getSawWoods);
+router.get('/saw-woods', verifyToken, checkPermission('/check-saw-woods', 'view'), branchScope(), transactionController.getSawWoods);
 
 // API สำหรับการคำนวณราคาย้อนหลัง
-router.post('/recalculate-prices', verifyToken, checkPermission('/recalculate-price', 'edit'), transactionController.recalculatePrices);
-router.get('/recal-logs', verifyToken, transactionController.getRecalLogs);
+router.post('/recalculate-prices', verifyToken, checkPermission('/recalculate-price', 'edit'), branchScope(), transactionController.recalculatePrices);
+router.get('/recal-logs', verifyToken, checkPermission('/recalculate-price', 'view'), branchScope({ required: false, defaultToPrimary: true }), transactionController.getRecalLogs);
 
 // API ซิงค์ข้อมูลไม้เปียก (ต้องการสิทธิ์แอดมินหรือเพิ่มข้อมูล)
-router.post('/sync-wet-woods', verifyToken, checkPermission('/sync-wet-woods', 'add'), transactionController.syncWetWoods);
+router.post('/sync-wet-woods', verifyToken, checkPermission('/sync-wet-woods', 'add'), branchScope(), transactionController.syncWetWoods);
 
 // API ซิงค์ข้อมูลไม้แห้ง
-router.post('/sync-dry-woods', verifyToken, checkPermission('/sync-dry-woods', 'add'), transactionController.syncDryWoods);
+router.post('/sync-dry-woods', verifyToken, checkPermission('/sync-dry-woods', 'add'), branchScope(), transactionController.syncDryWoods);
 
 // ดึงข้อมูลรายละเอียดการนับไม้เปียก
-router.get('/wet-woods', verifyToken, checkPermission('/wet-wood-data', 'view'), transactionController.getWetWoods);
+router.get('/wet-woods', verifyToken, checkPermission('/wet-wood-data', 'view'), branchScope(), transactionController.getWetWoods);
 
 // ดึงข้อมูลรายละเอียดการนับไม้แห้ง
-router.get('/dry-woods', verifyToken, checkPermission('/dry-wood-data', 'view'), transactionController.getDryWoods);
+router.get('/dry-woods', verifyToken, checkPermission('/dry-wood-data', 'view'), branchScope(), transactionController.getDryWoods);
 
 module.exports = router;

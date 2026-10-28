@@ -1,20 +1,41 @@
 const UserModel = require('../models/userModel');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { setAuthCookie, clearAuthCookie, JWT_EXPIRES_IN } = require('../utils/authCookie');
+
+// hash หลอก ใช้เปรียบเทียบตอนไม่พบ username เพื่อให้เวลาตอบสนองใกล้เคียงกัน (กัน username enumeration จาก timing)
+const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing', 10) // ใช้ cost เท่ากับ hash เดิมในระบบ (10);
+const BCRYPT_ROUNDS = 12;
+
+const publicUser = (user) => ({
+    id: user.id,
+    username: user.username,
+    fullname: user.fullname,
+    branch_id: user.branch_id,
+    branch_name: user.branch_name,
+    group_id: user.group_id,
+});
 
 const authController = {
-    // API สำหรับสร้างผู้ใช้งานใหม่ (Register)
+    // สร้างผู้ใช้ใหม่ — route นี้ต้องผ่าน verifyToken + requireAdmin (ดู authRoutes.js)
     register: async (req, res) => {
         try {
-            const { username, password, fullname, group_id, branch_id, dept_id } = req.body;
-            
-            const salt = await bcrypt.genSalt(10);
-            const hashedPassword = await bcrypt.hash(password, salt);
+            const { username, password, fullname, group_id, branch_id, dept_id } = req.body || {};
+
+            if (typeof username !== 'string' || username.trim().length < 3 || username.length > 50) {
+                return res.status(400).json({ success: false, message: 'ชื่อผู้ใช้ต้องมี 3-50 ตัวอักษร' });
+            }
+            if (typeof password !== 'string' || password.length < 10 || password.length > 72) {
+                // bcrypt ใช้ได้สูงสุด 72 bytes
+                return res.status(400).json({ success: false, message: 'รหัสผ่านต้องยาว 10-72 ตัวอักษร' });
+            }
+
+            const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
             const newUser = await UserModel.createUser({
-                username, password: hashedPassword, fullname, group_id, branch_id, dept_id
+                username: username.trim(), password: hashedPassword, fullname, group_id, branch_id, dept_id,
             });
-            
+
             res.status(201).json({ success: true, message: 'สร้างผู้ใช้งานสำเร็จ', data: newUser });
         } catch (error) {
             console.error(error);
@@ -25,6 +46,56 @@ const authController = {
         }
     },
 
+    login: async (req, res) => {
+        try {
+            const { username, password } = req.body || {};
+
+            // กัน NoSQL/type confusion และ input ผิดรูป
+            if (typeof username !== 'string' || typeof password !== 'string' || !username || !password || password.length > 72) {
+                return res.status(400).json({ success: false, message: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' });
+            }
+
+            const user = await UserModel.findByUsername(username);
+
+            // เปรียบเทียบ hash เสมอ แม้ไม่พบผู้ใช้ (กัน timing attack) และใช้ข้อความเดียวกัน (กัน username enumeration)
+            const isMatch = await bcrypt.compare(password, user ? user.password : DUMMY_HASH);
+            if (!user || !isMatch) {
+                console.warn(`[Auth] login failed username="${String(username).slice(0, 50)}" ip=${req.ip}`);
+                return res.status(401).json({ success: false, message: 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง' });
+            }
+
+            // payload เล็กที่สุด — สิทธิ์/สาขา/กลุ่ม ให้ดึงสดจาก DB ทุก request (เปลี่ยนสิทธิ์แล้วมีผลทันที)
+            const token = jwt.sign(
+                { id: user.id, username: user.username },
+                process.env.JWT_SECRET,
+                { expiresIn: JWT_EXPIRES_IN, algorithm: 'HS256' }
+            );
+
+            setAuthCookie(res, token);
+
+            // ไม่ส่ง token กลับใน body อีกต่อไป
+            res.json({ success: true, message: 'เข้าสู่ระบบสำเร็จ', data: publicUser(user) });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ success: false, message: 'Server Error' });
+        }
+    },
+
+    // ตรวจ session ปัจจุบัน + ดึงข้อมูลผู้ใช้สดจาก DB (frontend ใช้แทนการอ่านจาก localStorage)
+    me: async (req, res) => {
+        try {
+            const user = await UserModel.findById(req.user.id);
+            if (!user) {
+                clearAuthCookie(res);
+                return res.status(401).json({ success: false, message: 'ไม่พบผู้ใช้งาน' });
+            }
+            res.json({ success: true, data: publicUser(user) });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ success: false, message: 'Server Error' });
+        }
+    },
+    
     // API สำหรับให้ Admin สร้างผู้ใช้งานใหม่
     createUserAdmin: async (req, res) => {
         try {
@@ -103,8 +174,6 @@ const authController = {
         }
     },
 
-    // src/controllers/authController.js
-    // ... ภายใน object authController
     getUserInfo: async (req, res) => {
         try {
             const userId = req.params.id;
@@ -138,61 +207,11 @@ const authController = {
             res.status(500).json({ success: false, message: 'ไม่สามารถลบผู้ใช้นี้ได้ อาจมีข้อมูลเชื่อมโยงอยู่' });
         }
     },
-    // API สำหรับเข้าสู่ระบบ (Login)
-    login: async (req, res) => {
-        try {
-            const { username, password } = req.body;
-            const db = require('../config/db');
-            
-            // 1. ค้นหา User ในระบบ
-            const user = await UserModel.findByUsername(username);
-            if (!user) {
-                return res.status(401).json({ success: false, message: 'ไม่พบชื่อผู้ใช้งานนี้' });
-            }
 
-            // 2. ตรวจสอบรหัสผ่านว่าตรงกันไหม
-            const isMatch = await bcrypt.compare(password, user.password);
-            if (!isMatch) {
-                return res.status(401).json({ success: false, message: 'รหัสผ่านไม่ถูกต้อง' });
-            }
-
-            // 3. สร้าง JWT Token (ไม่ต้องดึง access_level ตอน login เพราะแยกตามเมนู)
-            const token = jwt.sign(
-                { 
-                    id: user.id, 
-                    username: user.username, 
-                    branch_id: user.branch_id,
-                    group_id: user.group_id
-                },
-                process.env.JWT_SECRET,
-                { expiresIn: '1d' } 
-            );
-
-            // Debug log
-            // console.log('=== Login Debug Info ===');
-            // console.log('Username:', user.username);
-            // console.log('Branch ID:', user.branch_id);
-            // console.log('Group ID:', user.group_id);
-            // console.log('Note: access_level จะดึงแยกตามเมนูแต่ละครั้ง');
-
-            res.json({ 
-                success: true, 
-                message: 'เข้าสู่ระบบสำเร็จ', 
-                token, 
-                data: { 
-                    id: user.id, 
-                    username: user.username, 
-                    fullname: user.fullname,
-                    branch_id: user.branch_id,
-                    branch_name: user.branch_name,
-                    group_id: user.group_id
-                } 
-            });
-        } catch (error) {
-            console.error(error);
-            res.status(500).json({ success: false, message: 'Server Error' });
-        }
-    }
+    logout: (req, res) => {
+        clearAuthCookie(res);
+        res.json({ success: true, message: 'ออกจากระบบแล้ว' });
+    },
 };
 
 module.exports = authController;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import apiFetch from '../services/apiFetch';
+import apiFetch, { API_URL } from '../services/apiFetch';
 
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -274,11 +274,10 @@ export default function SawerPerformanceReport() {
         report_format: filters.report_format // 💡 แนบรูปแบบรายงาน
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/sawer-performance/pdf?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate PDF');
@@ -325,11 +324,10 @@ export default function SawerPerformanceReport() {
         report_format: filters.report_format // 💡 แนบรูปแบบรายงาน
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/sawer-performance/excel?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate Excel');

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
+import escapeHtml from '../utils/escapeHtml';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { th } from 'date-fns/locale';
@@ -69,7 +70,7 @@ export default function SyncDryWood() {
     const branchName = branches.find(b => Number(b.id) === Number(selectedBranch))?.branch_name;
     const confirm = await Swal.fire({
       title: 'ยืนยันการนำเข้าไม้แห้ง?',
-      html: `ดึงข้อมูลไม้แห้ง <b>${branchName}</b><br/>ตั้งแต่วันที่ <b>${format(parseISO(startDate), 'dd/MM/yyyy')}</b> ถึง <b>${format(parseISO(endDate), 'dd/MM/yyyy')}</b>`,
+      html: `ดึงข้อมูลไม้แห้ง <b>${escapeHtml(branchName)}</b><br/>ตั้งแต่วันที่ <b>${format(parseISO(startDate), 'dd/MM/yyyy')}</b> ถึง <b>${format(parseISO(endDate), 'dd/MM/yyyy')}</b>`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#ea580c',

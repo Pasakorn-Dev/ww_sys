@@ -1,22 +1,33 @@
 // src/services/apiFetch.js
+// ศูนย์กลางการเรียก API
+//  - ยืนยันตัวตนด้วย httpOnly cookie (credentials: 'include') — JavaScript ไม่เห็นและไม่เก็บ token
+//  - แนบ X-Requested-With เพื่อให้ผ่านการป้องกัน CSRF ของ backend
 import { clearSession } from '../utils/session';
 
-const BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+export const API_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+
+// path ที่ 401 หมายถึง "รหัสผ่านผิด" ไม่ใช่ "session หมดอายุ"
+const AUTH_FAIL_PATHS = ['/auth/login'];
 
 export default async function apiFetch(path, options = {}) {
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  const token = localStorage.getItem('token');
+  const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData;
 
-  const res = await fetch(`${BASE_URL}${cleanPath}`, {
+  const res = await fetch(`${API_URL}${cleanPath}`, {
     ...options,
+    credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
+      // FormData ต้องให้ browser ตั้ง Content-Type (boundary) เอง
+      ...(isForm ? {} : { 'Content-Type': 'application/json' }),
+      'X-Requested-With': 'XMLHttpRequest',
       ...options.headers,
     },
   });
 
-  if (res.status === 401) {
+  const data = await res.json().catch(() => ({ success: false, message: 'เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง' }));
+
+  // 401 = session หมดอายุ/ไม่ถูกต้อง → ล้างข้อมูลฝั่ง client แล้วกลับหน้า login
+  if (res.status === 401 && !AUTH_FAIL_PATHS.includes(cleanPath)) {
     clearSession();
     if (window.location.pathname !== '/login') {
       window.location.href = '/login';
@@ -24,14 +35,9 @@ export default async function apiFetch(path, options = {}) {
     return;
   }
 
-  // 2. ถ้าแค่ "ไม่มีสิทธิ์" (403) ไม่ต้องเตะออก ให้ดึง json ออกมาเพื่อแจ้งเตือนเฉยๆ
-  const data = await res.json();
-  
+  // 403 = ไม่มีสิทธิ์ (ไม่เตะออก ให้หน้าแจ้งเตือนเอง)
   if (res.status === 403) {
-      console.warn("Permission Denied:", data.message);
-      // ตัว API จะถูกส่งข้อมูลกลับไปให้ Component (เช่น หน้า SyncMaster)
-      // แจ้งเตือน Swal สีแดงๆ แทนการหลุดไปหน้า Login
-      return data; 
+    console.warn('Permission Denied:', data?.message);
   }
 
   return data;

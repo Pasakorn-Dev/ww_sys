@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
+import escapeHtml from '../utils/escapeHtml';
 import useMasterOptions from '../hooks/useMasterOptions';
 
 import DatePicker from 'react-datepicker';
@@ -140,10 +141,10 @@ export default function CheckSawWood() {
               <tbody class="${isDarkTheme ? 'text-gray-200' : 'text-gray-800'}">
                 ${items.map(item => `
                   <tr class="border-b ${isDarkTheme ? 'border-gray-700 hover:bg-gray-600/50' : 'hover:bg-gray-50'}">
-                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''}">${item.wood_code || '-'}</td>
-                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''}">${item.grade || '-'}</td>
-                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''} text-right">${item.amount}</td>
-                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''} text-right">${item.volumn}</td>
+                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''}">${escapeHtml(item.wood_code || '-')}</td>
+                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''}">${escapeHtml(item.grade || '-')}</td>
+                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''} text-right">${escapeHtml(item.amount)}</td>
+                    <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''} text-right">${escapeHtml(item.volumn)}</td>
                     <td class="p-2 border ${isDarkTheme ? 'border-gray-700' : ''} text-right ${isDarkTheme ? 'text-blue-400' : 'text-blue-600'} font-semibold">${Number(item.net_price).toLocaleString()}</td>
                   </tr>
                 `).join('')}
@@ -154,7 +155,7 @@ export default function CheckSawWood() {
 
         Swal.fire({
           ...themeParams,
-          title: `<span class="text-lg">รายละเอียด Barcode: <span class="${isDarkTheme ? 'text-blue-400' : 'text-blue-600'}">${barcode_id}</span></span>`,
+          title: `<span class="text-lg">รายละเอียด Barcode: <span class="${isDarkTheme ? 'text-blue-400' : 'text-blue-600'}">${escapeHtml(barcode_id)}</span></span>`,
           html: htmlTable,
           width: '800px',
           showCloseButton: true,

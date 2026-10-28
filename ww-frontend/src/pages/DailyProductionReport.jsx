@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import apiFetch from '../services/apiFetch';
+import apiFetch, { API_URL } from '../services/apiFetch';
 
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -218,11 +218,10 @@ export default function DailyProductionReport() {
         branch_name: filters.branch_name
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/daily-production/pdf?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate PDF');
@@ -264,11 +263,10 @@ export default function DailyProductionReport() {
         branch_id: filters.branch_id
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/daily-production/excel?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate Excel');

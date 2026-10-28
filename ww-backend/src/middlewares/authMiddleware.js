@@ -1,30 +1,35 @@
 // src/middlewares/authMiddleware.js
 const jwt = require('jsonwebtoken');
+const db = require('../config/db'); // 💡 เพิ่มการนำเข้า db
 require('dotenv').config();
+const { COOKIE_NAME } = require('../utils/authCookie');
 
-const verifyToken = (req, res, next) => {
-    // 1. ดึง Token จาก Header ในช่อง Authorization
-    const authHeader = req.headers['authorization'];
-    
-    // รูปแบบที่ส่งมาจะเป็น "Bearer <token>" เราจึงต้อง split เพื่อเอาเฉพาะตัว <token>
-    const token = authHeader && authHeader.split(' ')[1];
+const verifyToken = async (req, res, next) => { // 💡 เติม async เข้าไป
+    const token = req.cookies?.[COOKIE_NAME];
 
-    // 2. ถ้าไม่มี Token ส่งมา ให้ปฏิเสธการเข้าถึง
     if (!token) {
-        return res.status(401).json({ success: false, message: 'ปฏิเสธการเข้าถึง กรุณาเข้าสู่ระบบ (No Token)' });
+        return res.status(401).json({ success: false, message: 'กรุณาเข้าสู่ระบบ' });
     }
 
     try {
-        // 3. ตรวจสอบความถูกต้องของ Token ด้วย JWT_SECRET
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
         
-        // 4. นำข้อมูล user ที่แกะได้จาก Token (เช่น id, username, branch_id) ไปแนบไว้กับ req
-        req.user = decoded; 
+        // 💡 เพิ่มตรงนี้: ไปดึง group_id และ branch_id สดๆ จาก DB มาแนบไว้ให้
+        const userRes = await db.query(`
+            SELECT group_id, branch_id FROM public.users WHERE id = $1
+        `, [decoded.id]);
+        const userData = userRes.rows[0] || {};
         
-        // 5. ให้ทำงานในคำสั่งถัดไปได้ (ผ่านด่าน)
+        req.user = { 
+            id: decoded.id, 
+            username: decoded.username,
+            group_id: userData.group_id, // 💡 แอบเติมค่าให้แล้ว
+            branch_id: userData.branch_id // 💡 แอบเติมค่าให้แล้ว
+        };
+        
         next();
     } catch (error) {
-        return res.status(403).json({ success: false, message: 'Token ไม่ถูกต้องหรือหมดอายุ' });
+        return res.status(401).json({ success: false, message: 'Session หมดอายุ กรุณาเข้าสู่ระบบใหม่' });
     }
 };
 

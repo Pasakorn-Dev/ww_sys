@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import apiFetch from '../services/apiFetch';
+import { setUser } from '../utils/session';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -18,12 +19,20 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // ─── Effect: ถ้ามี token อยู่แล้ว → ข้ามไป dashboard ──────
+  // ─── Effect: ถ้ามี session (cookie) ที่ยังใช้ได้อยู่แล้ว → ข้ามไป dashboard ──────
+  // ถามเซิร์ฟเวอร์ผ่าน /auth/me (JavaScript อ่าน cookie โดยตรงไม่ได้)
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      navigate('/dashboard', { replace: true });
-    }
+    let active = true;
+    (async () => {
+      try {
+        const data = await apiFetch('/auth/me');
+        if (active && data?.success) {
+          setUser(data.data);
+          navigate('/dashboard', { replace: true });
+        }
+      } catch { /* ยังไม่ได้ล็อกอิน */ }
+    })();
+    return () => { active = false; };
   }, [navigate]);
 
   // ─── Handler: Submit Login ────────────────────────────────
@@ -37,9 +46,9 @@ export default function Login() {
         body: JSON.stringify({ username, password }),
       });
 
-      if (data?.success && data?.token) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.data));
+      if (data?.success) {
+        // token ถูกตั้งเป็น httpOnly cookie โดยเซิร์ฟเวอร์ — เก็บเฉพาะโปรไฟล์สำหรับแสดงผล
+        setUser(data.data);
 
         Swal.fire({
           icon: 'success',

@@ -3,7 +3,8 @@ const DashboardModel = require('../models/dashboardModel');
 const dashboardController = {
   getDashboardSummary: async (req, res) => {
     try {
-      const { branch_id } = req.query;
+      // ใช้ branch_id ที่ผ่านการตรวจสิทธิ์แล้วจาก branchScope (ไม่เชื่อค่าดิบจาก query)
+      const branch_id = req.scope.branchId;
       // ดึงข้อมูล 7 วันย้อนหลังจาก Model เรียงจากวันที่ล่าสุด (DESC)
       const rows = await DashboardModel.getOverviewData(branch_id);
       

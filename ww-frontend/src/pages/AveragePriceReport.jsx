@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import apiFetch from '../services/apiFetch';
+import apiFetch, { API_URL } from '../services/apiFetch';
 import useMasterOptions from '../hooks/useMasterOptions';
 
 import DatePicker from 'react-datepicker';
@@ -224,11 +224,10 @@ export default function AveragePriceReport() {
         branch_name: filters.branch_name
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/average-price/pdf?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate PDF');
@@ -265,11 +264,10 @@ export default function AveragePriceReport() {
         store_code: filters.store_code
       }).toString();
 
-      const token = localStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+      const apiUrl = API_URL;
       
       const res = await fetch(`${apiUrl}/reports/average-price/excel?${q}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
 
       if (!res.ok) throw new Error('Failed to generate Excel');

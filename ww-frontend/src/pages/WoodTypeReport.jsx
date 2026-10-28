@@ -1,7 +1,7 @@
 // ─── 1. ส่วนการนำเข้า (Imports) เครื่องมือต่างๆ ───
 import React, { useState, useEffect } from 'react'; // นำเข้าไลบรารี React และ Hook ที่จำเป็น (useState จัดการข้อมูล, useEffect จัดการการโหลดหน้า)
 import Swal from 'sweetalert2'; // นำเข้าแพ็กเกจสำหรับทำ Popup แจ้งเตือนสวยงาม
-import apiFetch from '../services/apiFetch'; // นำเข้าฟังก์ชันที่เราเขียนไว้สำหรับยิง API ไปยัง Backend
+import apiFetch, { API_URL } from '../services/apiFetch'; // นำเข้าฟังก์ชันที่เราเขียนไว้สำหรับยิง API ไปยัง Backend
 import DatePicker from 'react-datepicker'; // นำเข้าปฏิทินสำหรับเลือกวันที่
 import 'react-datepicker/dist/react-datepicker.css'; // นำเข้าไฟล์ CSS เพื่อให้ปฏิทินแสดงผลได้ถูกต้องและสวยงาม
 import { th } from 'date-fns/locale'; // นำเข้าภาษาไทย เพื่อให้ปฏิทินแสดงเดือน/ปีเป็นภาษาไทย
@@ -324,8 +324,8 @@ export default function WoodTypeReport() {
       }).toString();
 
       // ขอไฟล์แบบ Blob (ก้อนข้อมูลไบนารี) จาก Backend
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/reports/wood-type-ab/pdf?${q}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      const res = await fetch(`${API_URL}/reports/wood-type-ab/pdf?${q}`, {
+        credentials: 'include'
       });
       if (!res.ok) throw new Error('Failed to generate PDF');
       
@@ -352,8 +352,8 @@ export default function WoodTypeReport() {
         grade: filters.grade
       }).toString();
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/reports/wood-type-ab/excel?${q}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      const res = await fetch(`${API_URL}/reports/wood-type-ab/excel?${q}`, {
+        credentials: 'include'
       });
       if (!res.ok) throw new Error('Failed to generate Excel');
       

@@ -1,9 +1,9 @@
 // src/components/Layout.jsx
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
 import apiFetch from '../services/apiFetch';
 import Swal from 'sweetalert2';
-import { clearSession } from '../utils/session';
+import { clearSession, getUser, setUser as saveUser } from '../utils/session';
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -11,6 +11,7 @@ export default function Layout() {
 
   // ─── State ────────────────────────────────────────────────
   const [user, setUser] = useState(null);
+  const verifiedRef = useRef(false); // ยืนยัน session กับเซิร์ฟเวอร์ครั้งเดียวต่อการเปิดหน้า
   const [menus, setMenus] = useState([]);
   const [expandedMenu, setExpandedMenu] = useState(null);
   
@@ -32,30 +33,31 @@ export default function Layout() {
 
   const toggleTheme = () => setTheme(theme === 'light' ? 'dark' : 'light');
 
-  // ─── Effect: ตรวจสอบ token + โหลดเมนู ─────────────────────
+  // ─── Effect: ตรวจสอบ session (cookie) + โหลดเมนู ─────────────────────
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-
-    if (!token || !storedUser || storedUser === 'undefined' || storedUser === 'null') {
-      clearSession();
-      navigate('/login', { replace: true });
-      return;
-    }
-
-    try {
-      setUser(JSON.parse(storedUser));
-    } catch (error) {
-      console.error('Invalid user session', error);
-      clearSession();
-      navigate('/login', { replace: true });
-      return;
-    }
+    // แสดงข้อมูลที่ cache ไว้ก่อนเพื่อไม่ให้หน้ากะพริบ แล้วยืนยันกับเซิร์ฟเวอร์ด้านล่าง
+    const cached = getUser();
+    if (cached) setUser(cached);
 
     let isMounted = true;
 
     (async () => {
       try {
+        // 1) ยืนยันตัวตนกับเซิร์ฟเวอร์ (อ่านจาก httpOnly cookie) — เป็นแหล่งข้อมูลจริงของ user
+        if (!verifiedRef.current) {
+          const me = await apiFetch('/auth/me');
+          if (!isMounted) return;
+          if (!me?.success) {
+            clearSession();
+            navigate('/login', { replace: true });
+            return;
+          }
+          verifiedRef.current = true;
+          setUser(me.data);
+          saveUser(me.data);
+        }
+
+        // 2) โหลดเมนูตามสิทธิ์
         const data = await apiFetch('/menus');
         if (!isMounted) return;
 
@@ -104,7 +106,10 @@ export default function Layout() {
   }, [navigate, location.pathname]);
 
   // ─── Handler: Logout ──────────────────────────────────────
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await apiFetch('/auth/logout', { method: 'POST' }); // ให้เซิร์ฟเวอร์ล้าง httpOnly cookie
+    } catch { /* ออกจากระบบฝั่ง client ต่อให้เรียกไม่สำเร็จ */ }
     clearSession();
     navigate('/login', { replace: true });
   };

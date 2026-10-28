@@ -13,6 +13,31 @@ const UserModel = {
         return result.rows[0];
     },
     
+    // หาผู้ใช้จาก id (ใช้กับ /auth/me) — ไม่ดึง password ออกมา
+    findById: async (id) => {
+        const query = `
+            SELECT u.id, u.username, u.fullname, u.branch_id, u.group_id, b.branch_name
+            FROM public.users u
+            LEFT JOIN public.branches b ON u.branch_id = b.id
+            WHERE u.id = $1
+        `;
+        // console.log(id);
+        const result = await db.query(query, [id]);
+        return result.rows[0];
+    },
+
+    // สร้างผู้ใช้งานใหม่ (ใช้ตอน Register / เพิ่มพนักงาน)
+    createUser: async (userData) => {
+        const { username, password, fullname, group_id, branch_id, dept_id } = userData;
+        const query = `
+            INSERT INTO public.users (username, password, fullname, group_id, branch_id, dept_id)
+            VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, username, fullname;
+        `;
+        const values = [username, password, fullname, group_id, branch_id, dept_id];
+        const result = await db.query(query, values);
+        return result.rows[0];
+    },
+    
     // สร้างผู้ใช้งานใหม่ พร้อมผูกสิทธิ์หลายสาขา (Transaction)
     createUserAdmin: async (userData) => {
         const { username, password, fullname, group_id, branch_id, dept_id, allowed_branches } = userData;
