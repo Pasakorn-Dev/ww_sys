@@ -77,6 +77,7 @@ src/
     menuRoutes.js
     reportRoutes.js
     transactionRoutes.js
+  cronJobs.js
   server.js
 Dockerfile
 .dockerignore
@@ -443,600 +444,594 @@ module.exports = dashboardController;
 </file>
 
 <file path="src/controllers/masterController.js">
-const pool = require('../config/db');
-const format = require('pg-format');
-const { getMysqlConnection } = require('../config/mysqlDb'); 
-
-// ⚠️ ถ้าระบบแจ้งเตือน LINE แจ้ง Error ให้เปิดใช้งานบรรทัดล่างนี้ (เอา // ออก) แล้วสร้างไฟล์แจ้งเตือน
-// const { sendLineNotify } = require('../services/notifyService'); 
+// นำเข้าเครื่องมือที่จำเป็น
+const pool = require('../config/db'); // ตัวเชื่อมต่อฐานข้อมูล PostgreSQL (ระบบใหม่)
+const format = require('pg-format'); // ตัวช่วยแปลง Array ให้เป็นคำสั่ง SQL (ใช้สำหรับเพิ่มข้อมูลทีละหลายพันบรรทัด)
+const { getMysqlConnection } = require('../config/mysqlDb'); // ฟังก์ชันดึง Connection ของ MySQL (ระบบเก่า) แยกตามสาขา
 
 // ================================================================
-// 🛠️ 1. ฟังก์ชันตัวช่วย
+// 🛠️ 1. ฟังก์ชันตัวช่วย (Data Sanitizers)
+// หน้าที่: ป้องกันแอปพังจากข้อมูลขยะ (เช่น ค่า null, ค่าว่าง, ตัวอักษรแปลกๆ) ที่มาจากระบบเก่า
 // ================================================================
+
+// แปลงข้อมูลเป็นตัวเลขจำนวนเต็ม (Integer)
 const cleanInt = (val, defaultVal = 0) => {
+    // ถ้าไม่มีค่า หรือเป็นสัญลักษณ์ \N (พบได้บ่อยตอน Export จาก MySQL) ให้ใช้ค่าเริ่มต้น (0)
     if (val === null || val === undefined || val === '\\N' || val === '') return defaultVal;
-    const parsed = parseInt(val, 10);
-    return isNaN(parsed) ? defaultVal : parsed;
+    const parsed = parseInt(val, 10); // พยายามแปลงเป็นตัวเลข
+    return isNaN(parsed) ? defaultVal : parsed; // ถ้าแปลงแล้วไม่ใช่ตัวเลข (NaN) ให้คืนค่า 0
 };
 
+// แปลงข้อมูลเป็นตัวเลขทศนิยม (Float) สำหรับพวกราคาและปริมาตร
 const cleanFloat = (val, defaultVal = 0.0000) => {
     if (val === null || val === undefined || val === '\\N' || val === '') return defaultVal;
     const parsed = parseFloat(val);
     return isNaN(parsed) ? defaultVal : parsed;
 };
 
+// แปลงข้อมูลเป็นค่าความจริง (Boolean: true/false)
 const cleanBool = (val, defaultVal = false) => {
     if (val === null || val === undefined) return defaultVal;
+    // MySQL บางเวอร์ชันเก็บ Boolean เป็นประเภท BIT (Buffer) ต้องดึงค่า index [0] มาเช็ค
     if (Buffer.isBuffer(val)) return val[0] === 1; 
+    // รองรับทั้งกรณีส่งมาเป็นเลข 1, สตริง '1', ค่า true หรือสตริง 'true'
     return val === 1 || val === '1' || val === true || val === 'true';
 };
 
 // ================================================================
 // 🚀 2. Controllers
 // ================================================================
-const masterController = {
-  // ดึงหมวดหมู่ทั้งหมด
-  getCategories: async (req, res) => {
-    try {
-      const { rows } = await pool.query('SELECT id, name FROM categories WHERE is_active = true ORDER BY name ASC');
-      res.status(200).json({ success: true, data: rows });
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      res.status(500).json({ success: false, message: 'Server error' });
-    }
-  },
-
-  // ดึงซัพพลายเออร์ทั้งหมด
-  getSuppliers: async (req, res) => {
-    try {
-      const { rows } = await pool.query('SELECT id, name FROM suppliers WHERE is_active = true ORDER BY name ASC');
-      res.status(200).json({ success: true, data: rows });
-    } catch (error) {
-      console.error('Error fetching suppliers:', error);
-      res.status(500).json({ success: false, message: 'Server error' });
-    }
-  },
-
-  // ดึงหน่วยนับทั้งหมด
-  getUnits: async (req, res) => {
-    try {
-      const { rows } = await pool.query('SELECT id, unit_name FROM units WHERE is_active = true ORDER BY unit_name ASC');
-      res.status(200).json({ success: true, data: rows });
-    } catch (error) {
-      console.error('Error fetching units:', error);
-      res.status(500).json({ success: false, message: 'Server error' });
-    }
-  },
-
+const masterController = {  
+  // ฟังก์ชันหลักสำหรับซิงค์ข้อมูล (ถูกเรียกเมื่อกดปุ่มบนเว็บ หรือจาก Cron Job)
   syncMasterData: async (req, res) => {
+    // 1. รับค่ารหัสสาขาที่ต้องการซิงค์ (ถ้าไม่ส่งมา หรือส่งมาเป็น 0 หมายถึงดึงทุกสาขา)
     const targetBranchId = cleanInt(req.body.branch_id, 0);
+    
+    // 2. ขอ Connection พิเศษจาก PostgreSQL เพื่อใช้ทำ Transaction (ป้องกันข้อมูลเข้าไม่ครบ)
     const pgClient = await pool.connect();
 
     try {
+        // เริ่มต้น Transaction: ถ้ามี Error ระหว่างทาง ข้อมูลทั้งหมดในรอบนี้จะไม่ถูกบันทึก
         await pgClient.query('BEGIN');
-        let totalSynced = 0;
-        let branchesToSync = [];
+        
+        let totalSynced = 0; // ตัวนับจำนวนรายการทั้งหมดที่นำเข้าสำเร็จ
+        let branchesToSync = []; // Array เก็บรายชื่อสาขาที่ต้องวนลูป
+        let errorLogs = []; // Array เก็บข้อความ Error เพื่อรวบรวมไปส่ง LINE ทีเดียว
 
+        // 3. กำหนดเป้าหมายการซิงค์
         if (targetBranchId === 0) {
+            // กรณีเลือก "ทุกสาขา": ไปค้นหา ID สาขาที่เปิดใช้งานอยู่ทั้งหมดในระบบมาเตรียมไว้
             const branchRes = await pgClient.query('SELECT id, branch_name FROM branches WHERE is_active = true ORDER BY id ASC');
             branchesToSync = branchRes.rows;
         } else {
+            // กรณีระบุสาขา: สร้าง Array ที่มีแค่สาขาเดียวนั้นๆ
             branchesToSync = [{ id: targetBranchId, branch_name: `สาขา ${targetBranchId}` }];
         }
+
+        const startTime = Date.now(); // จับเวลาเริ่มต้น
         
-        const startTime = Date.now();
-        
-        // --- เริ่ม Loop วนทีละสาขา ---
-        // 💡 เอา try...catch ด้านในออก เพื่อให้ Error เด้งออกไปที่ catch หลักทันที
+        // 4. --- เริ่ม Loop วนทีละสาขา ---
         for (const branch of branchesToSync) {
-            console.log(`[Sync] กำลังดึงข้อมูลจาก MySQL Server: ${branch.branch_name}...`);
-            const mysqlPool = await getMysqlConnection(branch.id);
+            try { // ใช้ try-catch ครอบ "รายสาขา" เพื่อให้ถ้าสาขานี้พัง ระบบยังไปทำสาขาถัดไปต่อได้ ไม่ตายทั้งสคริปต์
+                console.log(`[Sync] กำลังดึงข้อมูลจาก MySQL Server: ${branch.branch_name}...`);
+                
+                // ขอต่อฐานข้อมูล MySQL ประจำสาขานี้ (ใช้ IP/Password ตาม Branch ID)
+                const mysqlPool = await getMysqlConnection(branch.id);
 
-            // ========================================================
-            // 📦 ส่วนที่ 1: ดึง wood_size (รหัสสินค้า)
-            // ========================================================
-            const [oldWoodSizes] = await mysqlPool.query(`
-                SELECT 
-                    id AS id_old, length, thick, type_id, width, wood_code, mil, ax_code, 
-                    is_active, is_special, pallet_quantity, wage, wage_sorting_cut_wood ,grade
-                FROM wood_size
-            `);
+                // ========================================================
+                // 📦 ส่วนที่ 1: ดึง wood_size (รหัสสินค้า)
+                // ========================================================
+                // สั่งยิง SQL ไปดึงข้อมูลทั้งหมดจากตาราง wood_size ของระบบเก่า
+                const [oldWoodSizes] = await mysqlPool.query(`
+                    SELECT 
+                        id AS id_old, length, thick, type_id, width, wood_code, mil, ax_code, 
+                        is_active, is_special, pallet_quantity, wage, wage_sorting_cut_wood
+                    FROM wood_size
+                `);
 
-            if (oldWoodSizes.length > 0) {
-                const values = oldWoodSizes.map(row => [
-                    cleanInt(row.id_old),                  
-                    branch.id,                             
-                    cleanInt(row.length),                  
-                    cleanInt(row.thick),                   
-                    cleanInt(row.type_id, null),           
-                    cleanInt(row.width),                   
-                    row.wood_code || null,               
-                    cleanInt(row.mil),                     
-                    row.ax_code === '\\N' || !row.ax_code ? null : row.ax_code, 
-                    cleanBool(row.is_active, true),        
-                    cleanBool(row.is_special, false),      
-                    cleanInt(row.pallet_quantity),         
-                    cleanFloat(row.wage),                  
-                    cleanFloat(row.wage_sorting_cut_wood),
-                    row.grade || null
-                ]);
+                // ถ้ามีข้อมูลส่งกลับมา
+                if (oldWoodSizes.length > 0) {
+                    // นำข้อมูลดิบมาจัดระเบียบและครอบด้วยฟังก์ชัน clean เพื่อกรองข้อมูลขยะ
+                    const values = oldWoodSizes.map(row => [
+                        cleanInt(row.id_old),                  
+                        branch.id, // บังคับผูกข้อมูลนี้เข้ากับรหัสสาขาที่กำลังวนลูปอยู่                            
+                        cleanInt(row.length),                  
+                        cleanInt(row.thick),                   
+                        cleanInt(row.type_id, null),           
+                        cleanInt(row.width),                   
+                        row.wood_code || null,                 
+                        cleanInt(row.mil),                     
+                        row.ax_code === '\\N' || !row.ax_code ? null : row.ax_code, 
+                        cleanBool(row.is_active, true),        
+                        cleanBool(row.is_special, false),      
+                        cleanInt(row.pallet_quantity),         
+                        cleanFloat(row.wage),                  
+                        cleanFloat(row.wage_sorting_cut_wood)  
+                    ]);
 
-                const chunkSize = 4000;
-                for (let i = 0; i < values.length; i += chunkSize) {
-                    const chunk = values.slice(i, i + chunkSize);
-                    const upsertQuery = format(`
-                        INSERT INTO master_wood_sizes (
-                            old_id, branch_id, length, thick, type_id, width, wood_code, mil, 
-                            ax_code, is_active, is_special, pallet_quantity, wage, wage_sorting_cut_wood, grade
-                        ) 
-                        VALUES %L 
-                        ON CONFLICT (branch_id, old_id) 
-                        DO UPDATE SET 
-                            length = EXCLUDED.length,
-                            thick = EXCLUDED.thick,
-                            type_id = EXCLUDED.type_id,
-                            width = EXCLUDED.width,
-                            wood_code = EXCLUDED.wood_code,
-                            grade = EXCLUDED.grade,
-                            mil = EXCLUDED.mil,
-                            ax_code = EXCLUDED.ax_code,
-                            is_active = EXCLUDED.is_active,
-                            is_special = EXCLUDED.is_special,
-                            pallet_quantity = EXCLUDED.pallet_quantity,
-                            wage = EXCLUDED.wage,
-                            wage_sorting_cut_wood = EXCLUDED.wage_sorting_cut_wood,
-                            updated_at = CURRENT_TIMESTAMP
-                    `, chunk);
+                    // หั่นข้อมูลเป็นก้อนๆ (Chunking) ก้อนละ 4,000 แถว ป้องกันข้อจำกัดของ PostgreSQL ที่รับตัวแปรต่อรอบได้จำกัด
+                    const chunkSize = 4000;
+                    for (let i = 0; i < values.length; i += chunkSize) {
+                        const chunk = values.slice(i, i + chunkSize); // ตัดแบ่ง Array
+                        
+                        // ใช้ pg-format (%L) แปลง Array ให้กลายเป็น Value ก้อนใหญ่ใน SQL
+                        const upsertQuery = format(`
+                            INSERT INTO master_wood_sizes (
+                                old_id, branch_id, length, thick, type_id, width, wood_code, mil, 
+                                ax_code, is_active, is_special, pallet_quantity, wage, wage_sorting_cut_wood
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) -- ถ้าเจอรหัสเก่า+รหัสสาขา ซ้ำกัน ให้ทำสิ่งต่อไปนี้ (Upsert)
+                            DO UPDATE SET 
+                                length = EXCLUDED.length, -- เอาค่าใหม่ (EXCLUDED) ไปอัปเดตทับค่าเก่า
+                                thick = EXCLUDED.thick,
+                                type_id = EXCLUDED.type_id,
+                                width = EXCLUDED.width,
+                                wood_code = EXCLUDED.wood_code,
+                                mil = EXCLUDED.mil,
+                                ax_code = EXCLUDED.ax_code,
+                                is_active = EXCLUDED.is_active,
+                                is_special = EXCLUDED.is_special,
+                                pallet_quantity = EXCLUDED.pallet_quantity,
+                                wage = EXCLUDED.wage,
+                                wage_sorting_cut_wood = EXCLUDED.wage_sorting_cut_wood,
+                                updated_at = CURRENT_TIMESTAMP
+                        `, chunk);
 
-                    await pgClient.query(upsertQuery);
+                        // สั่งประมวลผลคำสั่งที่เตรียมไว้
+                        await pgClient.query(upsertQuery);
+                    }
+                    totalSynced += oldWoodSizes.length; // ทบยอดจำนวนที่ซิงค์สำเร็จ
                 }
-                totalSynced += oldWoodSizes.length;
-                console.log(`[Sync] ✔ ซิงค์รหัสสินค้า ${branch.branch_name} สำเร็จ (${oldWoodSizes.length} รายการ)`);
-            } else {
-                console.warn(`[Warning] ไม่พบข้อมูลรหัสสินค้าใน ${branch.branch_name}`);
-            }
 
-            // ========================================================
-            // 🚚 ส่วนที่ 2: ดึง truck_company (บริษัทคู่ค้า)
-            // ========================================================
-            console.log(`[Sync] กำลังดึงข้อมูล เจ้าหนี้/บริษัทคู่ค้า จาก MySQL Server: ${branch.branch_name}...`);
-            const [oldTrucks] = await mysqlPool.query(`
-                SELECT id AS id_old, code, name, remark, is_active FROM truck_company
-            `);
+                // ========================================================
+                // 🚚 ส่วนที่ 2: ดึง truck_company (บริษัทคู่ค้า)
+                // ========================================================
+                console.log(`[Sync] กำลังดึงข้อมูล เจ้าหนี้/บริษัทคู่ค้า จาก MySQL Server: ${branch.branch_name}...`);
+                const [oldTrucks] = await mysqlPool.query(`
+                    SELECT id AS id_old, code, name, remark, is_active FROM truck_company
+                `);
 
-            if (oldTrucks.length > 0) {
-                const truckValues = oldTrucks.map(row => [
-                    cleanInt(row.id_old),                  
-                    branch.id, 
-                    row.code || null,                      
-                    row.name || null,                      
-                    row.remark || null,                    
-                    cleanBool(row.is_active, true)         
-                ]);
+                if (oldTrucks.length > 0) {
+                    const truckValues = oldTrucks.map(row => [
+                        cleanInt(row.id_old),                  
+                        branch.id, 
+                        row.code || null,                      
+                        row.name || null,                      
+                        row.remark || null,                    
+                        cleanBool(row.is_active, true)         
+                    ]);
 
-                const chunkTruckSize = 4000;
-                for (let i = 0; i < truckValues.length; i += chunkTruckSize) {
-                    const chunk = truckValues.slice(i, i + chunkTruckSize);
-                    
-                    const upsertTruckQuery = format(`
-                        INSERT INTO master_truck_companies (
-                            old_id, branch_id, code, name, remark, is_active
-                        ) 
-                        VALUES %L 
-                        ON CONFLICT (branch_id, old_id) 
-                        DO UPDATE SET 
-                            code = EXCLUDED.code,
-                            name = EXCLUDED.name,
-                            remark = EXCLUDED.remark,
-                            is_active = EXCLUDED.is_active,
-                            updated_at = CURRENT_TIMESTAMP;
-                    `, chunk);
+                    const chunkTruckSize = 4000;
+                    for (let i = 0; i < truckValues.length; i += chunkTruckSize) {
+                        const chunk = truckValues.slice(i, i + chunkTruckSize);
+                        
+                        const upsertTruckQuery = format(`
+                            INSERT INTO master_truck_companies (
+                                old_id, branch_id, code, name, remark, is_active
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) 
+                            DO UPDATE SET 
+                                code = EXCLUDED.code,
+                                name = EXCLUDED.name,
+                                remark = EXCLUDED.remark,
+                                is_active = EXCLUDED.is_active,
+                                updated_at = CURRENT_TIMESTAMP;
+                        `, chunk);
 
-                    await pgClient.query(upsertTruckQuery);
+                        await pgClient.query(upsertTruckQuery);
+                    }
+                    totalSynced += oldTrucks.length;
+                    console.log(`[Sync] ✔ ซิงค์บริษัทคู่ค้า ${branch.branch_name} สำเร็จ (${oldTrucks.length} รายการ)`);
                 }
-                totalSynced += oldTrucks.length;
-                console.log(`[Sync] ✔ ซิงค์บริษัทคู่ค้า ${branch.branch_name} สำเร็จ (${oldTrucks.length} รายการ)`);
-            }
 
-            // =================================================================
-            // 👷‍♂️ ส่วนที่ 3: ดึงข้อมูลตาราง พนักงาน/นายม้า (employee)
-            // =================================================================
-            console.log(`[Sync] กำลังดึงข้อมูล พนักงาน จาก MySQL Server: ${branch.branch_name}...`);
-            
-            const [oldEmployees] = await mysqlPool.query(`
-                SELECT 
-                    id AS id_old, code, flag, name, status, title, name_en 
-                FROM employee
-            `);
+                // =================================================================
+                // 👷‍♂️ ส่วนที่ 3: ดึงข้อมูลตาราง พนักงาน/นายม้า (employee)
+                // =================================================================
+                console.log(`[Sync] กำลังดึงข้อมูล พนักงาน จาก MySQL Server: ${branch.branch_name}...`);
+                
+                const [oldEmployees] = await mysqlPool.query(`
+                    SELECT 
+                        id AS id_old, code, flag, name, status, title, name_en 
+                    FROM employee
+                `);
 
-            if (oldEmployees.length > 0) {
-                const employeeValues = oldEmployees.map(row => {
-                    const isActive = (row.status === 'AC');
-                    return [
+                if (oldEmployees.length > 0) {
+                    const employeeValues = oldEmployees.map(row => {
+                        const isActive = (row.status === 'AC');
+                        return [
+                            cleanInt(row.id_old),                  
+                            branch.id,                             
+                            row.code || null,                      
+                            cleanInt(row.flag, 0),                 
+                            row.name || null,                      
+                            row.status || null,                    
+                            row.title || null,                     
+                            row.name_en || null,                   
+                            isActive                               
+                        ];
+                    });
+
+                    const chunkEmpSize = 4000;
+                    for (let i = 0; i < employeeValues.length; i += chunkEmpSize) {
+                        const chunk = employeeValues.slice(i, i + chunkEmpSize);
+                        
+                        const upsertEmpQuery = format(`
+                            INSERT INTO master_employees (
+                                old_id, branch_id, code, flag, name, status, title, name_en, is_active
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) 
+                            DO UPDATE SET 
+                                code = EXCLUDED.code,
+                                flag = EXCLUDED.flag,
+                                name = EXCLUDED.name,
+                                status = EXCLUDED.status,
+                                title = EXCLUDED.title,
+                                name_en = EXCLUDED.name_en,
+                                is_active = EXCLUDED.is_active,
+                                updated_at = CURRENT_TIMESTAMP;
+                        `, chunk);
+
+                        await pgClient.query(upsertEmpQuery);
+                    }
+                    totalSynced += oldEmployees.length;
+                    console.log(`[Sync] ✔ ซิงค์ข้อมูลพนักงาน ${branch.branch_name} สำเร็จ (${oldEmployees.length} รายการ)`);
+                }
+
+                // =================================================================
+                // 🪵 ส่วนที่ 4: ดึงข้อมูลตาราง ประเภทไม้ท่อน (LogWoodType)
+                // =================================================================
+                console.log(`[Sync] กำลังดึงข้อมูล ประเภทไม้ท่อน จาก MySQL Server: ${branch.branch_name}...`);
+                
+                const [oldLogWoodTypes] = await mysqlPool.query(`
+                    SELECT id AS id_old, name, code, is_active FROM choice_domain WHERE choice_domain.class = 'com.ww.log.LogWoodTypeChoice'
+                `);
+
+                if (oldLogWoodTypes.length > 0) {
+                    const logWoodValues = oldLogWoodTypes.map(row => [
+                        cleanInt(row.id_old),                  
+                        branch.id,                             
+                        row.name || null,                      
+                        row.code || null,                      
+                        cleanBool(row.is_active, true)         
+                    ]);
+
+                    const chunkLogSize = 4000;
+                    for (let i = 0; i < logWoodValues.length; i += chunkLogSize) {
+                        const chunk = logWoodValues.slice(i, i + chunkLogSize);
+                        
+                        const upsertLogQuery = format(`
+                            INSERT INTO master_log_wood_types (
+                                old_id, branch_id, name, code, is_active
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) 
+                            DO UPDATE SET 
+                                name = EXCLUDED.name,
+                                code = EXCLUDED.code,
+                                is_active = EXCLUDED.is_active,
+                                updated_at = CURRENT_TIMESTAMP;
+                        `, chunk);
+
+                        await pgClient.query(upsertLogQuery);
+                    }
+                    totalSynced += oldLogWoodTypes.length;
+                    console.log(`[Sync] ✔ ซิงค์ข้อมูลประเภทไม้ท่อน ${branch.branch_name} สำเร็จ (${oldLogWoodTypes.length} รายการ)`);
+                }
+
+                // =================================================================
+                // 📏 ส่วนที่ 5: ดึงข้อมูลตาราง ขนาดไม้ท่อนประเมิน (LogWoodEvalSize)
+                // =================================================================
+                console.log(`[Sync] กำลังดึงข้อมูล ขนาดไม้ท่อนประเมิน จาก MySQL Server: ${branch.branch_name}...`);
+                
+                const [oldLogWoodEvalSizes] = await mysqlPool.query(`
+                    SELECT id AS id_old, name, code, is_active FROM choice_domain WHERE choice_domain.class = 'com.ww.log.LogWoodEvalSize'
+                `);
+
+                if (oldLogWoodEvalSizes.length > 0) {
+                    const evalSizeValues = oldLogWoodEvalSizes.map(row => [
+                        cleanInt(row.id_old),                  
+                        branch.id,                             
+                        row.name || null,                      
+                        row.code || null,                      
+                        cleanBool(row.is_active, true)         
+                    ]);
+
+                    const chunkEvalSize = 4000;
+                    for (let i = 0; i < evalSizeValues.length; i += chunkEvalSize) {
+                        const chunk = evalSizeValues.slice(i, i + chunkEvalSize);
+                        
+                        const upsertEvalSizeQuery = format(`
+                            INSERT INTO master_log_wood_eval_sizes (
+                                old_id, branch_id, name, code, is_active
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) 
+                            DO UPDATE SET 
+                                name = EXCLUDED.name,
+                                code = EXCLUDED.code,
+                                is_active = EXCLUDED.is_active,
+                                updated_at = CURRENT_TIMESTAMP;
+                        `, chunk);
+
+                        await pgClient.query(upsertEvalSizeQuery);
+                    }
+                    totalSynced += oldLogWoodEvalSizes.length;
+                    console.log(`[Sync] ✔ ซิงค์ข้อมูลขนาดไม้ท่อนประเมิน ${branch.branch_name} สำเร็จ (${oldLogWoodEvalSizes.length} รายการ)`);
+                }
+
+                // =================================================================
+                // 🪚 ส่วนที่ 6: ดึงข้อมูลตาราง ประเภทการเลื่อยไม้ (saw_wood_type)
+                // =================================================================
+                console.log(`[Sync] กำลังดึงข้อมูล ประเภทการเลื่อยไม้ จาก MySQL Server: ${branch.branch_name}...`);
+                
+                const [oldSawWoodTypes] = await mysqlPool.query(`
+                    SELECT 
+                        id AS id_old, name, ax_location, ax_warehouse, is_raw_wood, is_width_wood ,code
+                    FROM saw_wood_type
+                `);
+
+                if (oldSawWoodTypes.length > 0) {
+                    const sawWoodValues = oldSawWoodTypes.map(row => [
+                        cleanInt(row.id_old),                  
+                        branch.id,                             
+                        row.name || null,                      
+                        row.ax_location || null,               
+                        row.ax_warehouse || null,              
+                        cleanBool(row.is_raw_wood, false),     
+                        cleanBool(row.is_width_wood, false),   
+                        row.code || null                       
+                    ]);
+
+                    const chunkSawSize = 4000;
+                    for (let i = 0; i < sawWoodValues.length; i += chunkSawSize) {
+                        const chunk = sawWoodValues.slice(i, i + chunkSawSize);
+                        
+                        const upsertSawWoodQuery = format(`
+                            INSERT INTO master_saw_wood_types (
+                                old_id, branch_id, name, ax_location, ax_warehouse, is_raw_wood, is_width_wood ,code
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) 
+                            DO UPDATE SET 
+                                name = EXCLUDED.name,
+                                ax_location = EXCLUDED.ax_location,
+                                ax_warehouse = EXCLUDED.ax_warehouse,
+                                is_raw_wood = EXCLUDED.is_raw_wood,
+                                is_width_wood = EXCLUDED.is_width_wood,
+                                code = EXCLUDED.code,
+                                updated_at = CURRENT_TIMESTAMP;
+                        `, chunk);
+
+                        await pgClient.query(upsertSawWoodQuery);
+                    }
+                    totalSynced += oldSawWoodTypes.length;
+                    console.log(`[Sync] ✔ ซิงค์ข้อมูลประเภทการเลื่อยไม้ ${branch.branch_name} สำเร็จ (${oldSawWoodTypes.length} รายการ)`);
+                }
+
+                // =================================================================
+                // 💦 ส่วนที่ 7: ดึงข้อมูลตาราง ประเภทไม้เปียก (wet_wood_type)
+                // =================================================================
+                console.log(`[Sync] กำลังดึงข้อมูล ประเภทไม้เปียก จาก MySQL Server: ${branch.branch_name}...`);
+                
+                const [oldWetWoodTypes] = await mysqlPool.query(`
+                    SELECT 
+                        id AS id_old, name, is_buy_wood, ax_location, ax_warehouse ,code
+                    FROM wet_wood_type
+                `);
+
+                if (oldWetWoodTypes.length > 0) {
+                    const wetWoodValues = oldWetWoodTypes.map(row => [
+                        cleanInt(row.id_old),                  
+                        branch.id,                             
+                        row.name || null,                      
+                        cleanBool(row.is_buy_wood, false),     
+                        row.ax_location || null,               
+                        row.ax_warehouse || null,
+                        row.code || null             
+                    ]);
+
+                    const chunkWetSize = 4000;
+                    for (let i = 0; i < wetWoodValues.length; i += chunkWetSize) {
+                        const chunk = wetWoodValues.slice(i, i + chunkWetSize);
+                        
+                        const upsertWetWoodQuery = format(`
+                            INSERT INTO master_wet_wood_types (
+                                old_id, branch_id, name, is_buy_wood, ax_location, ax_warehouse, code
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) 
+                            DO UPDATE SET 
+                                name = EXCLUDED.name,
+                                is_buy_wood = EXCLUDED.is_buy_wood,
+                                ax_location = EXCLUDED.ax_location,
+                                ax_warehouse = EXCLUDED.ax_warehouse,
+                                code = EXCLUDED.code,
+                                updated_at = CURRENT_TIMESTAMP;
+                        `, chunk);
+
+                        await pgClient.query(upsertWetWoodQuery);
+                    }
+                    totalSynced += oldWetWoodTypes.length;
+                    console.log(`[Sync] ✔ ซิงค์ข้อมูลประเภทไม้เปียก ${branch.branch_name} สำเร็จ (${oldWetWoodTypes.length} รายการ)`);
+                }
+
+                // =================================================================
+                // 🏭 ส่วนที่ 8: ดึงข้อมูลตาราง คลัง/สถานที่เก็บไม้ (wood_store)
+                // =================================================================
+                console.log(`[Sync] กำลังดึงข้อมูล คลังสถานที่เก็บไม้ จาก MySQL Server: ${branch.branch_name}...`);
+                
+                const [oldWoodStores] = await mysqlPool.query(`
+                    SELECT 
+                        id AS id_old, description, allow_two_prefix, ax_location, ax_warehouse ,code
+                    FROM wood_store
+                `);
+
+                if (oldWoodStores.length > 0) {
+                    const woodStoreValues = oldWoodStores.map(row => [
+                        cleanInt(row.id_old),                  
+                        branch.id,                             
+                        row.description || null,               
+                        cleanBool(row.allow_two_prefix, false),
+                        row.ax_location || null,               
+                        row.ax_warehouse || null,               
+                        row.code || null                        
+                    ]);
+
+                    const chunkStoreSize = 4000;
+                    for (let i = 0; i < woodStoreValues.length; i += chunkStoreSize) {
+                        const chunk = woodStoreValues.slice(i, i + chunkStoreSize);
+                        
+                        const upsertWoodStoreQuery = format(`
+                            INSERT INTO master_wood_stores (
+                                old_id, branch_id, description, allow_two_prefix, ax_location, ax_warehouse, code
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) 
+                            DO UPDATE SET 
+                                description = EXCLUDED.description,
+                                allow_two_prefix = EXCLUDED.allow_two_prefix,
+                                ax_location = EXCLUDED.ax_location,
+                                ax_warehouse = EXCLUDED.ax_warehouse,
+                                code = EXCLUDED.code,
+                                updated_at = CURRENT_TIMESTAMP;
+                        `, chunk);
+
+                        await pgClient.query(upsertWoodStoreQuery);
+                    }
+                    totalSynced += oldWoodStores.length;
+                    console.log(`[Sync] ✔ ซิงค์ข้อมูลคลังสถานที่เก็บไม้ ${branch.branch_name} สำเร็จ (${oldWoodStores.length} รายการ)`);
+                }
+
+                // =================================================================
+                // 🔄 ส่วนที่ 9: ดึงข้อมูลตาราง ประเภทธุรกรรม (transaction_type)
+                // =================================================================
+                console.log(`[Sync] กำลังดึงข้อมูล ประเภทธุรกรรม จาก MySQL Server: ${branch.branch_name}...`);
+                
+                const [oldTransactionTypes] = await mysqlPool.query(`
+                    SELECT 
+                        id AS id_old, code, name, name_en 
+                    FROM transaction_type
+                `);
+
+                if (oldTransactionTypes.length > 0) {
+                    const transactionTypeValues = oldTransactionTypes.map(row => [
                         cleanInt(row.id_old),                  
                         branch.id,                             
                         row.code || null,                      
-                        cleanInt(row.flag, 0),                 
                         row.name || null,                      
-                        row.status || null,                    
-                        row.title || null,                     
-                        row.name_en || null,                   
-                        isActive                               
-                    ];
-                });
+                        row.name_en || null                    
+                    ]);
 
-                const chunkEmpSize = 4000;
-                for (let i = 0; i < employeeValues.length; i += chunkEmpSize) {
-                    const chunk = employeeValues.slice(i, i + chunkEmpSize);
-                    
-                    const upsertEmpQuery = format(`
-                        INSERT INTO master_employees (
-                            old_id, branch_id, code, flag, name, status, title, name_en, is_active
-                        ) 
-                        VALUES %L 
-                        ON CONFLICT (branch_id, old_id) 
-                        DO UPDATE SET 
-                            code = EXCLUDED.code,
-                            flag = EXCLUDED.flag,
-                            name = EXCLUDED.name,
-                            status = EXCLUDED.status,
-                            title = EXCLUDED.title,
-                            name_en = EXCLUDED.name_en,
-                            is_active = EXCLUDED.is_active,
-                            updated_at = CURRENT_TIMESTAMP;
-                    `, chunk);
+                    const chunkTxSize = 4000;
+                    for (let i = 0; i < transactionTypeValues.length; i += chunkTxSize) {
+                        const chunk = transactionTypeValues.slice(i, i + chunkTxSize);
+                        
+                        const upsertTxQuery = format(`
+                            INSERT INTO master_transaction_types (
+                                old_id, branch_id, code, name, name_en
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) 
+                            DO UPDATE SET 
+                                code = EXCLUDED.code,
+                                name = EXCLUDED.name,
+                                name_en = EXCLUDED.name_en,
+                                updated_at = CURRENT_TIMESTAMP;
+                        `, chunk);
 
-                    await pgClient.query(upsertEmpQuery);
+                        await pgClient.query(upsertTxQuery);
+                    }
+                    totalSynced += oldTransactionTypes.length;
+                    console.log(`[Sync] ✔ ซิงค์ข้อมูลประเภทธุรกรรม ${branch.branch_name} สำเร็จ (${oldTransactionTypes.length} รายการ)`);
                 }
-                totalSynced += oldEmployees.length;
-                console.log(`[Sync] ✔ ซิงค์ข้อมูลพนักงาน ${branch.branch_name} สำเร็จ (${oldEmployees.length} รายการ)`);
-            }
 
-            // =================================================================
-            // 🪵 ส่วนที่ 4: ดึงข้อมูลตาราง ประเภทไม้ท่อน (LogWoodType)
-            // =================================================================
-            console.log(`[Sync] กำลังดึงข้อมูล ประเภทไม้ท่อน จาก MySQL Server: ${branch.branch_name}...`);
-            
-            const [oldLogWoodTypes] = await mysqlPool.query(`
-                SELECT id AS id_old, name, code, is_active FROM choice_domain WHERE choice_domain.class = 'com.ww.log.LogWoodTypeChoice'
-            `);
+                // =================================================================
+                // ⏱️ ส่วนที่ 10: ดึงข้อมูลตาราง ช่วงเวลาการเลื่อย (saw_time)
+                // =================================================================
+                console.log(`[Sync] กำลังดึงข้อมูล ช่วงเวลาการเลื่อย จาก MySQL Server: ${branch.branch_name}...`);
+                
+                const [oldSawTimes] = await mysqlPool.query(`
+                    SELECT 
+                        id AS id_old, time_name, over_time, overtime_type 
+                    FROM saw_time
+                `);
 
-            if (oldLogWoodTypes.length > 0) {
-                const logWoodValues = oldLogWoodTypes.map(row => [
-                    cleanInt(row.id_old),                  
-                    branch.id,                             
-                    row.name || null,                      
-                    row.code || null,                      
-                    cleanBool(row.is_active, true)         
-                ]);
+                if (oldSawTimes.length > 0) {
+                    const sawTimeValues = oldSawTimes.map(row => [
+                        cleanInt(row.id_old),                  
+                        branch.id,                             
+                        row.time_name || null,                 
+                        cleanBool(row.over_time, false),       
+                        cleanInt(row.overtime_type, 0)         
+                    ]);
 
-                const chunkLogSize = 4000;
-                for (let i = 0; i < logWoodValues.length; i += chunkLogSize) {
-                    const chunk = logWoodValues.slice(i, i + chunkLogSize);
-                    
-                    const upsertLogQuery = format(`
-                        INSERT INTO master_log_wood_types (
-                            old_id, branch_id, name, code, is_active
-                        ) 
-                        VALUES %L 
-                        ON CONFLICT (branch_id, old_id) 
-                        DO UPDATE SET 
-                            name = EXCLUDED.name,
-                            code = EXCLUDED.code,
-                            is_active = EXCLUDED.is_active,
-                            updated_at = CURRENT_TIMESTAMP;
-                    `, chunk);
+                    const chunkTimeSize = 4000;
+                    for (let i = 0; i < sawTimeValues.length; i += chunkTimeSize) {
+                        const chunk = sawTimeValues.slice(i, i + chunkTimeSize);
+                        
+                        const upsertSawTimeQuery = format(`
+                            INSERT INTO master_saw_times (
+                                old_id, branch_id, time_name, over_time, overtime_type
+                            ) 
+                            VALUES %L 
+                            ON CONFLICT (branch_id, old_id) 
+                            DO UPDATE SET 
+                                time_name = EXCLUDED.time_name,
+                                over_time = EXCLUDED.over_time,
+                                overtime_type = EXCLUDED.overtime_type,
+                                updated_at = CURRENT_TIMESTAMP;
+                        `, chunk);
 
-                    await pgClient.query(upsertLogQuery);
+                        await pgClient.query(upsertSawTimeQuery);
+                    }
+                    totalSynced += oldSawTimes.length;
+                    console.log(`[Sync] ✔ ซิงค์ข้อมูลช่วงเวลาการเลื่อย ${branch.branch_name} สำเร็จ (${oldSawTimes.length} รายการ)`);
                 }
-                totalSynced += oldLogWoodTypes.length;
-                console.log(`[Sync] ✔ ซิงค์ข้อมูลประเภทไม้ท่อน ${branch.branch_name} สำเร็จ (${oldLogWoodTypes.length} รายการ)`);
-            }
 
-            // =================================================================
-            // 📏 ส่วนที่ 5: ดึงข้อมูลตาราง ขนาดไม้ท่อนประเมิน (LogWoodEvalSize)
-            // =================================================================
-            console.log(`[Sync] กำลังดึงข้อมูล ขนาดไม้ท่อนประเมิน จาก MySQL Server: ${branch.branch_name}...`);
-            
-            const [oldLogWoodEvalSizes] = await mysqlPool.query(`
-                SELECT id AS id_old, name, code, is_active FROM choice_domain WHERE choice_domain.class = 'com.ww.log.LogWoodEvalSize'
-            `);
-
-            if (oldLogWoodEvalSizes.length > 0) {
-                const evalSizeValues = oldLogWoodEvalSizes.map(row => [
-                    cleanInt(row.id_old),                  
-                    branch.id,                             
-                    row.name || null,                      
-                    row.code || null,                      
-                    cleanBool(row.is_active, true)         
-                ]);
-
-                const chunkEvalSize = 4000;
-                for (let i = 0; i < evalSizeValues.length; i += chunkEvalSize) {
-                    const chunk = evalSizeValues.slice(i, i + chunkEvalSize);
-                    
-                    const upsertEvalSizeQuery = format(`
-                        INSERT INTO master_log_wood_eval_sizes (
-                            old_id, branch_id, name, code, is_active
-                        ) 
-                        VALUES %L 
-                        ON CONFLICT (branch_id, old_id) 
-                        DO UPDATE SET 
-                            name = EXCLUDED.name,
-                            code = EXCLUDED.code,
-                            is_active = EXCLUDED.is_active,
-                            updated_at = CURRENT_TIMESTAMP;
-                    `, chunk);
-
-                    await pgClient.query(upsertEvalSizeQuery);
-                }
-                totalSynced += oldLogWoodEvalSizes.length;
-                console.log(`[Sync] ✔ ซิงค์ข้อมูลขนาดไม้ท่อนประเมิน ${branch.branch_name} สำเร็จ (${oldLogWoodEvalSizes.length} รายการ)`);
-            }
-
-            // =================================================================
-            // 🪚 ส่วนที่ 6: ดึงข้อมูลตาราง ประเภทการเลื่อยไม้ (saw_wood_type)
-            // =================================================================
-            console.log(`[Sync] กำลังดึงข้อมูล ประเภทการเลื่อยไม้ จาก MySQL Server: ${branch.branch_name}...`);
-            
-            const [oldSawWoodTypes] = await mysqlPool.query(`
-                SELECT 
-                    id AS id_old, name, ax_location, ax_warehouse, is_raw_wood, is_width_wood ,code
-                FROM saw_wood_type
-            `);
-
-            if (oldSawWoodTypes.length > 0) {
-                const sawWoodValues = oldSawWoodTypes.map(row => [
-                    cleanInt(row.id_old),                  
-                    branch.id,                             
-                    row.name || null,                      
-                    row.ax_location || null,               
-                    row.ax_warehouse || null,              
-                    cleanBool(row.is_raw_wood, false),     
-                    cleanBool(row.is_width_wood, false),   
-                    row.code || null                       
-                ]);
-
-                const chunkSawSize = 4000;
-                for (let i = 0; i < sawWoodValues.length; i += chunkSawSize) {
-                    const chunk = sawWoodValues.slice(i, i + chunkSawSize);
-                    
-                    const upsertSawWoodQuery = format(`
-                        INSERT INTO master_saw_wood_types (
-                            old_id, branch_id, name, ax_location, ax_warehouse, is_raw_wood, is_width_wood ,code
-                        ) 
-                        VALUES %L 
-                        ON CONFLICT (branch_id, old_id) 
-                        DO UPDATE SET 
-                            name = EXCLUDED.name,
-                            ax_location = EXCLUDED.ax_location,
-                            ax_warehouse = EXCLUDED.ax_warehouse,
-                            is_raw_wood = EXCLUDED.is_raw_wood,
-                            is_width_wood = EXCLUDED.is_width_wood,
-                            code = EXCLUDED.code,
-                            updated_at = CURRENT_TIMESTAMP;
-                    `, chunk);
-
-                    await pgClient.query(upsertSawWoodQuery);
-                }
-                totalSynced += oldSawWoodTypes.length;
-                console.log(`[Sync] ✔ ซิงค์ข้อมูลประเภทการเลื่อยไม้ ${branch.branch_name} สำเร็จ (${oldSawWoodTypes.length} รายการ)`);
-            }
-
-            // =================================================================
-            // 💦 ส่วนที่ 7: ดึงข้อมูลตาราง ประเภทไม้เปียก (wet_wood_type)
-            // =================================================================
-            console.log(`[Sync] กำลังดึงข้อมูล ประเภทไม้เปียก จาก MySQL Server: ${branch.branch_name}...`);
-            
-            const [oldWetWoodTypes] = await mysqlPool.query(`
-                SELECT 
-                    id AS id_old, name, is_buy_wood, ax_location, ax_warehouse ,code
-                FROM wet_wood_type
-            `);
-
-            if (oldWetWoodTypes.length > 0) {
-                const wetWoodValues = oldWetWoodTypes.map(row => [
-                    cleanInt(row.id_old),                  
-                    branch.id,                             
-                    row.name || null,                      
-                    cleanBool(row.is_buy_wood, false),     
-                    row.ax_location || null,               
-                    row.ax_warehouse || null,
-                    row.code || null             
-                ]);
-
-                const chunkWetSize = 4000;
-                for (let i = 0; i < wetWoodValues.length; i += chunkWetSize) {
-                    const chunk = wetWoodValues.slice(i, i + chunkWetSize);
-                    
-                    const upsertWetWoodQuery = format(`
-                        INSERT INTO master_wet_wood_types (
-                            old_id, branch_id, name, is_buy_wood, ax_location, ax_warehouse, code
-                        ) 
-                        VALUES %L 
-                        ON CONFLICT (branch_id, old_id) 
-                        DO UPDATE SET 
-                            name = EXCLUDED.name,
-                            is_buy_wood = EXCLUDED.is_buy_wood,
-                            ax_location = EXCLUDED.ax_location,
-                            ax_warehouse = EXCLUDED.ax_warehouse,
-                            code = EXCLUDED.code,
-                            updated_at = CURRENT_TIMESTAMP;
-                    `, chunk);
-
-                    await pgClient.query(upsertWetWoodQuery);
-                }
-                totalSynced += oldWetWoodTypes.length;
-                console.log(`[Sync] ✔ ซิงค์ข้อมูลประเภทไม้เปียก ${branch.branch_name} สำเร็จ (${oldWetWoodTypes.length} รายการ)`);
-            }
-
-            // =================================================================
-            // 🏭 ส่วนที่ 8: ดึงข้อมูลตาราง คลัง/สถานที่เก็บไม้ (wood_store)
-            // =================================================================
-            console.log(`[Sync] กำลังดึงข้อมูล คลังสถานที่เก็บไม้ จาก MySQL Server: ${branch.branch_name}...`);
-            
-            const [oldWoodStores] = await mysqlPool.query(`
-                SELECT 
-                    id AS id_old, description, allow_two_prefix, ax_location, ax_warehouse ,code
-                FROM wood_store
-            `);
-
-            if (oldWoodStores.length > 0) {
-                const woodStoreValues = oldWoodStores.map(row => [
-                    cleanInt(row.id_old),                  
-                    branch.id,                             
-                    row.description || null,               
-                    cleanBool(row.allow_two_prefix, false),
-                    row.ax_location || null,               
-                    row.ax_warehouse || null,               
-                    row.code || null                        
-                ]);
-
-                const chunkStoreSize = 4000;
-                for (let i = 0; i < woodStoreValues.length; i += chunkStoreSize) {
-                    const chunk = woodStoreValues.slice(i, i + chunkStoreSize);
-                    
-                    const upsertWoodStoreQuery = format(`
-                        INSERT INTO master_wood_stores (
-                            old_id, branch_id, description, allow_two_prefix, ax_location, ax_warehouse, code
-                        ) 
-                        VALUES %L 
-                        ON CONFLICT (branch_id, old_id) 
-                        DO UPDATE SET 
-                            description = EXCLUDED.description,
-                            allow_two_prefix = EXCLUDED.allow_two_prefix,
-                            ax_location = EXCLUDED.ax_location,
-                            ax_warehouse = EXCLUDED.ax_warehouse,
-                            code = EXCLUDED.code,
-                            updated_at = CURRENT_TIMESTAMP;
-                    `, chunk);
-
-                    await pgClient.query(upsertWoodStoreQuery);
-                }
-                totalSynced += oldWoodStores.length;
-                console.log(`[Sync] ✔ ซิงค์ข้อมูลคลังสถานที่เก็บไม้ ${branch.branch_name} สำเร็จ (${oldWoodStores.length} รายการ)`);
-            }
-
-            // =================================================================
-            // 🔄 ส่วนที่ 9: ดึงข้อมูลตาราง ประเภทธุรกรรม (transaction_type)
-            // =================================================================
-            console.log(`[Sync] กำลังดึงข้อมูล ประเภทธุรกรรม จาก MySQL Server: ${branch.branch_name}...`);
-            
-            const [oldTransactionTypes] = await mysqlPool.query(`
-                SELECT 
-                    id AS id_old, code, name, name_en 
-                FROM transaction_type
-            `);
-
-            if (oldTransactionTypes.length > 0) {
-                const transactionTypeValues = oldTransactionTypes.map(row => [
-                    cleanInt(row.id_old),                  
-                    branch.id,                             
-                    row.code || null,                      
-                    row.name || null,                      
-                    row.name_en || null                    
-                ]);
-
-                const chunkTxSize = 4000;
-                for (let i = 0; i < transactionTypeValues.length; i += chunkTxSize) {
-                    const chunk = transactionTypeValues.slice(i, i + chunkTxSize);
-                    
-                    const upsertTxQuery = format(`
-                        INSERT INTO master_transaction_types (
-                            old_id, branch_id, code, name, name_en
-                        ) 
-                        VALUES %L 
-                        ON CONFLICT (branch_id, old_id) 
-                        DO UPDATE SET 
-                            code = EXCLUDED.code,
-                            name = EXCLUDED.name,
-                            name_en = EXCLUDED.name_en,
-                            updated_at = CURRENT_TIMESTAMP;
-                    `, chunk);
-
-                    await pgClient.query(upsertTxQuery);
-                }
-                totalSynced += oldTransactionTypes.length;
-                console.log(`[Sync] ✔ ซิงค์ข้อมูลประเภทธุรกรรม ${branch.branch_name} สำเร็จ (${oldTransactionTypes.length} รายการ)`);
-            }
-
-            // =================================================================
-            // ⏱️ ส่วนที่ 10: ดึงข้อมูลตาราง ช่วงเวลาการเลื่อย (saw_time)
-            // =================================================================
-            console.log(`[Sync] กำลังดึงข้อมูล ช่วงเวลาการเลื่อย จาก MySQL Server: ${branch.branch_name}...`);
-            
-            const [oldSawTimes] = await mysqlPool.query(`
-                SELECT 
-                    id AS id_old, time_name, over_time, overtime_type 
-                FROM saw_time
-            `);
-
-            if (oldSawTimes.length > 0) {
-                const sawTimeValues = oldSawTimes.map(row => [
-                    cleanInt(row.id_old),                  
-                    branch.id,                             
-                    row.time_name || null,                 
-                    cleanBool(row.over_time, false),       
-                    cleanInt(row.overtime_type, 0)         
-                ]);
-
-                const chunkTimeSize = 4000;
-                for (let i = 0; i < sawTimeValues.length; i += chunkTimeSize) {
-                    const chunk = sawTimeValues.slice(i, i + chunkTimeSize);
-                    
-                    const upsertSawTimeQuery = format(`
-                        INSERT INTO master_saw_times (
-                            old_id, branch_id, time_name, over_time, overtime_type
-                        ) 
-                        VALUES %L 
-                        ON CONFLICT (branch_id, old_id) 
-                        DO UPDATE SET 
-                            time_name = EXCLUDED.time_name,
-                            over_time = EXCLUDED.over_time,
-                            overtime_type = EXCLUDED.overtime_type,
-                            updated_at = CURRENT_TIMESTAMP;
-                    `, chunk);
-
-                    await pgClient.query(upsertSawTimeQuery);
-                }
-                totalSynced += oldSawTimes.length;
-                console.log(`[Sync] ✔ ซิงค์ข้อมูลช่วงเวลาการเลื่อย ${branch.branch_name} สำเร็จ (${oldSawTimes.length} รายการ)`);
+            } catch (branchError) {
+                // หากเซิร์ฟเวอร์ MySQL ของสาขานี้ล่ม หรือพาสเวิร์ดผิด จะหลุดมาที่นี่
+                console.error(`[Sync] ❌ ข้าม ${branch.branch_name} เนื่องจาก:`, branchError.message);
+                // จด Error ไว้ในสมุดโน้ต (Array) ก่อน ค่อยเอาไปแจ้ง LINE ทีเดียวตอนจบงาน
+                errorLogs.push(`- ${branch.branch_name}: ${branchError.message}`);
             }
         } 
-        // --- จบ Loop ของสาขา ---
+        // --- จบ Loop ครบทุกสาขา ---
 
-        // บันทึกข้อมูลลงฐานข้อมูล PostgreSQL
+        // 5. เมื่อลูปทำงานจบโดยไม่มี Fatal Error ให้ "ยืนยัน" การบันทึกข้อมูลเข้า Database จริงๆ
         await pgClient.query('COMMIT');
         
-        // ⏱️ 2. สิ้นสุดการทำงานและคำนวณเวลา (วินาที)
-        const endTime = Date.now();
-        const syncTimeSeconds = ((endTime - startTime) / 1000).toFixed(2);
+        // คำนวณระยะเวลาการทำงาน
+        const syncTimeSeconds = ((Date.now() - startTime) / 1000).toFixed(2);
+        
+        // 6. ส่งแจ้งเตือนถ้ามี Error ตกค้างในบางสาขา
+        if (errorLogs.length > 0 && typeof sendLineNotify !== 'undefined') {
+            const alertMessage = `\n⚠️ แจ้งเตือน PPOS Sync\nอัปเดตข้อมูลสำเร็จบางส่วน พบข้อผิดพลาด:\n${errorLogs.join('\n')}`;
+            await sendLineNotify(alertMessage);
+        }
 
+        // ส่งผลลัพธ์กลับไปยังผู้เรียกใช้ (Frontend หรือ Cron Job)
         res.status(200).json({ 
             success: true, 
-            message: 'ซิงค์ข้อมูลเสร็จสมบูรณ์',
+            message: errorLogs.length > 0 ? 'ซิงค์สำเร็จ แต่มีบางสาขาขัดข้อง' : 'ซิงค์ข้อมูลเสร็จสมบูรณ์',
             total_synced: totalSynced,
             sync_time: syncTimeSeconds
         });
 
     } catch (fatalError) {
-        await pgClient.query('ROLLBACK');
-        console.error('Fatal Sync Error:', fatalError);
-        
-        // 💡 ดึง Error Message จาก MySQL หรือ Postgres ส่งไปแสดงผลที่หน้าเว็บโดยตรง
-        const errorMessage = fatalError.sqlMessage || fatalError.message || 'เกิดข้อผิดพลาดในฐานข้อมูล';
-        const criticalMessage = `\n🚨 PPOS Database Error!\nระบบซิงค์ล้มเหลว\nสาเหตุ: ${errorMessage}`;
+        // หากมี Error ระดับโครงสร้าง เช่น PostgreSQL ดับระหว่างทาง จะหลุดมาที่นี่
+        await pgClient.query('ROLLBACK'); // ยกเลิกข้อมูลที่ยัดมาในรอบนี้ทิ้งทั้งหมด ป้องกันข้อมูลแหว่ง
         
         if (typeof sendLineNotify !== 'undefined') {
-            await sendLineNotify(criticalMessage).catch(console.error);
+            const criticalMessage = `\n🚨 PPOS Database Error!\nระบบซิงค์ล้มเหลวทั้งหมด\nสาเหตุ: ${fatalError.message}`;
+            await sendLineNotify(criticalMessage);
         }
 
-        res.status(500).json({ 
-            success: false, 
-            message: `การซิงค์ล้มเหลว: ${errorMessage}` 
-        });
+        res.status(500).json({ success: false, message: 'ระบบฐานข้อมูลขัดข้อง แจ้งเตือนผู้ดูแลระบบแล้ว' });
     } finally {
-        pgClient.release(); 
+        pgClient.release(); // คืนการเชื่อมต่อให้ Pool เสมอ เพื่อไม่ให้ระบบค้าง
     }
   }
 };
@@ -1132,43 +1127,128 @@ const ExcelJS = require('exceljs'); // <- ต้องมีบรรทัด�
 const fs = require('fs');      
 const path = require('path');  
 
-// 💡 ระบบแชร์ Browser ตัวเดียว (Global) แบบป้องกันการกดรัวๆ (Promise Caching)
+// ─────────────────────────────────────────────────────────────
+// 💡 ระบบ PDF กลาง: Browser ตัวเดียว + คิวจำกัดงานพร้อมกัน + ปิดแท็บเสมอ
+// ─────────────────────────────────────────────────────────────
+
+// escape ข้อความก่อนฝังลง HTML (กัน HTML injection จาก req.query)
+const esc = (v) =>
+  String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+// cache ฟอนต์ไว้ในหน่วยความจำ (ไม่อ่านไฟล์ + encode ใหม่ทุก request)
+const fontCache = new Map();
+const readFontCached = (fontPath) => {
+  if (!fontCache.has(fontPath)) {
+    fontCache.set(fontPath, fs.readFileSync(fontPath).toString('base64'));
+  }
+  return fontCache.get(fontPath);
+};
+
 let browserPromise = null;
 
+const launchBrowser = async () => {
+  const puppeteer = (await import('puppeteer')).default;
+
+  const args = ['--disable-dev-shm-usage']; // กัน /dev/shm เต็มใน Docker/Linux
+  if (process.platform !== 'win32') args.push('--disable-gpu');
+
+  // ⚠️ เปิดเฉพาะเมื่อจำเป็นจริง ๆ (เช่น Docker ที่ยังแก้ user namespace ไม่ได้)
+  // ตั้งค่า PUPPETEER_NO_SANDBOX=true ใน .env ของเครื่องนั้นเท่านั้น
+  const noSandbox = process.env.PUPPETEER_NO_SANDBOX === 'true';
+  if (noSandbox) args.push('--no-sandbox', '--disable-setuid-sandbox');
+
+  console.log(`🚀 Starting new Chrome browser instance... (sandbox: ${noSandbox ? 'OFF' : 'ON'})`);
+
+  const browser = await puppeteer.launch({
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+    headless: true, // ถ้าใช้ Puppeteer v22+ เปลี่ยนเป็น true ได้
+    args,
+  });
+
+  // ถ้า Chrome แครช/ถูกปิด ให้เคลียร์ เพื่อให้ request ถัดไปเปิดใหม่
+  browser.on('disconnected', () => {
+    console.warn('⚠️ Browser disconnected');
+    browserPromise = null;
+  });
+
+  return browser;
+};
+
 const getBrowser = async () => {
-  try {
-    // 1. ถ้ามีคิวเปิดบราวเซอร์อยู่แล้ว หรือเปิดทิ้งไว้แล้ว ให้รอใช้ตัวนั้น
-    if (browserPromise) {
+  if (browserPromise) {
+    try {
       const browser = await browserPromise;
-      
-      // ตรวจสอบสถานะการเชื่อมต่อ (รองรับทั้งแบบ function และ boolean เผื่อเวอร์ชันของ Puppeteer ต่างกัน)
-      const isConnected = typeof browser.isConnected === 'function' ? browser.isConnected() : browser.connected;
-      
-      if (isConnected) {
-        return browser;
-      }
+      const isConnected =
+        typeof browser.isConnected === 'function' ? browser.isConnected() : browser.connected;
+      if (isConnected) return browser;
+    } catch (_) {
+      // launch ครั้งก่อนล้มเหลว → ลองใหม่ด้านล่าง
     }
-    const puppeteer = (await import('puppeteer')).default;
-    // 2. ถ้ายังไม่เคยสร้าง หรือบราวเซอร์แครชไปแล้ว ให้สร้างขึ้นมาใหม่
-    console.log("🚀 Starting new Chrome browser instance...");
-    browserPromise = await puppeteer.launch({ 
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null, // <--- 💡 เพิ่มบรรทัดนี้เข้าไปครับ
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox', 
-        '--disable-dev-shm-usage', // ป้องกันปัญหาแรมเต็มใน Linux
-        '--disable-gpu'            // ลดการใช้ทรัพยากร
-        // ❌ เอา '--single-process' ออกไปเลยครับ เพราะเป็นตัวการทำให้แครชเมื่อดึง PDF หลายแท็บ
-      ],
-      headless: "new"
+    browserPromise = null;
+  }
+
+  // กำหนด promise แบบ synchronous เพื่อให้ request ที่เข้ามาพร้อมกันใช้ instance เดียวกัน
+  browserPromise = launchBrowser();
+  try {
+    return await browserPromise;
+  } catch (error) {
+    console.error('❌ Browser Launch Error:', error);
+    browserPromise = null;
+    throw error;
+  }
+};
+
+// คิวจำกัดจำนวนงาน PDF พร้อมกัน (ปรับได้ด้วย PDF_CONCURRENCY ใน .env)
+const PDF_CONCURRENCY = Number(process.env.PDF_CONCURRENCY) || 2;
+let pdfActive = 0;
+const pdfWaiters = [];
+const acquirePdfSlot = () =>
+  new Promise((resolve) => {
+    if (pdfActive < PDF_CONCURRENCY) {
+      pdfActive++;
+      resolve();
+    } else {
+      pdfWaiters.push(resolve);
+    }
+  });
+const releasePdfSlot = () => {
+  const next = pdfWaiters.shift();
+  if (next) next(); // ส่งต่อ slot ให้คิวถัดไป (pdfActive คงเดิม)
+  else pdfActive--;
+};
+
+// แปลง HTML → PDF Buffer (ปลอดภัย: ปิด JS, บล็อก request ภายนอก, ปิดแท็บเสมอ)
+const renderPdf = async (html, pdfOptions = {}) => {
+  await acquirePdfSlot();
+  let page;
+  try {
+    const browser = await getBrowser();
+    page = await browser.newPage();
+
+    // รายงานเป็น HTML ล้วน ไม่ต้องรัน script
+    await page.setJavaScriptEnabled(false);
+
+    // อนุญาตเฉพาะ data: (ฟอนต์ base64) — ทุกอย่างอื่นถูกบล็อก (กัน SSRF / โหลดของภายนอกค้าง)
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      const url = req.url();
+      if (url.startsWith('data:') || url === 'about:blank') return req.continue();
+      return req.abort();
     });
 
-    return await browserPromise;
+    // HTML ไม่มี resource ภายนอก จึงไม่ต้องรอ networkidle0
+    await page.setContent(html, { waitUntil: 'load', timeout: 60000 });
 
-  } catch (error) {
-    console.error("❌ Browser Launch Error:", error);
-    browserPromise = null; // รีเซ็ตเพื่อเคลียร์คิวให้กดลองใหม่ได้
-    throw error;
+    const pdf = await page.pdf({ ...pdfOptions, timeout: 120000 });
+    return Buffer.from(pdf); // Puppeteer v22+ คืน Uint8Array → แปลงเป็น Buffer ให้ res.send ใช้ได้
+  } finally {
+    if (page) await page.close().catch(() => {});
+    releasePdfSlot();
   }
 };
 
@@ -1921,7 +2001,7 @@ const reportController = {
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
       let fontBase64 = '';
       if (fs.existsSync(fontPath)) {
-        fontBase64 = fs.readFileSync(fontPath).toString('base64');
+        fontBase64 = readFontCached(fontPath);
       } else {
         console.warn('⚠️ ไม่พบไฟล์ฟอนต์ที่:', fontPath);
       }
@@ -2097,14 +2177,14 @@ const reportController = {
             <div class="title-box">
               <h1>บริษัท วู้ดเวอร์ค จำกัด</h1>
               <h2>รายงานการเบิกจ่ายแยกตาม ประเภทไม้</h2>
-              <p>ตั้งแต่วันที่ ${start_date} ถึงวันที่ ${end_date}</p>
+              <p>ตั้งแต่วันที่ ${esc(start_date)} ถึงวันที่ ${esc(end_date)}</p>
             </div>
             <table>
               <thead>
                 <tr>
                   <th colspan="2">ขนาดไม้</th>
-                  <th>${grade}</th><th>% กว้าง</th><th>% ยาว</th><th>ราคาเฉลี่ย</th><th>จำนวนเงิน</th>
-                  <th>${grade} พิเศษ</th><th>% กว้าง</th><th>% ยาว</th><th>ราคาเฉลี่ย</th><th>จำนวนเงิน</th>
+                  <th>${esc(grade)}</th><th>% กว้าง</th><th>% ยาว</th><th>ราคาเฉลี่ย</th><th>จำนวนเงิน</th>
+                  <th>${esc(grade)} พิเศษ</th><th>% กว้าง</th><th>% ยาว</th><th>ราคาเฉลี่ย</th><th>จำนวนเงิน</th>
                 </tr>
               </thead>
               <tbody>
@@ -2116,19 +2196,12 @@ const reportController = {
       `;
 
       // 💡 โค้ดใหม่ (ใช้ Browser ตัวเดิม แต่เปิด Tab ใหม่)
-      const browser = await getBrowser();
-      const page = await browser.newPage();
-
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ 
+      const pdfBuffer = await renderPdf(htmlContent, { 
         format: 'A4', 
         landscape: true, 
         printBackground: true,
         margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
       });
-
-      // 💡 สำคัญมาก: เปลี่ยนจาก browser.close() เป็น page.close() เพื่อปิดแค่ Tab ไม่ปิดโปรแกรมหลัก
-      await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="report.pdf"');
@@ -2455,7 +2528,7 @@ const reportController = {
 
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
       let fontBase64 = '';
-      if (fs.existsSync(fontPath)) fontBase64 = fs.readFileSync(fontPath).toString('base64');
+      if (fs.existsSync(fontPath)) fontBase64 = readFontCached(fontPath);
 
       let tableRows = '';
       rows.forEach((row) => {
@@ -2540,9 +2613,9 @@ const reportController = {
           </head>
           <body>
             <div class="title-box">
-              <h1>บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+              <h1>บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
               <h2>รายงานเปรียบเทียบราคาขายเฉลี่ย ตามแผนกและเกรดไม้</h2>
-              <p>ตั้งแต่วันที่ ${start_date} ถึงวันที่ ${end_date} สโตร์: ${store_code || 'รวมทุกสโตร์'}</p>
+              <p>ตั้งแต่วันที่ ${esc(start_date)} ถึงวันที่ ${esc(end_date)} สโตร์: ${esc(store_code || 'รวมทุกสโตร์')}</p>
             </div>
             <table>
               <thead>
@@ -2567,19 +2640,12 @@ const reportController = {
       `;
 
       // 💡 โค้ดใหม่ (ใช้ Browser ตัวเดิม แต่เปิด Tab ใหม่)
-      const browser = await getBrowser();
-      const page = await browser.newPage();
-
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ 
+      const pdfBuffer = await renderPdf(htmlContent, { 
         format: 'A4', 
         landscape: true, 
         printBackground: true,
         margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
       });
-
-      // 💡 สำคัญมาก: เปลี่ยนจาก browser.close() เป็น page.close() เพื่อปิดแค่ Tab ไม่ปิดโปรแกรมหลัก
-      await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="average_price_report.pdf"');
@@ -2795,7 +2861,7 @@ const reportController = {
       const fs = require('fs');
       const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
-      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+      let fontBase64 = fs.existsSync(fontPath) ? readFontCached(fontPath) : '';
 
       let rowsHtml = '';
       formattedData.forEach(tmGroup => {
@@ -2868,12 +2934,12 @@ const reportController = {
           .border-b { border-bottom: 2px solid #555; } .border-t { border-top: 2px solid #555; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
             <h2 style="font-size:16px; margin:0;">รายงานการผลิต แยกตาม ความหนา-มิลไม้</h2>
-            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
+            <p style="margin:0;">ตั้งแต่วันที่ ${esc(start_date)} ถึง ${esc(end_date)}</p>
           </div>
           <table>
-            <thead><tr><th colspan="2">ขนาดไม้</th><th>${grade}</th><th>% กว้าง</th><th>% ยาว</th><th>ราคา</th><th>จำนวนเงิน</th></tr></thead>
+            <thead><tr><th colspan="2">ขนาดไม้</th><th>${esc(grade)}</th><th>% กว้าง</th><th>% ยาว</th><th>ราคา</th><th>จำนวนเงิน</th></tr></thead>
             <tbody>${rowsHtml}</tbody>
           </table>
           <div style="width:50%; margin-top:20px;">
@@ -2887,19 +2953,12 @@ const reportController = {
 
       // const puppeteer = require('puppeteer');
       // 💡 โค้ดใหม่ (ใช้ Browser ตัวเดิม แต่เปิด Tab ใหม่)
-      const browser = await getBrowser();
-      const page = await browser.newPage();
-
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ 
+      const pdfBuffer = await renderPdf(htmlContent, { 
         format: 'A4', 
         landscape: true, 
         printBackground: true,
         margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
       });
-
-      // 💡 สำคัญมาก: เปลี่ยนจาก browser.close() เป็น page.close() เพื่อปิดแค่ Tab ไม่ปิดโปรแกรมหลัก
-      await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="report.pdf"');
@@ -3110,7 +3169,7 @@ const reportController = {
       const fs = require('fs');
       const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
-      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+      let fontBase64 = fs.existsSync(fontPath) ? readFontCached(fontPath) : '';
 
       let rowsHtml = '';
       formattedData.forEach((row) => {
@@ -3207,9 +3266,9 @@ const reportController = {
           .border-t { border-top: 2px solid #333; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปผลงานนายม้า แยกตามเกรดคุณภาพไม้ (AB, C, P, PP)</h2>
-            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date} สโตร์: ทั้งหมด</p>
+            <p style="margin:0;">ตั้งแต่วันที่ ${esc(start_date)} ถึง ${esc(end_date)} สโตร์: ทั้งหมด</p>
             <p style="margin:0;">แหล่งที่มา: ทั้งหมด | ประเภทไม้: ทั้งหมด | กลุ่มไม้: ทั้งหมด</p>
           </div>
           <table>
@@ -3238,19 +3297,12 @@ const reportController = {
 
       // const puppeteer = require('puppeteer');
       // 💡 โค้ดใหม่ (ใช้ Browser ตัวเดิม แต่เปิด Tab ใหม่)
-      const browser = await getBrowser();
-      const page = await browser.newPage();
-
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ 
+      const pdfBuffer = await renderPdf(htmlContent, { 
         format: 'A4', 
         landscape: true, 
         printBackground: true,
         margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
       });
-
-      // 💡 สำคัญมาก: เปลี่ยนจาก browser.close() เป็น page.close() เพื่อปิดแค่ Tab ไม่ปิดโปรแกรมหลัก
-      await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="sawer_performance.pdf"');
@@ -3583,7 +3635,7 @@ const reportController = {
       const fs = require('fs');
       const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
-      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+      let fontBase64 = fs.existsSync(fontPath) ? readFontCached(fontPath) : '';
 
       let rowsHtml = '';
       formattedData.forEach((month) => {
@@ -3684,9 +3736,9 @@ const reportController = {
           .border-t { border-top: 2px solid #333; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปผลผลิตไม้รายวันและประจำเดือน</h2>
-            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
+            <p style="margin:0;">ตั้งแต่วันที่ ${esc(start_date)} ถึง ${esc(end_date)}</p>
           </div>
           <table>
             <thead>
@@ -3706,19 +3758,12 @@ const reportController = {
 
       // const puppeteer = require('puppeteer');
       // 💡 โค้ดใหม่ (ใช้ Browser ตัวเดิม แต่เปิด Tab ใหม่)
-      const browser = await getBrowser();
-      const page = await browser.newPage();
-
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ 
+      const pdfBuffer = await renderPdf(htmlContent, { 
         format: 'A4', 
         landscape: true, 
         printBackground: true,
         margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
       });
-
-      // 💡 สำคัญมาก: เปลี่ยนจาก browser.close() เป็น page.close() เพื่อปิดแค่ Tab ไม่ปิดโปรแกรมหลัก
-      await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="daily_production.pdf"');
@@ -4057,7 +4102,7 @@ const reportController = {
       const fs = require('fs');
       const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
-      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+      let fontBase64 = fs.existsSync(fontPath) ? readFontCached(fontPath) : '';
 
       const formatGradeLabel = (g) => g === 'C_F' ? 'C สด' : g;
       const allGradesLabel = expectedGrades.map(formatGradeLabel).join('+');
@@ -4195,22 +4240,16 @@ const reportController = {
           .text-gray { color: #6b7280; } .text-xs { font-size: 10px; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:10px;">
-            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปผลงานนายม้า แยกตามความยาวไม้</h2>
-            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date} | กลุ่มเกรดไม้: ${grade_group === 'AB_C' ? 'AB, C' : 'P, PP'}</p>
+            <p style="margin:0;">ตั้งแต่วันที่ ${esc(start_date)} ถึง ${esc(end_date)} | กลุ่มเกรดไม้: ${grade_group === 'AB_C' ? 'AB, C' : 'P, PP'}</p>
           </div>
           <table><thead>${theadHtml}</thead>${tbodyHtml}</table>
         </body></html>
       `;
 
       // ใช้ Global Browser เพื่อลดการบริโภคทรัพยากรของเซิร์ฟเวอร์
-      const browser = await getBrowser(); 
-      const page = await browser.newPage();
-      
-      // กำหนด load ให้โหลดข้อมูลและ CSS ให้เสร็จสมบูรณ์ก่อน
-      await page.setContent(htmlContent, { waitUntil: 'load' }); 
-      
-      const pdfBuffer = await page.pdf({ 
+      const pdfBuffer = await renderPdf(htmlContent, { 
         format: 'Legal', 
         landscape: true, 
         printBackground: true, 
@@ -4218,7 +4257,6 @@ const reportController = {
         displayHeaderFooter: false, 
         margin: { top: '15mm', bottom: '15mm', left: '10mm', right: '10mm' }
       });
-      await page.close();
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="sawer_length.pdf"');
@@ -4470,7 +4508,7 @@ const reportController = {
       const fs = require('fs');
       const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
-      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+      let fontBase64 = fs.existsSync(fontPath) ? readFontCached(fontPath) : '';
 
       let rowsHtml = '';
       groups.forEach(group => {
@@ -4520,10 +4558,10 @@ const reportController = {
           .border-b { border-bottom: 2px dotted #9ca3af; } .border-t { border-top: 2px solid #333; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:20px;">
-            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานค่าแรงไม้เปียก ใบปะหน้า</h2>
-            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
-            <p style="margin:0;">ประเภทไม้: ${wet_wood_type || 'ทั้งหมด'}</p>
+            <p style="margin:0;">ตั้งแต่วันที่ ${esc(start_date)} ถึง ${esc(end_date)}</p>
+            <p style="margin:0;">ประเภทไม้: ${esc(wet_wood_type || 'ทั้งหมด')}</p>
           </div>
           <table>
             <thead><tr><th>รหัสสินค้า</th><th>จำนวนท่อน</th><th>ปริมาตร(ลบฟ)</th><th>ค่าแรง</th></tr></thead>
@@ -4536,11 +4574,7 @@ const reportController = {
         </body></html>
       `;
 
-      const browser = await getBrowser(); 
-      const page = await browser.newPage();
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
-      await page.close();
+      const pdfBuffer = await renderPdf(htmlContent, { format: 'A4', printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="wet_wood_cover.pdf"');
@@ -4782,7 +4816,7 @@ const reportController = {
       const fs = require('fs');
       const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
-      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+      let fontBase64 = fs.existsSync(fontPath) ? readFontCached(fontPath) : '';
 
       let rowsHtml = '';
       groups.forEach(group => {
@@ -4832,10 +4866,10 @@ const reportController = {
           .border-b { border-bottom: 2px dotted #9ca3af; } .border-t { border-top: 2px solid #333; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:20px;">
-            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานค่าแรงไม้แห้ง ใบปะหน้า</h2>
-            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
-            <p style="margin:0;">รหัสสโตร์: ${store_code || '104%'}</p>
+            <p style="margin:0;">ตั้งแต่วันที่ ${esc(start_date)} ถึง ${esc(end_date)}</p>
+            <p style="margin:0;">รหัสสโตร์: ${esc(store_code || '104%')}</p>
           </div>
           <table>
             <thead><tr><th>รหัสสินค้า</th><th>จำนวนท่อน</th><th>ปริมาตร(ลบฟ)</th><th>ค่าแรง</th></tr></thead>
@@ -4849,11 +4883,7 @@ const reportController = {
       `;
 
       // 💡 ใช้ getBrowser แบบเดียวกับรายงานอื่นเพื่อไม่ให้กิน RAM[cite: 7]
-      const browser = await getBrowser(); 
-      const page = await browser.newPage();
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
-      await page.close();
+      const pdfBuffer = await renderPdf(htmlContent, { format: 'A4', printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="dry_wood_cover.pdf"');
@@ -5021,7 +5051,7 @@ const reportController = {
       const fs = require('fs');
       const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
-      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+      let fontBase64 = fs.existsSync(fontPath) ? readFontCached(fontPath) : '';
 
       // ─── สร้าง HTML ───
       const getColumnLabel = (col) => `ไม้แปรรูปอบแห้ง ${col.grade}${col.is_special ? '<br/>(พิเศษ)' : ''}`;
@@ -5093,10 +5123,10 @@ const reportController = {
           .border-t { border-top: 2px solid #4b5563; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปค่าแรงเรียงไม้ แยกรายคน (ไม้เปียก)</h2>
-            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
-            <p style="margin:0;">รหัสสโตร์: ${store_code || '21/00 - 21/99'}</p>
+            <p style="margin:0;">ตั้งแต่วันที่ ${esc(start_date)} ถึง ${esc(end_date)}</p>
+            <p style="margin:0;">รหัสสโตร์: ${esc(store_code || '21/00 - 21/99')}</p>
           </div>
           <table><thead>${theadHtml}</thead><tbody>${tbodyHtml}</tbody></table>
           <div style="margin-top:50px; width:100%; display:flex; justify-content:space-between; text-align:center; padding:0 50px;">
@@ -5108,11 +5138,7 @@ const reportController = {
       `;
 
       // ใช้ Global Browser เพื่อลดการกิน RAM[cite: 12]
-      const browser = await getBrowser(); 
-      const page = await browser.newPage();
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ format: 'Legal', landscape: true, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
-      await page.close();
+      const pdfBuffer = await renderPdf(htmlContent, { format: 'Legal', landscape: true, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="wet_wood_perf.pdf"');
@@ -5274,7 +5300,7 @@ const reportController = {
       const fs = require('fs');
       const path = require('path');
       const fontPath = path.join(__dirname, '../assets/fonts/THSarabunNew.ttf');
-      let fontBase64 = fs.existsSync(fontPath) ? fs.readFileSync(fontPath).toString('base64') : '';
+      let fontBase64 = fs.existsSync(fontPath) ? readFontCached(fontPath) : '';
 
       const getColumnLabel = (col) => `ไม้แปรรูปอบแห้ง ${col.grade}${col.is_special ? '<br/>(พิเศษ)' : ''}`;
 
@@ -5345,10 +5371,10 @@ const reportController = {
           .border-t { border-top: 2px solid #4b5563; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:15px;">
-            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${branch_name || ''})</h1>
+            <h1 style="font-size:20px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
             <h2 style="font-size:16px; margin:0; font-weight:normal;">รายงานสรุปค่าแรงเรียงไม้ แยกรายคน (ไม้แห้ง)</h2>
-            <p style="margin:0;">ตั้งแต่วันที่ ${start_date} ถึง ${end_date}</p>
-            <p style="margin:0;">รหัสสโตร์: ${store_code || '104/00 - 104/99'}</p>
+            <p style="margin:0;">ตั้งแต่วันที่ ${esc(start_date)} ถึง ${esc(end_date)}</p>
+            <p style="margin:0;">รหัสสโตร์: ${esc(store_code || '104/00 - 104/99')}</p>
           </div>
           <table><thead>${theadHtml}</thead><tbody>${tbodyHtml}</tbody></table>
           <div style="margin-top:50px; width:100%; display:flex; justify-content:space-between; text-align:center; padding:0 50px;">
@@ -5360,11 +5386,7 @@ const reportController = {
       `;
 
       // ใช้ Global Browser เพื่อความรวดเร็วและป้องกันแรมเต็ม[cite: 12]
-      const browser = await getBrowser(); 
-      const page = await browser.newPage();
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ format: 'Legal', landscape: true, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
-      await page.close();
+      const pdfBuffer = await renderPdf(htmlContent, { format: 'Legal', landscape: true, printBackground: true, margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }});
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="dry_wood_perf.pdf"');
@@ -5645,7 +5667,68 @@ const transactionController = {
       console.error('Dry Wood Sync Error:', error);
       res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการนำเข้าข้อมูลไม้แห้ง' });
     }
-  }
+  },
+
+  getWetWoods: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date } = req.query;
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      // ดึงข้อมูลจาก Model
+      const data = await TransactionModel.getWetWoods(req.query);
+
+      // คำนวณ Grand Total ให้ Frontend ด้วยเลย
+      let total_amount = 0;
+      let total_volumn = 0;
+      data.forEach(row => {
+        total_amount += Number(row.amount) || 0;
+        total_volumn += Number(row.volumn) || 0;
+      });
+
+      res.json({ 
+        success: true, 
+        data,
+        grandTotal: { total_amount, total_volumn }
+      });
+    } catch (error) {
+      console.error('Fetch Wet Woods Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงข้อมูลรายละเอียดไม้เปียก' });
+    }
+  },
+
+  // ─── ส่วนที่เพิ่มใหม่: ดึงข้อมูลรายละเอียดไม้แห้ง ───
+  getDryWoods: async (req, res) => {
+    try {
+      const { branch_id, start_date, end_date } = req.query;
+
+      if (!branch_id || !start_date || !end_date) {
+        return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
+      }
+
+      // ดึงข้อมูลจาก Model
+      const data = await TransactionModel.getDryWoods(req.query);
+
+      // คำนวณ Grand Total ให้ Frontend ด้วย
+      let total_amount = 0;
+      let total_volumn = 0;
+      data.forEach(row => {
+        total_amount += Number(row.amount) || 0;
+        total_volumn += Number(row.volumn) || 0;
+      });
+
+      res.json({ 
+        success: true, 
+        data,
+        grandTotal: { total_amount, total_volumn }
+      });
+    } catch (error) {
+      console.error('Fetch Dry Woods Error:', error);
+      res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงข้อมูลรายละเอียดไม้แห้ง' });
+    }
+  },
 };
 
 module.exports = transactionController;
@@ -7393,7 +7476,95 @@ const TransactionModel = {
       params = [branchId, startDate, endDate];
     }
     await pool.query(query, params);
-  }
+  },
+
+  // ─── ดึงข้อมูลรายละเอียดไม้เปียก (Transaction) ───
+  getWetWoods: async (filters) => {
+    const { branch_id, start_date, end_date, store_code_start, store_code_end } = filters;
+
+    let query = `
+      SELECT 
+        tww.id,
+        tww.produce_date,
+        tww.barcode_id,
+        wt.code as wet_wood_code,
+        ws.wood_code,
+        tww.amount,
+        tww.volumn,
+        tc.name as companies_name
+      FROM transaction_wet_woods tww
+      LEFT JOIN master_wood_sizes ws ON ws.old_id = tww.wood_size_id AND tww.branch_id = ws.branch_id
+      LEFT JOIN master_wet_wood_types wt ON wt.old_id = tww.wet_wood_type_id AND tww.branch_id = wt.branch_id
+      LEFT JOIN master_truck_companies tc ON tc.old_id = tww.ws_customer_id AND tww.branch_id = tc.branch_id
+      WHERE tww.branch_id = $1
+        AND DATE(tww.produce_date) BETWEEN $2 AND $3
+    `;
+
+    const params = [branch_id, start_date, end_date];
+    let paramIndex = 4;
+
+    // เช็คเงื่อนไขช่วงสโตร์
+    if (store_code_start && store_code_end) {
+      query += ` AND wt.code BETWEEN $${paramIndex++} AND $${paramIndex++}`;
+      params.push(store_code_start, store_code_end);
+    } else if (store_code_start) {
+      query += ` AND wt.code >= $${paramIndex++}`;
+      params.push(store_code_start);
+    } else if (store_code_end) {
+      query += ` AND wt.code <= $${paramIndex++}`;
+      params.push(store_code_end);
+    }
+
+    // เรียงลำดับและจำกัดบรรทัดเพื่อป้องกันโหลดหนักแบบเดียวกับ getSawWoods
+    query += ` ORDER BY tww.produce_date DESC, tww.barcode_id ASC LIMIT 1000`;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
+
+  // ==========================================
+  // ─── ดึงข้อมูลรายละเอียดไม้แห้ง (Transaction) ───
+  // ==========================================
+  getDryWoods: async (filters) => {
+    const { branch_id, start_date, end_date, store_code_start, store_code_end } = filters;
+
+    let query = `
+      SELECT 
+        tdw.id,
+        tdw.produce_date,
+        tdw.barcode_id,
+        st.code as wood_store_code,
+        ws.wood_code,
+        tdw.amount,
+        tdw.volumn
+      FROM transaction_dry_woods tdw
+      LEFT JOIN master_wood_sizes ws ON ws.old_id = tdw.wood_size_id AND tdw.branch_id = ws.branch_id
+      LEFT JOIN master_wood_stores st ON st.old_id = tdw.wood_store_id AND tdw.branch_id = st.branch_id
+      WHERE tdw.branch_id = $1
+        AND DATE(tdw.produce_date) BETWEEN $2 AND $3
+    `;
+
+    const params = [branch_id, start_date, end_date];
+    let paramIndex = 4;
+
+    // เช็คเงื่อนไขช่วงสโตร์
+    if (store_code_start && store_code_end) {
+      query += ` AND st.code BETWEEN $${paramIndex++} AND $${paramIndex++}`;
+      params.push(store_code_start, store_code_end);
+    } else if (store_code_start) {
+      query += ` AND st.code >= $${paramIndex++}`;
+      params.push(store_code_start);
+    } else if (store_code_end) {
+      query += ` AND st.code <= $${paramIndex++}`;
+      params.push(store_code_end);
+    }
+
+    // เรียงลำดับและจำกัดบรรทัดเพื่อป้องกันโหลดหนัก (สามารถปรับ Limit ได้ถ้าต้องการ)
+    query += ` ORDER BY tdw.produce_date DESC, tdw.barcode_id ASC LIMIT 1000`;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+  },
 };
 
 module.exports = TransactionModel;
@@ -7634,9 +7805,9 @@ const checkPermission = require('../middlewares/permissionMiddleware'); // น�
 const upload = multer({ storage: multer.memoryStorage() });
 
 // ทุกเส้นทางต้องผ่านการตรวจสอบ Token (Security)
-router.get('/categories', verifyToken, masterController.getCategories);
-router.get('/suppliers', verifyToken, masterController.getSuppliers);
-router.get('/units', verifyToken, masterController.getUnits);
+// router.get('/categories', verifyToken, masterController.getCategories);
+// router.get('/suppliers', verifyToken, masterController.getSuppliers);
+// router.get('/units', verifyToken, masterController.getUnits);
 
 // เพิ่ม API ยิงคำสั่ง Sync ข้อมูล (เช็คสิทธิ์แอดมินหรือคนที่มีสิทธิ์กดเพิ่มข้อมูล)
 router.post('/sync', verifyToken, checkPermission('/sync-master', 'add'), masterController.syncMasterData);
@@ -7755,13 +7926,67 @@ router.post('/sync-wet-woods', verifyToken, checkPermission('/sync-wet-woods', '
 // API ซิงค์ข้อมูลไม้แห้ง
 router.post('/sync-dry-woods', verifyToken, checkPermission('/sync-dry-woods', 'add'), transactionController.syncDryWoods);
 
+// ดึงข้อมูลรายละเอียดการนับไม้เปียก
+router.get('/wet-woods', verifyToken, checkPermission('/wet-wood-data', 'view'), transactionController.getWetWoods);
+
+// ดึงข้อมูลรายละเอียดการนับไม้แห้ง
+router.get('/dry-woods', verifyToken, checkPermission('/dry-wood-data', 'view'), transactionController.getDryWoods);
+
 module.exports = router;
+</file>
+
+<file path="src/cronJobs.js">
+const cron = require('node-cron');
+const masterController = require('./controllers/masterController');
+
+// จำลองระบบหลอกว่ามี Request/Response เพื่อสั่งให้ Controller ทำงาน
+const runAutoSync = async () => {
+    console.log(`[Cron] ⏳ เริ่มกระบวนการซิงค์ข้อมูลอัตโนมัติ: ${new Date().toLocaleString('th-TH')}`);
+    
+    // จำลอง Request ให้ branch_id = 0 (แปลว่าสั่งอัปเดตทุกสาขา)
+    const mockReq = { body: { branch_id: 0 } };
+    
+    // จำลอง Response เพื่อรับผลลัพธ์จาก Controller กลับมาพิมพ์ใน Log
+    const mockRes = {
+        status: function(code) {
+            return this; // ให้ Chain .json() ต่อได้
+        },
+        json: function(data) {
+            console.log(`[Cron] 🏁 ผลลัพธ์: ${data.message} (ใช้เวลา ${data.sync_time} วิ)`);
+        }
+    };
+
+    try {
+        await masterController.syncMasterData(mockReq, mockRes);
+    } catch (error) {
+        console.error('[Cron] ❌ เกิดข้อผิดพลาดร้ายแรง:', error);
+    }
+};
+
+// ----------------------------------------------------
+// ตั้งเวลาทำงาน: ตัวอย่างตั้งไว้ที่ 02:00 น. (ตี 2 ของทุกวัน)
+// ----------------------------------------------------
+// รูปแบบ: 'นาที ชั่วโมง วันที่ เดือน วันในสัปดาห์'
+cron.schedule('0 2 * * *', () => {
+    runAutoSync();
+}, {
+    scheduled: true,
+    timezone: "Asia/Bangkok" // บังคับให้เป็นโซนเวลาประเทศไทยเสมอ
+});
+
+console.log('✅ ระบบ Auto-Sync ตั้งเวลาทำงานอัตโนมัติ (ตี 2 ทุกวัน) พร้อมทำงานแล้ว');
+
+// เพิ่มบรรทัดนี้เพื่อบังคับให้มันทำงานทันที 1 รอบตอนที่ Server Start
+runAutoSync();
+
+module.exports = cron;
 </file>
 
 <file path="src/server.js">
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+// require('./cronJobs'); // เปิดใช้งานระบบตั้งเวลาอัตโนมัติเบื้องหลัง
 
 const app = express();
 
@@ -7959,6 +8184,18 @@ MYSQL_USER_17=root
 MYSQL_PASSWORD_17=xxx
 MYSQL_PORT_17=3306
 MYSQL_DB_17=woodworkbarcode
+
+
+# 1. กำหนด Environment ให้เป็น Production
+NODE_ENV=production
+
+# 2. ตั้งค่า JWT Secret (ต้องปลอดภัยและเป็นความลับ)
+# ห้ามใช้คำง่ายๆ เด็ดขาด ควรใช้ค่า String แบบสุ่มความยาวอย่างน้อย 64 ตัวอักษร
+JWT_SECRET=your_super_long_random_and_secure_secret_key_here_a1b2c3d4e5f6
+
+# 3. ตั้งค่า CORS Origins (อนุญาตเฉพาะโดเมนของ Frontend เท่านั้น)
+# ใส่ URL จริงของเว็บ React ของคุณ (ไม่มี / ปิดท้าย)
+CORS_ORIGINS=https://www.yourdomain.com
 </file>
 
 <file path=".gitignore">
@@ -8067,9 +8304,10 @@ repomix-backend-output.xml
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.4.0",
     "mysql2": "^3.24.4",
+    "node-cron": "^4.6.0",
     "pg": "^8.23.0",
     "pg-format": "^1.0.4",
-    "puppeteer": "19.11.1",
+    "puppeteer": "^25.14.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -8080,17 +8318,16 @@ repomix-backend-output.xml
 
 <file path="query_update.txt">
 INSERT INTO public.menus(id, menu_name, link, icon, sort_order, parent_id)
-VALUES (26, 'สรุปค่าแรง', '/wet-wood-perf', 'fas fa-fire-alt', 2, 17);
-
-INSERT INTO public.group_permissions(id, group_id, menu_id, can_view, can_rpt, can_add, can_edit, can_delete, access_level)
-VALUES (31, 1, 26, true, true, true, true, true, 2);
+VALUES (28, 'ข้อมูลไม้เปียก', '/wet-wood-data', 'fas fa-tint', 16, 6);
 
 INSERT INTO public.menus(id, menu_name, link, icon, sort_order, parent_id)
-VALUES (27, 'สรุปค่าแรง', '/dry-wood-perf', 'fas fa-fire-alt', 2, 24);
+VALUES (29, 'ข้อมูลไม้แห้ง', '/dry-wood-data', 'fas fa-tint', 17, 6);
 
--- อัปเดตสิทธิ์ให้ Admin 
-INSERT INTO public.group_permissions(id, group_id, menu_id, can_view, can_rpt, can_add, can_edit, can_delete, access_level)
-VALUES (32, 1, 27, true, true, true, true, true, 2);
+INSERT INTO public.group_permissions(id,group_id, menu_id, can_view, can_rpt, can_add, can_edit, can_delete, access_level)
+VALUES (33,1, 28, true, true, true, true, true, 1);
+
+INSERT INTO public.group_permissions(id,group_id, menu_id, can_view, can_rpt, can_add, can_edit, can_delete, access_level)
+VALUES (34,1, 29, true, true, true, true, true, 1);
 </file>
 
 <file path=".repomixignore">
