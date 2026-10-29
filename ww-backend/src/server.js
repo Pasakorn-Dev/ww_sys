@@ -18,7 +18,8 @@ app.disable('x-powered-by');
 
 // อยู่หลัง Nginx / reverse proxy → ให้ req.ip และ rate limit ใช้ IP จริงของผู้ใช้
 // ปรับจำนวน proxy ได้ด้วย TRUST_PROXY (ค่าเริ่มต้น 1 ชั้น)
-app.set('trust proxy', Number(process.env.TRUST_PROXY ?? 1));
+// production (หลัง Nginx) = 1 ชั้น, dev ที่ยิงตรงไม่มี proxy = 0
+app.set('trust proxy', Number(process.env.TRUST_PROXY ?? (process.env.NODE_ENV === 'production' ? 1 : 0)));
 
 // Security headers (HSTS, noSniff, frameguard ฯลฯ) — API ส่ง JSON อยู่แล้วจึงตั้ง CSP แบบเข้มได้
 app.use(helmet({
@@ -28,15 +29,15 @@ app.use(helmet({
 
 // CORS: อนุญาตเฉพาะโดเมนใน CORS_ORIGINS และต้องเปิด credentials เพื่อให้ส่ง cookie ได้
 // (ถ้า FE+BE อยู่โดเมนเดียวกันผ่าน Nginx /api จะไม่ผ่าน CORS เลย)
-const allowedOrigins = (process.env.CORS_ORIGINS || '')
-    .split(',').map((s) => s.trim().replace(/\/$/, '')).filter(Boolean);
-if (process.env.NODE_ENV !== 'production') allowedOrigins.push('http://localhost:5173', 'http://127.0.0.1:5173');
+const { getAllowedOrigins } = require('./utils/origins');
+const allowedOrigins = getAllowedOrigins();
 
 app.use(cors({
     origin: (origin, cb) => (!origin || allowedOrigins.includes(origin)) ? cb(null, true) : cb(new Error('Not allowed by CORS')),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'X-Requested-With'],
+    exposedHeaders: ['Content-Disposition'], // ให้ frontend อ่านชื่อไฟล์ตอนดาวน์โหลดรายงานได้
 }));
 
 app.use(cookieParser());

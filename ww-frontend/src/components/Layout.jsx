@@ -13,6 +13,7 @@ export default function Layout() {
   const [user, setUser] = useState(null);
   const verifiedRef = useRef(false); // ยืนยัน session กับเซิร์ฟเวอร์ครั้งเดียวต่อการเปิดหน้า
   const [menus, setMenus] = useState([]);
+  const [loadError, setLoadError] = useState(''); // ปัญหาที่ไม่ใช่ "หมดอายุ" เช่น server/DB ล่ม — แจ้งผู้ใช้แทนการเด้งไป login
   const [expandedMenu, setExpandedMenu] = useState(null);
   
   // State สำหรับควบคุม Sidebar
@@ -47,11 +48,13 @@ export default function Layout() {
         if (!verifiedRef.current) {
           const me = await apiFetch('/auth/me');
           if (!isMounted) return;
-          if (!me?.success) {
-            clearSession();
-            navigate('/login', { replace: true });
+          if (!me) return; // 401: apiFetch เคลียร์ session และพาไปหน้า login ให้แล้ว
+          if (!me.success) {
+            // 5xx / 403 ฯลฯ: ไม่ใช่ session หมดอายุ → แจ้งปัญหา ไม่เตะไป login วนซ้ำ
+            setLoadError(me.message || 'ระบบไม่พร้อมใช้งาน กรุณาลองใหม่อีกครั้ง');
             return;
           }
+          setLoadError('');
           verifiedRef.current = true;
           setUser(me.data);
           saveUser(me.data);
@@ -60,8 +63,9 @@ export default function Layout() {
         // 2) โหลดเมนูตามสิทธิ์
         const data = await apiFetch('/menus');
         if (!isMounted) return;
+        if (!data) return; // 401: apiFetch จัดการแล้ว
 
-        if (data?.success) {
+        if (data.success) {
           setMenus(data.data);
           const currentMenu = data.data.find((m) => m.link === location.pathname);
           if (currentMenu && currentMenu.parent_id !== 0) {
@@ -88,15 +92,12 @@ export default function Layout() {
             }
           }
         } else {
-          clearSession();
-          navigate('/login', { replace: true });
+          setLoadError(data.message || 'โหลดเมนูไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
         }
       } catch (err) {
+        // เช่น backend ปิดอยู่ / เครือข่ายหลุด — ไม่ใช่เรื่องสิทธิ์ จึงไม่ล้าง session
         console.error('Error fetching menus:', err);
-        if (isMounted) {
-          clearSession();
-          navigate('/login', { replace: true });
-        }
+        if (isMounted) setLoadError('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่อีกครั้ง');
       }
     })();
 
@@ -113,6 +114,19 @@ export default function Layout() {
     clearSession();
     navigate('/login', { replace: true });
   };
+
+  // ─── Error state (server/DB ไม่พร้อม) ──────────────────────
+  if (loadError) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center gap-4 bg-gray-100 dark:bg-gray-900 dark:text-white">
+        <p>{loadError}</p>
+        <div className="flex gap-3">
+          <button onClick={() => window.location.reload()} className="px-4 py-2 rounded bg-green-600 text-white">ลองใหม่</button>
+          <button onClick={handleLogout} className="px-4 py-2 rounded border border-gray-400">กลับหน้าเข้าสู่ระบบ</button>
+        </div>
+      </div>
+    );
+  }
 
   // ─── Loading state ────────────────────────────────────────
   if (!user) {
