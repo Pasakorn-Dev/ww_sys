@@ -2,7 +2,6 @@
 .env
 .env.example
 
-
 # 2. Dependencies (ต้องให้ Docker รัน npm install ใหม่ข้างในตู้เสมอ)
 node_modules
 
@@ -32,3 +31,8 @@ Thumbs.db
 build/
 dist/
 coverage/
+
+.env
+repomix-output.*
+query_update.txt
+.git
