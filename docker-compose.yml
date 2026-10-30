@@ -1,55 +1,76 @@
+# docker-compose.yml — วางที่ root โปรเจกต์ (ระดับเดียวกับ ww-backend/ ww-frontend/ nginx/ database-init/)
+# เฟส 1 = ใช้งานในวงแลน (HTTP)   เฟส 2 = เปิดออกอินเทอร์เน็ต (HTTPS + โดเมน) → ดูบรรทัดที่มี [เฟส 2]
 services:
-  # 1. Database (PostgreSQL)
+  # ---------- 1) ฐานข้อมูล ----------
   postgres-db:
     image: postgres:18-alpine
-    restart: always
-    # ⚠️ ปิด Port 5432 ไม่ให้เข้าถึงจากภายนอกเพื่อความปลอดภัย
-    # (Backend และ Frontend ในตู้ยังสามารถเชื่อมต่อผ่านชื่อ 'postgres-db' ได้ปกติ)
-    ports:
-       - "5432:5432"
-    env_file:
-      - .env  # ดึงรหัสผ่านจากไฟล์ .env (ความลับ) บน Server
+    restart: unless-stopped
+    env_file: .env.db                       # POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB
     volumes:
-      - pgdata:/var/lib/postgresql
-      # 👇 เพิ่มบรรทัดนี้กลับมา เพื่อให้ระบบดึงไฟล์ .sql ไปรันอัตโนมัติในครั้งแรก
-      # - ./database-init:/docker-entrypoint-initdb.d
-  # ตู้ Web UI สำหรับจัดการฐานข้อมูล (pgAdmin 4)
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    restart: always
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@mail.com   # อีเมลสำหรับล็อกอินเข้าหน้าเว็บ
-      PGADMIN_DEFAULT_PASSWORD: p@ssword   # รหัสผ่านสำหรับล็อกอินเข้าหน้าเว็บ
-    ports:
-      - "5050:80"   # เรียกใช้งานผ่านพอร์ต 5050 บนบราวเซอร์
-    depends_on:
-      - postgres-db
+      - pgdata:/var/lib/postgresql          # ข้อมูลจริงอยู่ใน volume นี้ (down ธรรมดาไม่หาย)
+      - ./database-init:/docker-entrypoint-initdb.d:ro   # เปิดเมื่อตรวจ 1-init-user.sql แล้ว (ดูคู่มือข้อ 5)
+    networks: [db-net]                      # เข้าถึงได้เฉพาะ backend / pgadmin
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    security_opt: ["no-new-privileges:true"]
+    # ❌ ไม่มี ports: ไม่เปิด 5432 ออก host (ถ้าจะให้ DBeaver ในวงแลนต่อ ดู docker-compose.override.example.yml)
 
-  # 2. Backend (Node.js + Express)
+  # ---------- 2) Backend ----------
   backend:
-    image: pasakorndev/my-backend:v1.0.1
-    restart: always
-    env_file:
-      - .env  # ใช้งานไฟล์ .env ความลับไฟล์เดียวกับ Database
+    build: ./ww-backend
+    image: pasakorndev/my-backend:v1.0.0
+    restart: unless-stopped
+    env_file: .env
     depends_on:
-      - postgres-db
+      postgres-db:
+        condition: service_healthy
+    networks: [app-net, db-net]
+    security_opt: ["no-new-privileges:true"]
 
-  # 3. Frontend (React + Vite)
+  # ---------- 3) Frontend (nginx ตัวเล็กเสิร์ฟไฟล์ static) ----------
   frontend:
-    image: pasakorndev/my-frontend:v1.0.1
-    restart: always
+    build: ./ww-frontend
+    image: pasakorndev/my-frontend:v1.0.0
+    restart: unless-stopped
+    networks: [app-net]
+    security_opt: ["no-new-privileges:true"]
 
-  # 4. Nginx (Gateway / Reverse Proxy หน้าสุด)
+  # ---------- 4) Gateway (ประตูหน้า) ----------
   nginx-gateway:
     image: nginx:alpine
-    restart: always
+    restart: unless-stopped
     ports:
-      - "80:80"  # เปิดเฉพาะ Port 80 ให้ผู้ใช้งานเข้าเว็บได้
+      - "80:80"        # เว็บแอป (เฟส 1: HTTP / เฟส 2: redirect → https)
+      - "5050:5050"    # pgAdmin เฉพาะวงแลน (เฟส 2 ลบบรรทัดนี้ เมื่อใช้ pgadmin.โดเมน แทน)
+      # - "443:443"    # [เฟส 2] HTTPS
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
-    depends_on:
-      - backend
-      - frontend
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # - /etc/letsencrypt:/etc/letsencrypt:ro      # [เฟส 2] ใบรับรอง
+      # - ./certbot-www:/var/www/certbot:ro         # [เฟส 2] ขอ/ต่ออายุใบรับรอง
+    depends_on: [backend, frontend]
+    networks: [app-net]
+    security_opt: ["no-new-privileges:true"]
+
+  # ---------- 5) pgAdmin (เปิดเมื่อใช้งาน) ----------
+  # เปิด:  docker compose --profile admin up -d pgadmin      ปิด:  docker compose stop pgadmin
+  pgadmin:
+    image: dpage/pgadmin4:9
+    profiles: ["admin"]
+    restart: "no"
+    env_file: .env.pgadmin
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on: [postgres-db]
+    networks: [app-net, db-net]             # ไม่ publish port เอง — เข้าผ่าน gateway :5050
+
+networks:
+  app-net:
+  db-net:
+    internal: true
 
 volumes:
   pgdata:
+  pgadmin-data:

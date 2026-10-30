@@ -1,0 +1,8 @@
+# (ไม่บังคับ) ให้โปรแกรมในวงแลน เช่น DBeaver/pgAdmin Desktop ต่อ Postgres ตรง ๆ
+# ใช้: คัดลอกเป็น docker-compose.override.yml  (Compose โหลดให้อัตโนมัติ)
+# ⚠️ ผูกกับ IP ของ Server เท่านั้น ห้ามใช้ 0.0.0.0 และ ห้ามนำไฟล์นี้ไปใช้เมื่อเปิดออกอินเทอร์เน็ต (เฟส 2)
+services:
+  postgres-db:
+    networks: [app-net, db-net]      # internal network publish port ไม่ได้ จึงต้องอยู่ app-net ด้วย
+    ports:
+      - "192.168.0.50:5432:5432"     # ← แก้เป็น IP วงแลนของ Server

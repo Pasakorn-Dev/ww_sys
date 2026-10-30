@@ -32,3 +32,9 @@ Thumbs.db
 build/
 dist/
 coverage/
+
+# ไฟล์ที่ไม่ควรอยู่ในอิมเมจ (มีโครงสร้างระบบ/คำสั่ง SQL)
+repomix-output.*
+.repomixignore
+query_update.txt
+smoke-test.js
