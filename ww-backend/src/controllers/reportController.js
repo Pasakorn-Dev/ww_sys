@@ -2652,7 +2652,197 @@ const reportController = {
       res.status(500).json({ success: false, message: 'Error PDF' });
     }
   },
+  
+  // --- 💡 Helper Function สำหรับคำนวณรายงานความยาว ---
+  // ประกาศฟังก์ชัน fetchSawerPerfLengthHelper แบบ async รับ parameter สาขา, วันเริ่มต้น, วันสิ้นสุด, กลุ่มเกรด, และรูปแบบรายงาน
+  fetchSawerPerfLengthHelper: async (branch_id, start_date, end_date, grade_group, report_format) => {
+    
+    // ตรวจสอบว่ารูปแบบรายงานคือ '2' (แยกตามชุดเลื่อย) หรือไม่
+    const isFormat2 = String(report_format) === '2';
 
+    let rows; // เตรียมตัวแปรสำหรับรับข้อมูลดิบจากฐานข้อมูล
+    
+    // หากเป็นรูปแบบที่ 2 (แยกชุดเลื่อย)
+    if (isFormat2) {
+      // เรียกใช้ Model ดึงข้อมูลรูปแบบที่ 2 
+      rows = await ReportModel.getSawerPerformanceByLengthReportFormat2({ branch_id, start_date, end_date, grade_group });
+    } else {
+      // หากไม่ใช่ เรียกใช้ Model ดึงข้อมูลรูปแบบที่ 1 (รวมยอดตามพนักงาน)
+      rows = await ReportModel.getSawerPerformanceByLengthReport({ branch_id, start_date, end_date, grade_group });
+    }
+
+    // 💡 หาความยาวไม้ (Length) ทั้งหมดที่มีในผลลัพธ์
+    // ใช้ map ดึงเฉพาะความยาว -> ใช้ Set ตัดตัวซ้ำ -> ใช้ filter เอาค่าว่าง(null) ทิ้ง -> ใช้ sort เรียงจากน้อยไปมาก
+    const uniqueLengths = [...new Set(rows.map(r => r.length))].filter(l => l !== null).sort((a, b) => a - b);
+    
+    // 💡 กำหนดกลุ่มเกรดไม้ที่จะแสดงผล
+    // ถ้าผู้ใช้เลือกกลุ่ม 'P_PP' ให้แสดงเกรด P และ PP ถ้าไม่ใช่ ให้แสดง AB, C, และ C_F (C สด)
+    const expectedGrades = grade_group === 'P_PP' ? ['P', 'PP'] : ['AB', 'C', 'C_F'];
+
+    // 💡 เตรียม Object สำหรับจัดกลุ่มข้อมูล (ตะกร้าหลัก)
+    const employeeMap = {}; // ตะกร้าแยกตามพนักงาน
+    const grandTotalMap = {}; // ตะกร้ารวมยอดสุทธิทั้งรายงาน (Grand Total)
+
+    // 💡 สร้างช่องว่างใส่เลข 0 เตรียมไว้ให้ Grand Total ทุกเกรด และทุกความยาว (ป้องกันตารางแหว่ง)
+    expectedGrades.forEach(g => {
+      // สร้างกล่องสำหรับแต่ละเกรด
+      grandTotalMap[g] = { lengths: {}, total: 0 };
+      // สร้างช่องสำหรับแต่ละความยาวในเกรดนั้นๆ และใส่ค่า 0 รอไว้
+      uniqueLengths.forEach(l => grandTotalMap[g].lengths[l] = 0);
+    });
+    
+    // 💡 สร้างช่องว่างใส่เลข 0 เตรียมไว้ให้กล่อง "รวมทุกเกรด (ALL)" ของ Grand Total
+    grandTotalMap['ALL'] = { lengths: {}, total: 0 };
+    uniqueLengths.forEach(l => grandTotalMap['ALL'].lengths[l] = 0);
+
+    let debugCounter = 0; // 💡 ตัวแปรช่วยล็อก ป้องกันไม่ให้ log รันเป็นพันบรรทัดจนเครื่องค้าง
+    // 💡 เริ่มวนลูปอ่านข้อมูลดิบทีละบรรทัด (rows) ที่ได้จากฐานข้อมูล
+    rows.forEach(row => {
+      // สร้าง Key สำหรับอ้างอิงพนักงาน (ใช้รหัส_ชื่อ ป้องกันคนชื่อซ้ำ) ถ้าไม่มีรหัสให้ใช้ชื่อ ถ้าไม่มีชื่อให้ใส่ 'ไม่ระบุนายม้า'
+      const empKey = row.employee_code ? `${row.employee_code}_${row.employee_name}` : (row.employee_name || 'ไม่ระบุนายม้า');
+      // สร้าง Key สำหรับอ้างอิงแท่นเลื่อย ถ้าเป็น Format 2 ให้ใช้ชื่อแท่นเลื่อย ถ้าไม่ใช่ให้ยุบรวมเป็น 'ALL'
+      const sawKey = isFormat2 ? (row.saw_name || 'ไม่ระบุ') : 'ALL';
+      const g = row.grade; // เกรดไม้ของบรรทัดนี้
+      const l = row.length; // ความยาวไม้ของบรรทัดนี้
+      const vol = Number(row.total_volumn) || 0; // ปริมาตรไม้ของบรรทัดนี้ (แปลงเป็นตัวเลข ถ้าไม่มีให้เป็น 0)
+
+      // 💡 ถ้าเพิ่งเคยเจอพนักงานคนนี้ (ยังไม่มีใน employeeMap) ให้สร้างตะกร้าของเขาเตรียมไว้
+      if (!employeeMap[empKey]) {
+        employeeMap[empKey] = {
+           employee_code: row.employee_code, // รหัสพนักงาน
+           employee_name: row.employee_name || 'ไม่ระบุ', // ชื่อพนักงาน
+           saws: {}, // ตะกร้าย่อยสำหรับเก็บข้อมูลแยกตามแท่นเลื่อย
+           // summary คือตะกร้ารวมยอดทุกแท่นเลื่อยของพนักงานคนนี้
+           summary: { grades: {}, total_all_grades: { lengths: {}, total: 0 } } 
+        };
+        // ยัดค่า 0 เตรียมไว้ใน summary ให้ครบทุกเกรดและทุกความยาว (ป้องกันตารางแหว่ง)
+        expectedGrades.forEach(eg => {
+          employeeMap[empKey].summary.grades[eg] = { lengths: {}, total: 0 };
+          uniqueLengths.forEach(ul => employeeMap[empKey].summary.grades[eg].lengths[ul] = 0);
+        });
+        // ยัดค่า 0 เตรียมไว้ในส่วนของผลรวมทุกเกรด (total_all_grades) ใน summary
+        uniqueLengths.forEach(ul => employeeMap[empKey].summary.total_all_grades.lengths[ul] = 0);
+      }
+
+      // ดึงตะกร้าของพนักงานคนปัจจุบันมาอ้างอิง
+      const emp = employeeMap[empKey];
+      /*
+      if(debugCounter === 0){
+        console.log(emp);
+      }
+      */
+      // 💡 ถ้าเพิ่งเคยเจอแท่นเลื่อยนี้ของพนักงานคนนี้ (ยังไม่มีใน saws) ให้สร้างตะกร้าย่อยของแท่นเลื่อยเตรียมไว้
+      if (!emp.saws[sawKey]) {
+        emp.saws[sawKey] = {
+           saw_name: sawKey, // ชื่อแท่นเลื่อย
+           grades: {}, // ตะกร้าย่อยสำหรับเก็บยอดแยกเกรดของแท่นเลื่อยนี้
+           total_all_grades: { lengths: {}, total: 0 } // ตะกร้าสำหรับเก็บยอดรวมทุกเกรดของแท่นเลื่อยนี้
+        };
+        // ยัดค่า 0 เตรียมไว้ในกล่องแท่นเลื่อยให้ครบทุกเกรดและทุกความยาว
+        expectedGrades.forEach(eg => {
+          emp.saws[sawKey].grades[eg] = { lengths: {}, total: 0 };
+          uniqueLengths.forEach(ul => emp.saws[sawKey].grades[eg].lengths[ul] = 0);
+        });
+        // ยัดค่า 0 เตรียมไว้ในส่วนผลรวมทุกเกรดของแท่นเลื่อยนี้
+        uniqueLengths.forEach(ul => emp.saws[sawKey].total_all_grades.lengths[ul] = 0);
+      }
+
+      // ดึงตะกร้าแท่นเลื่อยปัจจุบันมาอ้างอิง
+      const saw = emp.saws[sawKey];
+      /*
+      if(debugCounter === 0){
+        console.log(saw);
+      }
+      */
+      // 💡 ถ้าเกรดไม้และความยาวไม้ในบรรทัดนี้ ตรงกับโครงสร้างที่เราเตรียมไว้
+      if (saw.grades[g] && l) {
+        // บวกยอดปริมาตรสะสมเข้าตะกร้าแท่นเลื่อย (ยอดแยกเกรด)
+        saw.grades[g].lengths[l] += vol; 
+        saw.grades[g].total += vol;
+        // บวกยอดปริมาตรสะสมเข้าตะกร้าแท่นเลื่อย (ยอดรวมทุกเกรด)
+        saw.total_all_grades.lengths[l] += vol; 
+        saw.total_all_grades.total += vol;
+        
+        // บวกยอดปริมาตรสะสมเข้าตะกร้ารวมพนักงาน (summary) (ยอดแยกเกรด)
+        emp.summary.grades[g].lengths[l] += vol; 
+        emp.summary.grades[g].total += vol;
+        // บวกยอดปริมาตรสะสมเข้าตะกร้ารวมพนักงาน (summary) (ยอดรวมทุกเกรด)
+        emp.summary.total_all_grades.lengths[l] += vol; 
+        emp.summary.total_all_grades.total += vol;
+        
+        // บวกยอดปริมาตรสะสมเข้าตะกร้ารวมสุทธิทั้งรายงาน (Grand Total) (ยอดแยกเกรด)
+        grandTotalMap[g].lengths[l] += vol; 
+        grandTotalMap[g].total += vol;
+        // บวกยอดปริมาตรสะสมเข้าตะกร้ารวมสุทธิทั้งรายงาน (Grand Total) (ยอดรวมทุกเกรด)
+        grandTotalMap['ALL'].lengths[l] += vol; 
+        grandTotalMap['ALL'].total += vol;
+      }
+
+      debugCounter++;
+    });
+
+    // 💡 แปลง Object employeeMap ให้เป็น Array เพื่อให้ง่ายต่อการนำไป map วาดตาราง 
+    // และคำนวณหาเปอร์เซ็นต์สัดส่วน (%) ในขั้นตอนนี้
+    const formattedData = Object.values(employeeMap).map(emp => {
+      // ลูปเพื่อคำนวณ % สำหรับยอดในระดับแท่นเลื่อย
+      Object.values(emp.saws).forEach(saw => {
+        expectedGrades.forEach(g => {
+          saw.grades[g].pcts = {}; // สร้างตะกร้าเก็บ %
+          // คำนวณ % ของแต่ละความยาว = (ปริมาตรความยาวนั้น / ปริมาตรรวมของเกรดนั้น) * 100
+          uniqueLengths.forEach(l => { 
+              saw.grades[g].pcts[l] = saw.grades[g].total > 0 ? (saw.grades[g].lengths[l] / saw.grades[g].total) * 100 : 0; 
+          });
+          // % รวมของแต่ละเกรดจะตั้งเป็น 100 เสมอ ถ้ามียอดปริมาตร
+          saw.grades[g].pct_total = saw.grades[g].total > 0 ? 100 : 0;
+        });
+        
+        // คำนวณ % ของยอดรวมทุกเกรดในระดับแท่นเลื่อย
+        saw.total_all_grades.pcts = {};
+        uniqueLengths.forEach(l => { 
+            saw.total_all_grades.pcts[l] = saw.total_all_grades.total > 0 ? (saw.total_all_grades.lengths[l] / saw.total_all_grades.total) * 100 : 0; 
+        });
+        saw.total_all_grades.pct_total = saw.total_all_grades.total > 0 ? 100 : 0;
+      });
+
+      // ลูปเพื่อคำนวณ % สำหรับยอดรวมพนักงาน (summary)
+      expectedGrades.forEach(g => {
+        emp.summary.grades[g].pcts = {};
+        uniqueLengths.forEach(l => { 
+            emp.summary.grades[g].pcts[l] = emp.summary.grades[g].total > 0 ? (emp.summary.grades[g].lengths[l] / emp.summary.grades[g].total) * 100 : 0; 
+        });
+        emp.summary.grades[g].pct_total = emp.summary.grades[g].total > 0 ? 100 : 0;
+      });
+      
+      // คำนวณ % สำหรับยอดรวมทุกเกรดของพนักงาน
+      emp.summary.total_all_grades.pcts = {};
+      uniqueLengths.forEach(l => { 
+          emp.summary.total_all_grades.pcts[l] = emp.summary.total_all_grades.total > 0 ? (emp.summary.total_all_grades.lengths[l] / emp.summary.total_all_grades.total) * 100 : 0; 
+      });
+      emp.summary.total_all_grades.pct_total = emp.summary.total_all_grades.total > 0 ? 100 : 0;
+
+      return emp; // คืนค่าพนักงานที่คำนวณทุกอย่างเสร็จแล้วกลับเข้า Array
+    });
+
+    // 💡 ลูปเพื่อคำนวณ % สำหรับยอดรวมสุทธิทั้งรายงาน (Grand Total)
+    expectedGrades.forEach(g => {
+      grandTotalMap[g].pcts = {};
+      uniqueLengths.forEach(l => { 
+          grandTotalMap[g].pcts[l] = grandTotalMap[g].total > 0 ? (grandTotalMap[g].lengths[l] / grandTotalMap[g].total) * 100 : 0; 
+      });
+      grandTotalMap[g].pct_total = grandTotalMap[g].total > 0 ? 100 : 0;
+    });
+
+    // คำนวณ % สำหรับยอดรวมสุทธิทุกเกรดของรายงาน
+    grandTotalMap['ALL'].pcts = {};
+    uniqueLengths.forEach(l => { 
+        grandTotalMap['ALL'].pcts[l] = grandTotalMap['ALL'].total > 0 ? (grandTotalMap['ALL'].lengths[l] / grandTotalMap['ALL'].total) * 100 : 0; 
+    });
+    grandTotalMap['ALL'].pct_total = grandTotalMap['ALL'].total > 0 ? 100 : 0;
+
+    // 💡 ส่งมอบ Data Structure ทั้งหมดที่ปั้นเสร็จแล้ว กลับไปให้ Controller นำไปใช้วาด PDF หรือ Export ต่อ
+    return { formattedData, grandTotalMap, uniqueLengths, expectedGrades };
+  },
+  /*
   // --- 💡 Helper Function สำหรับคำนวณรายงานความยาว ---
   fetchSawerPerfLengthHelper: async (branch_id, start_date, end_date, grade_group, report_format) => {
     const isFormat2 = String(report_format) === '2';
@@ -2664,8 +2854,17 @@ const reportController = {
       rows = await ReportModel.getSawerPerformanceByLengthReport({ branch_id, start_date, end_date, grade_group });
     }
 
+    // 🛑 LOG 1: ดูหน้าตาข้อมูลดิบ (แบนๆ)
+    console.log('\n=========================================');
+    console.log('1. [ข้อมูลดิบจาก DB] จำนวนบรรทัดทั้งหมด:', rows.length);
+    if (rows.length > 0) console.log('   ตัวอย่างแถวแรก:', rows[0]);
+
     const uniqueLengths = [...new Set(rows.map(r => r.length))].filter(l => l !== null).sort((a, b) => a - b);
     const expectedGrades = grade_group === 'P_PP' ? ['P', 'PP'] : ['AB', 'C', 'C_F'];
+
+    // 🛑 LOG 2: ดูหัวคอลัมน์ที่เตรียมไว้
+    console.log('\n2. [หัวคอลัมน์] ความยาวไม้ที่พบ:', uniqueLengths);
+    console.log('   [หัวคอลัมน์] เกรดไม้ที่แสดง:', expectedGrades);
 
     const employeeMap = {};
     const grandTotalMap = {};
@@ -2677,6 +2876,8 @@ const reportController = {
     grandTotalMap['ALL'] = { lengths: {}, total: 0 };
     uniqueLengths.forEach(l => grandTotalMap['ALL'].lengths[l] = 0);
 
+    let debugCounter = 0; // 💡 ตัวแปรช่วยล็อก ป้องกันไม่ให้ log รันเป็นพันบรรทัดจนเครื่องค้าง
+
     rows.forEach(row => {
       const empKey = row.employee_code ? `${row.employee_code}_${row.employee_name}` : (row.employee_name || 'ไม่ระบุนายม้า');
       const sawKey = isFormat2 ? (row.saw_name || 'ไม่ระบุ') : 'ALL';
@@ -2685,6 +2886,9 @@ const reportController = {
       const vol = Number(row.total_volumn) || 0;
 
       if (!employeeMap[empKey]) {
+        // 🛑 LOG 3: สร้างกล่องพนักงานใหม่ (จะโชว์แค่คนแรก)
+        if (debugCounter === 0) console.log(`\n3. [สร้างกล่องพนักงานใหม่] พนักงานคนแรกคือ: ${empKey}`);
+
         employeeMap[empKey] = {
            employee_code: row.employee_code,
            employee_name: row.employee_name || 'ไม่ระบุ',
@@ -2701,6 +2905,9 @@ const reportController = {
       const emp = employeeMap[empKey];
 
       if (!emp.saws[sawKey]) {
+        // 🛑 LOG 4: สร้างกล่องแท่นเลื่อยใหม่
+        if (debugCounter === 0) console.log(`4. [สร้างกล่องแท่นเลื่อยใหม่] ของพนักงาน: ${empKey} -> แท่นเลื่อย: ${sawKey}`);
+
         emp.saws[sawKey] = {
            saw_name: sawKey,
            grades: {},
@@ -2722,8 +2929,22 @@ const reportController = {
         emp.summary.total_all_grades.lengths[l] += vol; emp.summary.total_all_grades.total += vol;
         grandTotalMap[g].lengths[l] += vol; grandTotalMap[g].total += vol;
         grandTotalMap['ALL'].lengths[l] += vol; grandTotalMap['ALL'].total += vol;
+
+        // 🛑 LOG 5: ดูการบวกยอดเข้าไปในช่อง
+        if (debugCounter === 0) {
+            console.log(`5. [ยัดข้อมูลสำเร็จ] เกรด: ${g} | ยาว: ${l} -> โยนปริมาตร +${vol} ลงช่องตาราง`);
+            console.log(`   ตอนนี้ช่อง "เกรด ${g} ความยาว ${l}" มียอดสะสม = ${saw.grades[g].lengths[l]}`);
+            debugCounter++; // บวก counter เพื่อหยุด log ในบรรทัดถัดๆ ไป
+        }
       }
     });
+
+    // 🛑 LOG 6: กางโครงสร้าง JSON ดูผลลัพธ์ของพนักงานคนแรกแบบเต็มๆ (ก่อนคิดเปอร์เซ็นต์)
+    console.log('\n6. [โครงสร้างก่อนคำนวณ %] กาง Object ของพนักงานคนแรกดูข้างใน:');
+    const firstEmpKey = Object.keys(employeeMap)[0];
+    if (firstEmpKey) {
+        console.log(JSON.stringify(employeeMap[firstEmpKey], null, 2)); // null, 2 ทำให้ JSON ขึ้นบรรทัดใหม่สวยงาม
+    }
 
     const formattedData = Object.values(employeeMap).map(emp => {
       Object.values(emp.saws).forEach(saw => {
@@ -2759,9 +2980,13 @@ const reportController = {
     uniqueLengths.forEach(l => { grandTotalMap['ALL'].pcts[l] = grandTotalMap['ALL'].total > 0 ? (grandTotalMap['ALL'].lengths[l] / grandTotalMap['ALL'].total) * 100 : 0; });
     grandTotalMap['ALL'].pct_total = grandTotalMap['ALL'].total > 0 ? 100 : 0;
 
+    // 🛑 LOG 7: เสร็จสิ้นการจัดกลุ่ม
+    console.log('\n7. [เสร็จสิ้น] จำนวนพนักงานที่ประมวลผลจัดกลุ่มเสร็จ:', formattedData.length, 'คน');
+    console.log('=========================================\n');
+
     return { formattedData, grandTotalMap, uniqueLengths, expectedGrades };
   },
-
+  */
   // --- API สำหรับหน้าเว็บ ---
   getSawerPerformanceByLength: async (req, res) => {
     try {
@@ -2776,7 +3001,7 @@ const reportController = {
       res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการดึงรายงานแยกตามความยาว' });
     }
   },
-
+  
   // --- API สำหรับ Export Excel ---
   exportSawerPerformanceLengthExcel: async (req, res) => {
     try {
@@ -3116,7 +3341,7 @@ const reportController = {
           th { font-weight: bold; text-align: center; }
           .left { text-align: left; } .center { text-align: center; } .pl { padding-left: 6px; } 
           .bold { font-weight: bold; } .bg-gray-light { background-color: #f9fafb; }
-          .text-gray { color: #6b7280; } .text-xs { font-size: 10px; }
+          .text-gray { color: #0b0b0c; } .text-xs { font-size: 10px; }
         </style></head><body>
           <div style="text-align:center; margin-bottom:10px;">
             <h1 style="font-size:18px; margin:0;">บริษัท วู้ดเวอร์ค จำกัด (${esc(branch_name || '')})</h1>
