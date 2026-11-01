@@ -8,8 +8,10 @@ services:
     env_file: .env.db                       # POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB
     volumes:
       - pgdata:/var/lib/postgresql          # ข้อมูลจริงอยู่ใน volume นี้ (down ธรรมดาไม่หาย)
-      - ./database-init:/docker-entrypoint-initdb.d:ro   # เปิดเมื่อตรวจ 1-init-user.sql แล้ว (ดูคู่มือข้อ 5)
-    networks: [db-net]                      # เข้าถึงได้เฉพาะ backend / pgadmin
+      # - ./database-init:/docker-entrypoint-initdb.d:ro   # เปิดเมื่อตรวจ 1-init-user.sql แล้ว (ดูคู่มือข้อ 5)
+    networks: [app-net, db-net]                      # เข้าถึงได้เฉพาะ backend / pgadmin
+    ports:
+      - "127.0.0.1:5432:5432"          # โปรแกรม dev บน Notebook เครื่องนี้เอง
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
