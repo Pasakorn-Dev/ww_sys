@@ -399,49 +399,59 @@ const ReportModel = {
     return rows;
   },
 
-  // เพิ่มต่อท้ายฟังก์ชันเดิม
+  // 💡 สร้างฟังก์ชันรับค่าตัวกรอง (filters) ที่ผู้ใช้เลือกจากหน้าเว็บ
   getSawerPerformanceByLengthReportFormat2: async (filters) => {
+    // 💡 แกะกล่อง filters ดึงตัวแปร สาขา, วันเริ่มต้น, วันสิ้นสุด, และกลุ่มเกรด ออกมาใช้งาน
     const { branch_id, start_date, end_date, grade_group } = filters;
 
+    // 💡 ตั้งค่าเริ่มต้นให้ดึงเฉพาะเกรด AB และ C
     let gradeCondition = `IN ('AB', 'C')`; 
+    // 💡 แต่ถ้าผู้ใช้เลือกดูเกรด P และ PP ก็ให้เปลี่ยนเงื่อนไข
     if (grade_group === 'P_PP') {
       gradeCondition = `IN ('P', 'PP')`;
     }
 
+    // 💡 เขียนคำสั่ง SQL 
     const query = `
+      -- 💡 WITH BaseData คือการสร้างตารางจำลองชั่วคราว (CTE) เพื่อดึงข้อมูลมารวมกันก่อน
       WITH BaseData AS (
           SELECT
-              em.code AS employee_code,
-              em.name AS employee_name,
-              tsw.saw_name,
+              em.code AS employee_code, -- รหัสพนักงาน
+              em.name AS employee_name, -- ชื่อพนักงาน
+              tsw.saw_name, -- ชื่อแท่นเลื่อย
+              -- 💡 เงื่อนไขพิเศษ: ถ้าเป็นเกรด C และรหัสไม้ตรงกับ 0404 หรือ 0505 ให้เปลี่ยนชื่อเป็น 'C_F' (C สด)
               CASE
                   WHEN ws.grade = 'C' AND SUBSTRING(ws.wood_code FROM 6 FOR 4) IN ('0404', '0505')
                   THEN 'C_F'
                   ELSE ws.grade
               END AS grade,
-              ws.length,
-              tsw.volumn
+              ws.length, -- ความยาวไม้
+              tsw.volumn -- ปริมาตร
           FROM transaction_saw_woods tsw
+          -- 💡 นำตารางขนาดไม้ และ พนักงาน มาเชื่อม (JOIN) เพื่อเอาชื่อและเกรด
           LEFT JOIN master_wood_sizes ws ON ws.old_id = tsw.wood_size_id AND ws.branch_id = tsw.branch_id
           LEFT JOIN master_employees em ON em.old_id = tsw.sawer_id AND em.branch_id = tsw.branch_id
+          -- 💡 กรองข้อมูลตาม สาขา, วันที่, และเกรดไม้ ที่ผู้ใช้เลือก
           WHERE tsw.branch_id = $1
             AND DATE(tsw.produce_date) BETWEEN $2 AND $3
             AND ws.grade ${gradeCondition}
       )
+      -- 💡 นำตารางจำลองด้านบน มารวมยอดปริมาตร (SUM) 
       SELECT
-          employee_code,
-          employee_name,
-          saw_name,
-          grade,
-          length,
+          employee_code, employee_name, saw_name, grade, length,
           SUM(volumn) AS total_volumn
       FROM BaseData
+      -- 💡 จัดกลุ่มข้อมูลที่เหมือนกันเข้าด้วยกัน
       GROUP BY employee_code, employee_name, saw_name, grade, length
+      -- 💡 เรียงลำดับข้อมูลก่อนส่งออก
       ORDER BY employee_code ASC, saw_name ASC, grade ASC, length ASC;
     `;
 
+    // 💡 นำตัวแปรมายัดใส่ $1, $2, $3 ใน SQL เพื่อป้องกันการโดนแฮก (SQL Injection)
     const params = [branch_id, start_date, end_date];
+    // 💡 ยิงคำสั่งไปที่ฐานข้อมูล รอรับผลลัพธ์กลับมาใส่ตัวแปร rows
     const { rows } = await pool.query(query, params);
+    // 💡 ส่งข้อมูลดิบกลับไปให้คนเรียกใช้งาน
     return rows;
   },
 
