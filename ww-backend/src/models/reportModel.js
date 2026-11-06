@@ -8,7 +8,7 @@ const ReportModel = {
     const query = `
       SELECT 
         b.branch_name,
-        swt.code AS store_code,
+        -- swt.code AS store_code,
         ws.is_special,
         ws.grade,
         ws.wood_code,
@@ -23,7 +23,7 @@ const ReportModel = {
         ${store_code ? `AND swt.code = $4` : ``}
       GROUP BY 
         b.branch_name, 
-        swt.code, 
+        -- swt.code, 
         ws.is_special, 
         ws.grade, 
         ws.wood_code

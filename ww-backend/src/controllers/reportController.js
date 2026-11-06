@@ -833,6 +833,27 @@ const reportController = {
           const thickSubRow = worksheet.addRow(['รวมหนา', thick.thick, Number(thick.subTotal.ab_volumn).toFixed(4), '', '100.00%', '', Number(thick.subTotal.ab_amt).toFixed(2), Number(thick.subTotal.spc_volumn).toFixed(4), '', thick.subTotal.spc_volumn > 0 ? '100.00%' : '', '', Number(thick.subTotal.spc_amt).toFixed(2)]);
           thickSubRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6E0B4' } };
           thickSubRow.font = { bold: true };
+          
+          // 💡 บรรทัดที่เพิ่ม: % ความหนา (ชุด) รวมพิเศษ
+          const pctAllRow = worksheet.addRow(['% ความหนา (ชุด) รวมพิเศษ', '', '', thick.subTotal.ab_volumn > 0 ? thick.pct_thick_all_ab.toFixed(2) + '%' : '', '', '', '', '', '', thick.subTotal.spc_volumn > 0 ? thick.pct_thick_all_spc.toFixed(2) + '%' : '', '', '']);
+          pctAllRow.getCell(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE699' } };
+          pctAllRow.getCell(4).font = { bold: true, color: { argb: 'FF804000' } };
+          pctAllRow.getCell(10).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE699' } };
+          pctAllRow.getCell(10).font = { bold: true, color: { argb: 'FF804000' } };
+          
+          // 💡 บรรทัดที่เพิ่ม: % ความหนา (ชุด) แยก ปกติ ,พิเศษ
+          const pctSepRow = worksheet.addRow(['% ความหนา (ชุด) แยก ปกติ ,พิเศษ', '', '', thick.subTotal.ab_volumn > 0 ? thick.pct_thick_sep_ab.toFixed(2) + '%' : '', '', '', '', '', '', thick.subTotal.spc_volumn > 0 ? thick.pct_thick_sep_spc.toFixed(2) + '%' : '', '', '']);
+          pctSepRow.getCell(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8CBAD' } };
+          pctSepRow.getCell(4).font = { bold: true, color: { argb: 'FF804000' } };
+          pctSepRow.getCell(10).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8CBAD' } };
+          pctSepRow.getCell(10).font = { bold: true, color: { argb: 'FF804000' } };
+          
+          // 💡 บรรทัดที่เพิ่ม: ราคาเฉลี่ย ของความหนา
+          const avgPriceRow = worksheet.addRow(['ราคาเฉลี่ย', '', '', thick.subTotal.ab_volumn > 0 ? thick.avg_price_ab.toFixed(2) : '', '', '', '', '', '', thick.subTotal.spc_volumn > 0 ? thick.avg_price_spc.toFixed(2) : '', '', '']);
+          avgPriceRow.getCell(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } };
+          avgPriceRow.getCell(4).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          avgPriceRow.getCell(10).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } };
+          avgPriceRow.getCell(10).font = { bold: true, color: { argb: 'FFFFFFFF' } };
         });
       });
 
@@ -856,6 +877,22 @@ const reportController = {
         gtRow4.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } }; 
         gtRow4.font = { bold: true, color: { argb: 'FFFFFFFF' } }; 
       }
+
+      // ตีเส้นขอบตารางและกำหนดฟอนต์ TH Sarabun
+      worksheet.eachRow({ includeEmpty: true }, function(row) {
+        row.eachCell({ includeEmpty: true }, function(cell) {
+          // กำหนดฟอนต์ TH Sarabun โดยคงสไตล์เดิมไว้ (เช่น ตัวหนา หรือสี)
+          cell.font = {
+            ...(cell.font || {}),
+            name: 'TH Sarabun New',
+            size: cell.font?.size || 16 
+          };
+
+          if (!cell.border) {
+            cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+          }
+        });
+      });
 
       // ส่งกลับเป็นไฟล์ Binary (Blob)
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -1722,6 +1759,21 @@ const reportController = {
         gtAvgRow.font = { bold: true };
       }
 
+      // ตีเส้นขอบตารางและกำหนดฟอนต์ TH Sarabun
+      worksheet.eachRow({ includeEmpty: true }, function(row) {
+        row.eachCell({ includeEmpty: true }, function(cell) {
+          // กำหนดฟอนต์ TH Sarabun โดยคงสไตล์เดิมไว้ (เช่น ตัวหนา หรือสี)
+          cell.font = {
+            ...(cell.font || {}),
+            name: 'TH SarabunPSK',
+            size: cell.font?.size || 16 
+          };
+
+          if (!cell.border) {
+            cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+          }
+        });
+      });
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', 'attachment; filename=production_thick_mil.xlsx');
       await workbook.xlsx.write(res);
@@ -2024,7 +2076,17 @@ const reportController = {
 
       worksheet.eachRow({ includeEmpty: true }, row => {
         row.eachCell({ includeEmpty: true }, cell => {
-          if (!cell.border) cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+          // 1. ตั้งค่า Font เป็น TH Sarabun New โดยรักษาค่าเดิม (เช่น ตัวหนา หรือ สี) ไว้
+          cell.font = {
+            ...(cell.font || {}),
+            name: 'TH Sarabun New',
+            size: cell.font?.size || 16 // ฟอนต์ Sarabun แนะนำให้ใช้ขนาด 14-16
+          };
+
+          // 2. ตีเส้นขอบตาราง
+          if (!cell.border) {
+            cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+          }
         });
       });
 
@@ -3179,10 +3241,19 @@ const reportController = {
         }
       }
 
-      // ตีเส้นขอบตาราง
       worksheet.eachRow({ includeEmpty: true }, row => {
         row.eachCell({ includeEmpty: true }, cell => {
-          if (!cell.border) cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+          // 1. ตั้งค่า Font เป็น TH Sarabun New โดยรักษาค่าเดิม (เช่น ตัวหนา หรือ สี) ไว้
+          cell.font = {
+            ...(cell.font || {}),
+            name: 'TH SarabunPSK',
+            size: cell.font?.size || 16 // ฟอนต์ Sarabun แนะนำให้ใช้ขนาด 14-16
+          };
+
+          // 2. ตีเส้นขอบตาราง
+          if (!cell.border) {
+            cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+          }
         });
       });
 

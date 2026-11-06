@@ -154,27 +154,33 @@ export default function Dashboard() {
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto min-h-[80vh] font-sans">
       
-      {/* 🌟 1. Welcome Banner + ตัวกรองสาขา */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-3xl p-8 text-white shadow-xl shadow-blue-500/20 relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-4">
+      {/* ── 1. Header Panel (Green) ── */}
+      <div className="bg-gradient-to-br from-emerald-900 via-emerald-900 to-teal-950 rounded-2xl p-6 md:p-8 text-white shadow-sm relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6 border border-emerald-800/70">
         <div className="relative z-10 w-full md:w-auto">
-          <h1 className="text-3xl md:text-4xl font-extrabold mb-2 tracking-tight">ภาพรวมการผลิต</h1>
-          <p className="text-blue-100 text-sm md:text-base max-w-xl leading-relaxed">
-            ข้อมูลอัปเดตล่าสุด: 
-            <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-mono ml-2 backdrop-blur-md inline-flex items-center mt-2 border border-white/30">
-              <i className="fas fa-sync-alt mr-2 animate-spin-slow"></i> {stats.lastSync}
-            </span>
+          <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-emerald-300/80 mb-2">
+            Production Overview
           </p>
+          <h1 className="text-2xl md:text-3xl font-semibold mb-2 tracking-tight">
+            ภาพรวมการผลิต
+          </h1>
+          <div className="flex items-center gap-2 text-sm text-emerald-200/70">
+            <i className="fas fa-sync-alt text-[11px]"></i>
+            <span>ข้อมูลอัปเดตล่าสุด:</span>
+            <span className="text-white font-medium">{stats.lastSync}</span>
+          </div>
         </div>
 
-        <div className="relative z-10 w-full md:w-64 bg-white/10 p-3 rounded-2xl backdrop-blur-sm border border-white/20">
-          <label className="block text-[11px] font-bold text-blue-200 mb-1">แสดงข้อมูลสาขา</label>
+        <div className="relative z-10 w-full md:w-64">
+          <label className="block text-[11px] font-semibold tracking-wider uppercase text-emerald-300/80 mb-1.5">
+            แสดงข้อมูลสาขา
+          </label>
           <select
             value={selectedBranch}
             onChange={handleBranchChange}
             disabled={isLoading || (accessLevel !== 1 && branches.length <= 1)}
-            className="w-full bg-white dark:bg-gray-800 text-gray-800 dark:text-white border-none rounded-lg p-2 text-sm outline-none shadow-inner disabled:bg-gray-200 dark:disabled:bg-gray-700 dark:disabled:text-gray-500 cursor-pointer"
+            className="w-full bg-emerald-950/70 text-white border border-emerald-700/70 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
           >
-            {accessLevel === 1 && <option value="">🌟 สรุปทุกสาขาทั้งบริษัท</option>}
+            {accessLevel === 1 && <option value="">สรุปทุกสาขาทั้งบริษัท</option>}
             {branches.map(b => (
               <option key={b.id} value={b.id}>{b.branch_name}</option>
             ))}

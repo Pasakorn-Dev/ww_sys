@@ -1,4 +1,5 @@
 const UserModel = require('../models/userModel');
+const { saveAuditLog } = require('../utils/auditLogger');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { setAuthCookie, clearAuthCookie, JWT_EXPIRES_IN } = require('../utils/authCookie');
@@ -72,6 +73,32 @@ const authController = {
             );
 
             setAuthCookie(res, token);
+
+            if (!user || !isMatch) {
+                // 🚨 บันทึก Log การ Login ล้มเหลว (ผู้ต้องสงสัย)
+                await saveAuditLog({
+                    req, 
+                    module: 'AUTH',
+                    action: 'LOGIN',
+                    status: 'FAILED',
+                    error_message: 'Invalid Username or Password',
+                    payload: { attempted_username: username } // บันทึกชื่อที่แฮกเกอร์พยายามเดาเข้ามา
+                });
+                return res.status(401).json({ success: false, message: 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง' });
+            }
+
+            // ✅ ล็อกอินสำเร็จ: แนบ req.user ชั่วคราวเพื่อส่งให้ auditLogger รู้ว่าเป็นใคร
+            req.user = { id: user.id, username: user.username };
+            
+            // 📝 บันทึก Log การ Login สำเร็จ
+            await saveAuditLog({
+                req, 
+                module: 'AUTH',
+                action: 'LOGIN',
+                branch_id: user.branch_id, // สาขาของพนักงาน
+                status: 'SUCCESS',
+                payload: { message: 'User logged in successfully' }
+            });
 
             // ไม่ส่ง token กลับใน body อีกต่อไป
             res.json({ success: true, message: 'เข้าสู่ระบบสำเร็จ', data: publicUser(user) });

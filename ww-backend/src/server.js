@@ -13,6 +13,9 @@ const csrfMiddleware = require('./middlewares/csrfMiddleware');
 
 const app = express();
 
+// อนุญาตให้ Express เชื่อใจ Reverse Proxy (Nginx) และดึง IP จาก Header อัตโนมัติ
+app.set('trust proxy', 1);
+
 // ซ่อน header ที่บอกว่าใช้ Express
 app.disable('x-powered-by');
 
