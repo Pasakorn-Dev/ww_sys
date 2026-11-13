@@ -150,6 +150,9 @@ export default function ProductionCoverReport() {
       didOpen: () => Swal.showLoading()
     });
 
+    // 2. 💡 เพิ่มการหน่วงเวลา (Yield) ตรงนี้ เพื่อปล่อยให้เบราว์เซอร์เรนเดอร์ UI Loading ให้เสร็จก่อน
+    await new Promise(resolve => setTimeout(resolve, 50));
+
     try {
       const pdf = new jsPDF('p', 'mm', 'a4');
 
