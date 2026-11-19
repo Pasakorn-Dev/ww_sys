@@ -89,7 +89,7 @@ export default function Login() {
 
   // ─── Render ───────────────────────────────────────────────
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-slate-900 font-sans">
+    <div className="flex min-h-screen bg-gray-50 dark:bg-slate-900">
       
       {/* ─── ฝั่งซ้าย: Corporate Branding (แสดงเฉพาะจอใหญ่) ─── */}
       <div className="hidden lg:flex lg:w-1/2 bg-green-900 relative items-center justify-center overflow-hidden">

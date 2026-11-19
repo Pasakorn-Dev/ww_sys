@@ -11,6 +11,61 @@ INSERT INTO public.group_permissions(id,group_id, menu_id, can_view, can_rpt, ca
 VALUES (34,1, 29, true, true, true, true, true, 1);
 
 
+-- Table: public.system_audit_logs
+
+-- DROP TABLE IF EXISTS public.system_audit_logs;
+
+CREATE TABLE IF NOT EXISTS public.system_audit_logs
+(
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    user_id integer,
+    username character varying(100) COLLATE pg_catalog."default",
+    module character varying(50) COLLATE pg_catalog."default" NOT NULL,
+    action character varying(50) COLLATE pg_catalog."default" NOT NULL,
+    branch_id integer,
+    ip_address inet,
+    user_agent text COLLATE pg_catalog."default",
+    payload jsonb,
+    status character varying(20) COLLATE pg_catalog."default" NOT NULL,
+    error_message text COLLATE pg_catalog."default",
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT system_audit_logs_pkey PRIMARY KEY (id),
+    CONSTRAINT system_audit_logs_user_id_fkey FOREIGN KEY (user_id)
+        REFERENCES public.users (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE SET NULL
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public.system_audit_logs
+    OWNER to postgres;
+-- Index: idx_audit_created_at
+
+-- DROP INDEX IF EXISTS public.idx_audit_created_at;
+
+CREATE INDEX IF NOT EXISTS idx_audit_created_at
+    ON public.system_audit_logs USING btree
+    (created_at ASC NULLS LAST)
+    TABLESPACE pg_default;
+-- Index: idx_audit_module_action
+
+-- DROP INDEX IF EXISTS public.idx_audit_module_action;
+
+CREATE INDEX IF NOT EXISTS idx_audit_module_action
+    ON public.system_audit_logs USING btree
+    (module COLLATE pg_catalog."default" ASC NULLS LAST, action COLLATE pg_catalog."default" ASC NULLS LAST)
+    TABLESPACE pg_default;
+-- Index: idx_audit_payload
+
+-- DROP INDEX IF EXISTS public.idx_audit_payload;
+
+CREATE INDEX IF NOT EXISTS idx_audit_payload
+    ON public.system_audit_logs USING gin
+    (payload)
+    TABLESPACE pg_default;
+
+
 
 
 

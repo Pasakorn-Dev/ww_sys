@@ -152,7 +152,7 @@ export default function Dashboard() {
   const dryTop = topPerformers.find(p => p.department === 'แผนกจัดเรียงไม้แห้ง') || null;
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto min-h-[80vh] font-sans">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto min-h-[80vh]">
       
       {/* ── 1. Header Panel (Green) ── */}
       <div className="bg-gradient-to-br from-emerald-900 via-emerald-900 to-teal-950 rounded-2xl p-6 md:p-8 text-white shadow-sm relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6 border border-emerald-800/70">
@@ -178,7 +178,7 @@ export default function Dashboard() {
             value={selectedBranch}
             onChange={handleBranchChange}
             disabled={isLoading || (accessLevel !== 1 && branches.length <= 1)}
-            className="w-full bg-emerald-950/70 text-white border border-emerald-700/70 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            className="w-full bg-emerald-950/70 text-white border border-emerald-700/70 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors dark:bg-gray-800 dark:text-white"
           >
             {accessLevel === 1 && <option value="">สรุปทุกสาขาทั้งบริษัท</option>}
             {branches.map(b => (
