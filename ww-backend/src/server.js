@@ -9,6 +9,7 @@ const validateEnv = require('./utils/validateEnv');
 validateEnv(); // ถ้า config ไม่ปลอดภัยใน production จะหยุดทันที
 
 const csrfMiddleware = require('./middlewares/csrfMiddleware');
+
 // require('./cronJobs'); // เปิดใช้งานระบบตั้งเวลาอัตโนมัติเบื้องหลัง
 
 const app = express();
