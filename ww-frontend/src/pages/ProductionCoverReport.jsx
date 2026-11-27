@@ -100,7 +100,7 @@ export default function ProductionCoverReport() {
     if (!reportData) return;
     const wsData = [];
     
-    wsData.push([reportData.header.branch_name]);
+    wsData.push([`บริษัท วู้ดเวอร์ค จำกัด ${reportData.header.branch_name}`]);
     wsData.push(['รายงานไม้ผลิต ใบปะหน้า']);
     wsData.push([`ตั้งแต่วันที่ ${new Date(reportData.header.start_date).toLocaleDateString('th-TH')} ถึง ${new Date(reportData.header.end_date).toLocaleDateString('th-TH')}`]);
     wsData.push([`รหัสสโตร์ : ${reportData.header.store_code || 'รวมทุกสโตร์'}`]);
@@ -175,7 +175,7 @@ export default function ProductionCoverReport() {
 
       pdf.setFont('THSarabun', 'bold');
       pdf.setFontSize(18);
-      pdf.text(reportData.header.branch_name, 105, 15, { align: 'center' });
+      pdf.text(`บริษัท วู้ดเวอร์ค จำกัด สาขา : ${reportData.header.branch_name}`, 105, 15, { align: 'center' });
 
       pdf.setFontSize(16);
       pdf.text('รายงานไม้ผลิต ใบปะหน้า', 105, 23, { align: 'center' });
