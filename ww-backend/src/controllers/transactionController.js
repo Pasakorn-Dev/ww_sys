@@ -121,6 +121,38 @@ const transactionController = {
     },
   }, dateRange),
 
+  // ─── Cron Job: ซิงค์ไม้แห้งทุกสาขาอัตโนมัติ ───
+  cronSyncDryWoods: (dateRange) => runCronSyncAllBranches({
+    tag: 'Cron DryWood',
+    label: 'ซิงค์ไม้แห้ง',
+    getRateMap: TransactionModel.getDryWagesByBranch,
+    getOldData: TransactionModel.getOldDryWoodTransactions,
+    cleanupDeleted: TransactionModel.cleanupDeletedDryWoodTransactions,
+    upsert: TransactionModel.upsertDryWoodTransactions,
+    mapRows: (oldData, wageMap, branch_id) => {
+      // กรองแถวที่ซ้ำซ้อนกันใน MySQL (ป้องกัน ON CONFLICT เออเร่อ)
+      const uniqueDataMap = new Map();
+      oldData.forEach(row => uniqueDataMap.set(row.wood_size_amount_map_id, row));
+      return Array.from(uniqueDataMap.values()).map(row => {
+        // ตรรกะคิดค่าแรงไม้แห้ง: ถ้าเป็นสโตร์ 104/13 ใช้เรทตัดสั้น ไม่งั้นใช้เรทปกติ
+        const rates = wageMap.get(row.wood_size_id) || { wage: 0, wage_cut: 0 };
+        const unitWage = row.store_code === '104/13' ? rates.wage_cut : rates.wage;
+        return [
+          row.wood_size_amount_map_id,
+          branch_id,
+          row.barcode_id,
+          formatLocalDate(row.produce_date),
+          row.wood_size_id || null,
+          row.wood_store_id || null,
+          row.sorter_id || null,
+          row.amount || 0,
+          row.volumn || 0,
+          unitWage,
+        ];
+      });
+    },
+  }, dateRange),
+
   syncSawWoods: async (req, res) => {
     const { branch_id, start_date, end_date } = req.body;
 

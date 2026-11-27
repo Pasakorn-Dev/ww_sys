@@ -66,6 +66,9 @@ CREATE INDEX IF NOT EXISTS idx_audit_payload
     TABLESPACE pg_default;
 
 
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS avatar VARCHAR(255);
+
+
 
 
 

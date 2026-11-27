@@ -5,6 +5,7 @@ const authController = require('../controllers/authController');
 const verifyToken = require('../middlewares/authMiddleware');
 const { requireAdmin } = require('../middlewares/roleMiddleware');
 const checkPermission = require('../middlewares/permissionMiddleware');
+const { uploadAvatar } = require('../middlewares/uploadAvatar');
 
 // จำกัดการเดารหัสผ่าน: 10 ครั้ง / 15 นาที / IP (นับเฉพาะครั้งที่ล้มเหลว)
 const loginLimiter = rateLimit({
@@ -19,6 +20,7 @@ const loginLimiter = rateLimit({
 router.post('/login', loginLimiter, authController.login);
 router.post('/logout', authController.logout);
 router.get('/me', verifyToken, authController.me);
+router.put('/change-password', verifyToken, authController.changePassword);
 
 // ⚠️ เดิมเป็น public (ใครก็สร้าง user/admin ได้) → ตอนนี้เฉพาะ Admin ที่ล็อกอินแล้ว
 router.post('/register', verifyToken, requireAdmin, authController.register);
@@ -27,7 +29,8 @@ router.post('/register', verifyToken, requireAdmin, authController.register);
 router.post(
     '/manage/create', 
     verifyToken, 
-    checkPermission('/manage/users', 'add'), 
+    checkPermission('/manage/users', 'add'),
+    uploadAvatar.single('avatar'),
     authController.createUserAdmin
 );
 
@@ -35,7 +38,8 @@ router.post(
 router.put(
     '/manage/update/:id', 
     verifyToken, 
-    checkPermission('/manage/users', 'edit'), 
+    checkPermission('/manage/users', 'edit'),
+    uploadAvatar.single('avatar'),
     authController.updateUserAdmin
 );
 

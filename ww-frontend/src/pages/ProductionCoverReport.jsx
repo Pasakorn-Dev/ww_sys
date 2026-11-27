@@ -16,7 +16,8 @@ export default function ProductionCoverReport() {
     branch_id: '',
     start_date: new Date().toISOString().split('T')[0],
     end_date: new Date().toISOString().split('T')[0],
-    store_code: '',
+    store_code_start: '',
+    store_code_end: '',
     report_format: '1' // 💡 เพิ่มบรรทัดนี้: ค่าเริ่มต้นเป็นรูปแบบที่ 1
   });
 
@@ -76,7 +77,8 @@ export default function ProductionCoverReport() {
         branch_id: filters.branch_id,
         start_date: filters.start_date,
         end_date: filters.end_date,
-        store_code: filters.store_code
+        store_code_start: filters.store_code_start,
+        store_code_end: filters.store_code_end
       }).toString();
 
       const res = await apiFetch(`${endpoint}?${queryParams}`);
@@ -317,7 +319,7 @@ export default function ProductionCoverReport() {
         <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
           <i className="fas fa-file-alt text-blue-600"></i> เงื่อนไขรายงานใบปะหน้าไม้ผลิต
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-semibold mb-1">สาขา <span className="text-red-500">*</span></label>
             <select name="branch_id" value={filters.branch_id} onChange={handleFilterChange} className="w-full border rounded-lg p-2 text-sm outline-none bg-gray-50">
@@ -350,8 +352,15 @@ export default function ProductionCoverReport() {
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold mb-1">รหัสสโตร์ (Store Code)</label>
-            <select name="store_code" value={filters.store_code} onChange={handleFilterChange} className="w-full border rounded-lg p-2 text-sm outline-none">
+            <label className="block text-xs font-semibold mb-1">รหัสสโตร์เริ่มต้น (Store Code Start)</label>
+            <select name="store_code_start" value={filters.store_code_start} onChange={handleFilterChange} className="w-full border rounded-lg p-2 text-sm outline-none">
+              <option value="">-- รวมทุกสโตร์ --</option>
+              {options?.sawWoodTypes?.map(item => <option key={item.id} value={item.code}>{item.code} - {item.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold mb-1">รหัสสโตร์สิ้นสุด (Store Code End)</label>
+            <select name="store_code_end" value={filters.store_code_end} onChange={handleFilterChange} className="w-full border rounded-lg p-2 text-sm outline-none">
               <option value="">-- รวมทุกสโตร์ --</option>
               {options?.sawWoodTypes?.map(item => <option key={item.id} value={item.code}>{item.code} - {item.name}</option>)}
             </select>

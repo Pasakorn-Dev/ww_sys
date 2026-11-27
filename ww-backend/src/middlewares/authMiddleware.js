@@ -23,7 +23,7 @@ const verifyToken = async (req, res, next) => {
     //    (เดิม catch รวมกัน → DB เชื่อมไม่ได้ก็กลายเป็น 401 แล้ว frontend เด้งกลับหน้า login ทั้งที่ login ถูกต้อง)
     try {
         const userRes = await db.query(
-            'SELECT group_id, branch_id FROM public.users WHERE id = $1',
+            'SELECT group_id, branch_id FROM public.users WHERE id = $1 and force_logout = 0',
             [decoded.id]
         );
         const userData = userRes.rows[0];

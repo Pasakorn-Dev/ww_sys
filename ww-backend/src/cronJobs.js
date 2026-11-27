@@ -66,7 +66,15 @@ cron.schedule('30 3 * * *', () => {
     timezone: "Asia/Bangkok"
 });
 
-console.log('✅ ระบบ Auto-Sync ตั้งเวลาทำงานอัตโนมัติ (ตี 2 Master, ตี 3 ไม้เลื่อย, ตี 3:30 ไม้เปียก) พร้อมทำงานแล้ว');
+// ตั้งเวลาซิงค์ไม้แห้งทุกสาขา: ตี 4 ของทุกวัน (หลังซิงค์ไม้เปียก 30 นาที)
+cron.schedule('0 4 * * *', () => {
+    runAutoSyncTransactions('ไม้แห้ง', transactionController.cronSyncDryWoods);
+}, {
+    scheduled: true,
+    timezone: "Asia/Bangkok"
+});
+
+console.log('✅ ระบบ Auto-Sync ตั้งเวลาทำงานอัตโนมัติ (ตี 2 Master, ตี 3 ไม้เลื่อย, ตี 3:30 ไม้เปียก, ตี 4 ไม้แห้ง) พร้อมทำงานแล้ว');
 
 // เพิ่มบรรทัดนี้เพื่อบังคับให้มันทำงานทันที 1 รอบตอนที่ Server Start
 runAutoSync();

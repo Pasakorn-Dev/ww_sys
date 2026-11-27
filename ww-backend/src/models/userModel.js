@@ -7,7 +7,7 @@ const UserModel = {
             SELECT u.*, b.branch_name
             FROM public.users u
             LEFT JOIN public.branches b ON u.branch_id = b.id
-            WHERE u.username = $1
+            WHERE u.username = $1 and u.force_logout = 0
         `;
         const result = await db.query(query, [username]);
         return result.rows[0];
@@ -16,13 +16,36 @@ const UserModel = {
     // หาผู้ใช้จาก id (ใช้กับ /auth/me) — ไม่ดึง password ออกมา
     findById: async (id) => {
         const query = `
-            SELECT u.id, u.username, u.fullname, u.branch_id, u.group_id, b.branch_name
+            SELECT u.id, u.username, u.fullname, u.branch_id, u.group_id, u.avatar, b.branch_name
             FROM public.users u
             LEFT JOIN public.branches b ON u.branch_id = b.id
             WHERE u.id = $1
         `;
         // console.log(id);
         const result = await db.query(query, [id]);
+        return result.rows[0];
+    },
+
+    // หาข้อมูลผู้ใช้พร้อม password hash (ใช้ตรวจสอบรหัสผ่านเดิมตอนเปลี่ยนรหัสผ่าน)
+    findAuthById: async (id) => {
+        const query = `
+            SELECT id, username, password, branch_id
+            FROM public.users
+            WHERE id = $1
+        `;
+        const result = await db.query(query, [id]);
+        return result.rows[0];
+    },
+
+    // อัปเดตรหัสผ่านของผู้ใช้
+    updatePassword: async (id, hashedPassword) => {
+        const query = `
+            UPDATE public.users
+            SET password = $1
+            WHERE id = $2
+            RETURNING id, username
+        `;
+        const result = await db.query(query, [hashedPassword, id]);
         return result.rows[0];
     },
 
@@ -40,7 +63,7 @@ const UserModel = {
     
     // สร้างผู้ใช้งานใหม่ พร้อมผูกสิทธิ์หลายสาขา (Transaction)
     createUserAdmin: async (userData) => {
-        const { username, password, fullname, group_id, branch_id, dept_id, allowed_branches } = userData;
+        const { username, password, fullname, group_id, branch_id, dept_id, allowed_branches, avatar } = userData;
         const client = await db.connect(); // ใช้ client สำหรับทำ Transaction
 
         try {
@@ -48,10 +71,10 @@ const UserModel = {
 
             // 1. บันทึกข้อมูลผู้ใช้ลงตารางหลัก (ใช้ Parameterized Query ป้องกัน SQL Injection)
             const insertUserQuery = `
-                INSERT INTO public.users (username, password, fullname, group_id, branch_id, dept_id)
-                VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, username, fullname;
+                INSERT INTO public.users (username, password, fullname, group_id, branch_id, dept_id, avatar)
+                VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, username, fullname, avatar;
             `;
-            const userValues = [username, password, fullname, group_id, branch_id, dept_id];
+            const userValues = [username, password, fullname, group_id, branch_id, dept_id, avatar || null];
             const userResult = await client.query(insertUserQuery, userValues);
             const newUserId = userResult.rows[0].id;
 
@@ -91,33 +114,35 @@ const UserModel = {
 
     // อัปเดตข้อมูลผู้ใช้งานและสิทธิ์สาขา (Transaction)
     updateUserAdmin: async (userId, userData) => {
-        const { username, password, fullname, group_id, branch_id, dept_id, allowed_branches } = userData;
+        const { username, password, fullname, group_id, branch_id, dept_id, allowed_branches, avatar, remove_avatar } = userData;
         const client = await db.connect(); 
 
         try {
             await client.query('BEGIN');
 
-            // 1. อัปเดตตาราง users (เช็คว่ามีการส่งรหัสผ่านใหม่มาหรือไม่)
-            let updateUserQuery;
-            let userValues;
+            // 1. อัปเดตตาราง users แบบยืดหยุ่น (เฉพาะฟิลด์ที่ส่งมา)
+            const setClauses = ['username = $1', 'fullname = $2', 'group_id = $3', 'branch_id = $4', 'dept_id = $5'];
+            const userValues = [username, fullname, group_id, branch_id, dept_id];
 
             if (password) {
-                // กรณีมีการเปลี่ยนรหัสผ่าน
-                updateUserQuery = `
-                    UPDATE public.users 
-                    SET username = $1, password = $2, fullname = $3, group_id = $4, branch_id = $5, dept_id = $6
-                    WHERE id = $7 RETURNING id, username, fullname;
-                `;
-                userValues = [username, password, fullname, group_id, branch_id, dept_id, userId];
-            } else {
-                // กรณีไม่มีการเปลี่ยนรหัสผ่าน (ไม่แตะต้องคอลัมน์ password)
-                updateUserQuery = `
-                    UPDATE public.users 
-                    SET username = $1, fullname = $2, group_id = $3, branch_id = $4, dept_id = $5
-                    WHERE id = $6 RETURNING id, username, fullname;
-                `;
-                userValues = [username, fullname, group_id, branch_id, dept_id, userId];
+                userValues.push(password);
+                setClauses.push(`password = $${userValues.length}`);
             }
+
+            if (avatar) {
+                userValues.push(avatar);
+                setClauses.push(`avatar = $${userValues.length}`);
+            } else if (remove_avatar) {
+                setClauses.push('avatar = NULL');
+            }
+
+            userValues.push(userId);
+            const updateUserQuery = `
+                UPDATE public.users
+                SET ${setClauses.join(', ')}
+                WHERE id = $${userValues.length}
+                RETURNING id, username, fullname, avatar;
+            `;
 
             const userResult = await client.query(updateUserQuery, userValues);
 
@@ -161,7 +186,7 @@ const UserModel = {
     // ... ภายใน object UserModel
     getUserById: async (id) => {
         // ดึงข้อมูลหลัก
-        const userQuery = `SELECT id, username, fullname, group_id, branch_id, dept_id FROM public.users WHERE id = $1`;
+        const userQuery = `SELECT id, username, fullname, group_id, branch_id, dept_id, avatar FROM public.users WHERE id = $1`;
         const userRes = await db.query(userQuery, [id]);
         
         if (userRes.rows.length === 0) return null;
@@ -180,7 +205,7 @@ const UserModel = {
     getAllUsersAdmin: async () => {
       // ดึงรายชื่อผู้ใช้ทั้งหมด พร้อม Join หาชื่อกลุ่ม และ ชื่อสาขา
       const query = `
-          SELECT u.id, u.username, u.fullname, 
+          SELECT u.id, u.username, u.fullname, u.avatar,
                  g.group_name, b.branch_name
           FROM public.users u
           LEFT JOIN public.user_groups g ON u.group_id = g.id
@@ -193,7 +218,7 @@ const UserModel = {
 
     deleteUserAdmin: async (userId) => {
         // ลบข้อมูลผู้ใช้ (ตาราง user_branches ที่ผูกไว้ควรเซ็ต ON DELETE CASCADE ในฐานข้อมูลไว้แล้ว)
-        const query = `DELETE FROM public.users WHERE id = $1 RETURNING id;`;
+        const query = `DELETE FROM public.users WHERE id = $1 RETURNING id, avatar;`;
         const result = await db.query(query, [userId]);
         return result.rows[0];
     },

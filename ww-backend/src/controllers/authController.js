@@ -1,8 +1,30 @@
+const fs = require('fs');
+const path = require('path');
 const UserModel = require('../models/userModel');
 const { saveAuditLog } = require('../utils/auditLogger');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { setAuthCookie, clearAuthCookie, JWT_EXPIRES_IN } = require('../utils/authCookie');
+const { AVATAR_DIR } = require('../middlewares/uploadAvatar');
+
+const deleteAvatarFile = async (filename) => {
+    if (!filename) return;
+    const filePath = path.join(AVATAR_DIR, path.basename(filename));
+    await fs.promises.unlink(filePath).catch(() => {});
+};
+
+const parseAllowedBranches = (raw) => {
+    if (Array.isArray(raw)) return raw.map(Number).filter((n) => !Number.isNaN(n));
+    if (typeof raw === 'string' && raw.trim() !== '') {
+        try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) return parsed.map(Number).filter((n) => !Number.isNaN(n));
+        } catch {
+            return [];
+        }
+    }
+    return [];
+};
 
 // hash หลอก ใช้เปรียบเทียบตอนไม่พบ username เพื่อให้เวลาตอบสนองใกล้เคียงกัน (กัน username enumeration จาก timing)
 const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing', 10) // ใช้ cost เท่ากับ hash เดิมในระบบ (10);
@@ -15,6 +37,7 @@ const publicUser = (user) => ({
     branch_id: user.branch_id,
     branch_name: user.branch_name,
     group_id: user.group_id,
+    avatar: user.avatar || null,
 });
 
 const authController = {
@@ -125,11 +148,13 @@ const authController = {
     
     // API สำหรับให้ Admin สร้างผู้ใช้งานใหม่
     createUserAdmin: async (req, res) => {
+        const uploadedAvatar = req.file ? req.file.filename : null;
         try {
             const { username, password, fullname, group_id, branch_id, dept_id, allowed_branches } = req.body;
 
             // Basic Validation
             if (!username || !password || !fullname || !group_id || !branch_id) {
+                await deleteAvatarFile(uploadedAvatar);
                 return res.status(400).json({ success: false, message: 'กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน' });
             }
 
@@ -142,15 +167,17 @@ const authController = {
                 username, 
                 password: hashedPassword, 
                 fullname, 
-                group_id, 
-                branch_id, 
-                dept_id,
-                allowed_branches // Array ของรหัสสาขาเพิ่มเติม
+                group_id: Number(group_id), 
+                branch_id: Number(branch_id), 
+                dept_id: dept_id ? Number(dept_id) : null,
+                allowed_branches: parseAllowedBranches(allowed_branches),
+                avatar: uploadedAvatar
             });
             
             res.status(201).json({ success: true, message: 'เพิ่มผู้ใช้งานและกำหนดสิทธิ์สาขาสำเร็จ', data: newUser });
 
         } catch (error) {
+            await deleteAvatarFile(uploadedAvatar);
             console.error('Create User Admin Error:', error);
             // ดักจับ Error กรณี Username ซ้ำในฐานข้อมูล
             if (error.code === '23505') {
@@ -162,14 +189,21 @@ const authController = {
 
     // API สำหรับให้ Admin แก้ไขข้อมูลผู้ใช้งาน
     updateUserAdmin: async (req, res) => {
+        const uploadedAvatar = req.file ? req.file.filename : null;
         try {
             const userId = req.params.id; // รับ ID จาก URL
-            const { username, password, fullname, group_id, branch_id, dept_id, allowed_branches } = req.body;
+            const { username, password, fullname, group_id, branch_id, dept_id, allowed_branches, remove_avatar } = req.body;
+            const shouldRemoveAvatar = remove_avatar === 'true' || remove_avatar === true;
 
             // Basic Validation
             if (!username || !fullname || !group_id || !branch_id) {
+                await deleteAvatarFile(uploadedAvatar);
                 return res.status(400).json({ success: false, message: 'กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน' });
             }
+
+            const existingUser = (uploadedAvatar || shouldRemoveAvatar)
+                ? await UserModel.getUserById(userId)
+                : null;
 
             // Hashing รหัสผ่าน (เฉพาะเมื่อมีการพิมพ์รหัสผ่านใหม่เข้ามา)
             let hashedPassword = null;
@@ -186,12 +220,19 @@ const authController = {
                 group_id: Number(group_id), 
                 branch_id: Number(branch_id), 
                 dept_id: dept_id ? Number(dept_id) : null,
-                allowed_branches
+                allowed_branches: parseAllowedBranches(allowed_branches),
+                avatar: uploadedAvatar,
+                remove_avatar: shouldRemoveAvatar
             });
+
+            if (existingUser?.avatar && (uploadedAvatar || shouldRemoveAvatar)) {
+                await deleteAvatarFile(existingUser.avatar);
+            }
             
             res.json({ success: true, message: 'แก้ไขข้อมูลผู้ใช้งานและสิทธิ์สาขาสำเร็จ', data: updatedUser });
 
         } catch (error) {
+            await deleteAvatarFile(uploadedAvatar);
             console.error('Update User Admin Error:', error);
             // ดักจับ Error Code กรณีแก้ Username ไปซ้ำกับคนอื่น
             if (error.code === '23505') {
@@ -229,6 +270,7 @@ const authController = {
             const userId = req.params.id;
             const deleted = await UserModel.deleteUserAdmin(userId);
             if (!deleted) return res.status(404).json({ success: false, message: 'ไม่พบผู้ใช้' });
+            await deleteAvatarFile(deleted.avatar);
             res.json({ success: true, message: 'ลบข้อมูลสำเร็จ' });
         } catch (error) {
             res.status(500).json({ success: false, message: 'ไม่สามารถลบผู้ใช้นี้ได้ อาจมีข้อมูลเชื่อมโยงอยู่' });
@@ -238,6 +280,62 @@ const authController = {
     logout: (req, res) => {
         clearAuthCookie(res);
         res.json({ success: true, message: 'ออกจากระบบแล้ว' });
+    },
+
+    // เปลี่ยนรหัสผ่านด้วยตนเอง (ต้องยืนยันรหัสผ่านเดิมก่อน)
+    changePassword: async (req, res) => {
+        try {
+            const { current_password, new_password, confirm_password } = req.body || {};
+
+            if (typeof current_password !== 'string' || !current_password || current_password.length > 72) {
+                return res.status(400).json({ success: false, message: 'กรุณากรอกรหัสผ่านเดิม' });
+            }
+            if (typeof new_password !== 'string' || new_password.length < 6 || new_password.length > 72) {
+                return res.status(400).json({ success: false, message: 'รหัสผ่านใหม่ต้องมีความยาว 6-72 ตัวอักษร' });
+            }
+            if (confirm_password !== undefined && new_password !== confirm_password) {
+                return res.status(400).json({ success: false, message: 'รหัสผ่านใหม่และการยืนยันรหัสผ่านไม่ตรงกัน' });
+            }
+            if (current_password === new_password) {
+                return res.status(400).json({ success: false, message: 'รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม' });
+            }
+
+            const user = await UserModel.findAuthById(req.user.id);
+            if (!user) {
+                return res.status(404).json({ success: false, message: 'ไม่พบผู้ใช้งาน' });
+            }
+
+            const isMatch = await bcrypt.compare(current_password, user.password);
+            if (!isMatch) {
+                await saveAuditLog({
+                    req,
+                    module: 'AUTH',
+                    action: 'CHANGE_PASSWORD',
+                    branch_id: user.branch_id,
+                    status: 'FAILED',
+                    error_message: 'Invalid current password',
+                });
+                // ใช้ 400 เพื่อไม่ให้ client เข้าใจว่า session หมดอายุ (401)
+                return res.status(400).json({ success: false, message: 'รหัสผ่านเดิมไม่ถูกต้อง' });
+            }
+
+            const hashedPassword = await bcrypt.hash(new_password, BCRYPT_ROUNDS);
+            await UserModel.updatePassword(user.id, hashedPassword);
+
+            await saveAuditLog({
+                req,
+                module: 'AUTH',
+                action: 'CHANGE_PASSWORD',
+                branch_id: user.branch_id,
+                status: 'SUCCESS',
+                payload: { message: 'User changed password successfully' },
+            });
+
+            res.json({ success: true, message: 'เปลี่ยนรหัสผ่านสำเร็จ' });
+        } catch (error) {
+            console.error('Change Password Error:', error);
+            res.status(500).json({ success: false, message: 'ไม่สามารถเปลี่ยนรหัสผ่านได้ เกิดข้อผิดพลาดที่เซิร์ฟเวอร์' });
+        }
     },
 };
 
