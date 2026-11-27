@@ -197,7 +197,14 @@ export default function CheckSawWood() {
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">สาขา <span className="text-red-500">*</span></label>
-            <select name="branch_id" value={filters.branch_id} onChange={handleFilterChange} className="w-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-blue-500 transition-colors duration-300">
+            <select
+              name="branch_id"
+              value={filters.branch_id}
+              onChange={handleFilterChange}
+              disabled={branches.length <= 1}
+              title={branches.length <= 1 ? 'คุณมีสิทธิ์เข้าถึงเฉพาะสาขานี้' : ''}
+              className="w-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-blue-500 transition-colors duration-300 disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:border-gray-300 dark:disabled:border-gray-700 disabled:cursor-not-allowed disabled:opacity-75"
+            >
               <option value="">-- เลือกสาขา --</option>
               {branches.map(b => <option key={b.id} value={b.id}>{b.branch_code} - {b.branch_name}</option>)}
             </select>

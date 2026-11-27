@@ -219,10 +219,10 @@ export default function Branches() {
               <th className="p-4 text-right">จัดการ</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
             {branches.length === 0 ? (
               <tr>
-                <td colSpan="5" className="p-4 text-center text-gray-500">
+                <td colSpan="5" className="p-4 text-center text-gray-500 dark:text-gray-400">
                   ไม่มีข้อมูลสาขา
                 </td>
               </tr>
@@ -230,7 +230,7 @@ export default function Branches() {
               branches.map((branch) => (
                 <tr
                   key={branch.id}
-                  className="hover:bg-gray-50 dark:hover:bg-gray-750 text-gray-800 dark:text-gray-200 border-b dark:border-gray-700 last:border-0"
+                  className="hover:bg-gray-50 dark:hover:bg-gray-700/60 text-gray-800 dark:text-gray-200 transition-colors"
                 >
                   <td className="p-4 font-medium">{branch.branch_code}</td>
                   <td className="p-4">{branch.branch_name}</td>

@@ -243,15 +243,22 @@ export default function WetWoodCoverReport() {
   const currentRows = allRows.slice(indexOfFirstItem, indexOfLastItem);
 
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto min-h-screen">
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6 print:hidden">
-        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <i className="fas fa-file-invoice-dollar text-teal-600"></i> เงื่อนไขรายงานค่าแรงไม้เปียก (ใบปะหน้า)
+    <div className="p-4 md:p-6 max-w-5xl mx-auto min-h-screen transition-colors duration-300">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 mb-6 print:hidden transition-colors duration-300">
+        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+          <i className="fas fa-file-invoice-dollar text-teal-600 dark:text-teal-400"></i> เงื่อนไขรายงานค่าแรงไม้เปียก (ใบปะหน้า)
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-xs font-semibold mb-1">สาขา <span className="text-red-500">*</span></label>
-            <select name="branch_id" value={filters.branch_id} onChange={handleBranchChange} className="w-full border rounded-lg p-2 text-sm outline-none bg-gray-50">
+            <label className="block text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">สาขา <span className="text-red-500">*</span></label>
+            <select
+              name="branch_id"
+              value={filters.branch_id}
+              onChange={handleBranchChange}
+              disabled={branches.length <= 1}
+              title={branches.length <= 1 ? 'คุณมีสิทธิ์เข้าถึงเฉพาะสาขานี้' : ''}
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm outline-none bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:border-teal-500 transition-colors disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:border-gray-300 dark:disabled:border-gray-700 disabled:cursor-not-allowed disabled:opacity-75"
+            >
               <option value="">-- เลือกสาขา --</option>
               {branches.map(b => (
                 <option key={b.id} value={b.id}>{b.branch_code} - {b.branch_name}</option>
@@ -259,29 +266,29 @@ export default function WetWoodCoverReport() {
             </select>
           </div>
           <div className="flex flex-col">
-            <label className="block text-xs font-semibold mb-1">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
             <DatePicker
               selected={filters.start_date ? parseISO(filters.start_date) : null}
               onChange={(date) => handleDateChange(date, 'start_date')}
               dateFormat="dd/MM/yyyy"
               locale={th}
-              className="w-full border rounded-lg p-2 text-sm outline-none focus:border-teal-500"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm outline-none focus:border-teal-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-colors"
               placeholderText="วว/ดด/ปปปป"
             />
           </div>
           <div className="flex flex-col">
-            <label className="block text-xs font-semibold mb-1">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
             <DatePicker
               selected={filters.end_date ? parseISO(filters.end_date) : null}
               onChange={(date) => handleDateChange(date, 'end_date')}
               dateFormat="dd/MM/yyyy"
               locale={th}
-              className="w-full border rounded-lg p-2 text-sm outline-none focus:border-teal-500"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm outline-none focus:border-teal-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-colors"
               placeholderText="วว/ดด/ปปปป"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold mb-1">รหัสประเภทไม้ (ถ้ามี)</label>
+            <label className="block text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">รหัสประเภทไม้ (ถ้ามี)</label>
              {/* หากมี API ดึง Dropdown สามารถเปลี่ยนเป็น <select> ได้ */}
             <input 
                 type="text" 
@@ -289,16 +296,16 @@ export default function WetWoodCoverReport() {
                 value={filters.wet_wood_type} 
                 onChange={handleFilterChange} 
                 placeholder="เช่น 21 หรือ 21/02"
-                className="w-full border rounded-lg p-2 text-sm outline-none focus:border-teal-500"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm outline-none focus:border-teal-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-colors"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold mb-1">รูปแบบรายงาน</label>
+            <label className="block text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">รูปแบบรายงาน</label>
             <select 
               name="report_format" 
               value={filters.report_format} 
               onChange={handleFilterChange} 
-              className="w-full border rounded-lg p-2 text-sm outline-none focus:border-teal-500 font-semibold text-teal-700 bg-teal-50"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm outline-none focus:border-teal-500 font-semibold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-900/30 transition-colors"
             >
               <option value="1">แบบที่ 1 (จัดกลุ่มตามประเภทไม้)</option>
               <option value="2">แบบที่ 2 (แยกตามพนักงาน)</option>
@@ -326,19 +333,19 @@ export default function WetWoodCoverReport() {
         </div>
       </div>
       {reportData && (
-        <div className="bg-white p-10 rounded-lg shadow-lg border border-gray-200 overflow-x-auto print:shadow-none print:border-none print:p-0 min-h-[1050px] relative flex flex-col justify-between">
+        <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 p-10 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-x-auto print:bg-white print:text-black print:shadow-none print:border-none print:p-0 min-h-[1050px] relative flex flex-col justify-between transition-colors duration-300">
           
           <div>
             <div className="text-center mb-8">
               <h1 className="text-xl font-bold">บริษัท วู้ดเวอร์ค จำกัด ({filters.branch_name})</h1>
               <h2 className="text-lg font-semibold mt-1">รายงานค่าแรงไม้เปียก ใบปะหน้า</h2>
-              <p className="text-sm mt-1">ตั้งแต่วันที่ {new Date(reportData.header.start_date).toLocaleDateString('th-TH')} ถึง {new Date(reportData.header.end_date).toLocaleDateString('th-TH')}</p>
-              <p className="text-sm mt-1">ประเภทไม้ : {reportData.header.wet_wood_type}</p>
+              <p className="text-sm mt-1 text-gray-600 dark:text-gray-300 print:text-black">ตั้งแต่วันที่ {new Date(reportData.header.start_date).toLocaleDateString('th-TH')} ถึง {new Date(reportData.header.end_date).toLocaleDateString('th-TH')}</p>
+              <p className="text-sm mt-1 text-gray-600 dark:text-gray-300 print:text-black">ประเภทไม้ : {reportData.header.wet_wood_type}</p>
             </div>
 
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="border-y-2 border-gray-800">
+                <tr className="border-y-2 border-gray-800 dark:border-gray-500">
                   <th className="py-2 text-left w-1/4">รหัสสินค้า</th>
                   <th className="py-2 text-right w-1/4">จำนวนท่อน</th>
                   <th className="py-2 text-right w-1/4">ปริมาตร(ลบฟ)</th>
@@ -350,13 +357,13 @@ export default function WetWoodCoverReport() {
                   if (row.type === 'header') {
                     return (
                       <tr key={row.key}>
-                        <td colSpan="4" className="py-2 font-bold text-gray-800">{row.groupName}</td>
+                        <td colSpan="4" className="py-2 font-bold text-gray-800 dark:text-gray-100 print:text-black">{row.groupName}</td>
                       </tr>
                     );
                   }
                   if (row.type === 'item') {
                     return (
-                      <tr key={row.key}>
+                      <tr key={row.key} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
                         <td className="py-1 pl-4">{row.data.wood_code}</td>
                         <td className="py-1 text-right">{Number(row.data.amount).toLocaleString()}</td>
                         <td className="py-1 text-right">{Number(row.data.volumn).toFixed(4)}</td>
@@ -366,7 +373,7 @@ export default function WetWoodCoverReport() {
                   }
                   if (row.type === 'footer') {
                     return (
-                      <tr key={row.key} className="border-t border-dotted border-gray-400 font-semibold text-gray-700">
+                      <tr key={row.key} className="border-t border-dotted border-gray-400 dark:border-gray-600 font-semibold text-gray-700 dark:text-gray-300 print:text-black">
                         <td className="py-2">รวม {row.groupName}</td>
                         <td className="py-2 text-right">{row.sumAmount.toLocaleString()}</td>
                         <td className="py-2 text-right">{row.sumVolumn.toFixed(4)}</td>
@@ -379,7 +386,7 @@ export default function WetWoodCoverReport() {
                   }
                   if (row.type === 'grand-total') {
                     return (
-                      <tr key={row.key} className="border-y-2 border-gray-800 font-bold text-base bg-gray-50">
+                      <tr key={row.key} className="border-y-2 border-gray-800 dark:border-gray-500 font-bold text-base bg-gray-50 dark:bg-gray-700/60 print:bg-gray-50">
                         <td className="py-3 pl-2">รวมทั้งหมด</td>
                         <td className="py-3 text-right">{row.sumAmount.toLocaleString()}</td>
                         <td className="py-3 text-right">{row.sumVolumn.toFixed(4)}</td>
@@ -395,7 +402,7 @@ export default function WetWoodCoverReport() {
 
           {/* ลายเซ็นต์หน้าสุดท้าย */}
           {currentPage === totalPages && (
-            <div className="mt-12 grid grid-cols-2 gap-8 text-center text-sm print:mt-16 pb-8">
+            <div className="mt-12 grid grid-cols-2 gap-8 text-center text-sm print:mt-16 pb-8 text-gray-700 dark:text-gray-300 print:text-black">
               <div>
                 <p>....................................................................</p>
                 <p className="mt-2">ผู้รายงาน</p>
@@ -409,26 +416,26 @@ export default function WetWoodCoverReport() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between py-3 border-t border-gray-200 mt-6 print:hidden">
+            <div className="flex items-center justify-between py-3 border-t border-gray-200 dark:border-gray-700 mt-6 print:hidden">
               <div className="flex flex-wrap justify-between items-center w-full gap-4">
                 <div className="flex gap-2">
-                  <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className={`px-3 py-2 text-sm font-medium rounded-md ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}>« หน้าแรก</button>
-                  <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className={`px-3 py-2 text-sm font-medium rounded-md ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}>‹ ก่อนหน้า</button>
+                  <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className={`px-3 py-2 text-sm font-medium rounded-md ${currentPage === 1 ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'}`}>« หน้าแรก</button>
+                  <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className={`px-3 py-2 text-sm font-medium rounded-md ${currentPage === 1 ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'}`}>‹ ก่อนหน้า</button>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700">หน้า</span>
-                  <select value={currentPage} onChange={(e) => setCurrentPage(Number(e.target.value))} className="border border-gray-300 rounded-md py-1 px-2 text-sm outline-none focus:border-teal-500 font-semibold text-teal-700">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">หน้า</span>
+                  <select value={currentPage} onChange={(e) => setCurrentPage(Number(e.target.value))} className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md py-1 px-2 text-sm outline-none focus:border-teal-500 font-semibold text-teal-700 dark:text-teal-300">
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                       <option key={page} value={page}>{page}</option>
                     ))}
                   </select>
-                  <span className="text-sm text-gray-700">จาก {totalPages}</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">จาก {totalPages}</span>
                 </div>
 
                 <div className="flex gap-2">
-                  <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className={`px-3 py-2 text-sm font-medium rounded-md ${currentPage === totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}>ถัดไป ›</button>
-                  <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className={`px-3 py-2 text-sm font-medium rounded-md ${currentPage === totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}>หน้าสุดท้าย »</button>
+                  <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className={`px-3 py-2 text-sm font-medium rounded-md ${currentPage === totalPages ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'}`}>ถัดไป ›</button>
+                  <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className={`px-3 py-2 text-sm font-medium rounded-md ${currentPage === totalPages ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'}`}>หน้าสุดท้าย »</button>
                 </div>
               </div>
             </div>

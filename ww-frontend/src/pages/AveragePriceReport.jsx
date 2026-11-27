@@ -12,74 +12,74 @@ import { format, parseISO } from 'date-fns';
 const ReportTable = React.memo(({ data, grandTotal, showFooter }) => {
   return (
     <div className="overflow-x-auto pb-4">
-      <table className="w-full text-xs border-collapse border border-gray-400 whitespace-nowrap min-w-max">
+      <table className="w-full text-xs border-collapse border border-gray-400 dark:border-gray-600 whitespace-nowrap min-w-max">
         <thead>
           {/* Header แถวบนสุด (แบ่งกลุ่มเกรด) */}
-          <tr className="bg-gray-200 text-gray-800">
-            <th className="border border-gray-400 p-2 text-center align-middle" rowSpan="2">
+          <tr className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100">
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-center align-middle" rowSpan="2">
               แผนก<br/>(ชุดเลื่อย)
             </th>
-            <th className="border border-gray-400 p-2 text-center" colSpan="13">
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-center" colSpan="13">
               เฉลี่ยราคา
             </th>
           </tr>
           {/* Header แถวที่ 2 (แบ่งย่อยแต่ละเกรด) */}
-          <tr className="bg-gray-100 text-gray-700">
-            <th className="border border-gray-400 p-2 text-right">AB ปกติ</th>
-            <th className="border border-gray-400 p-2 text-right">AB พิเศษ</th>
-            <th className="border border-gray-400 p-2 text-right bg-blue-50 font-bold">AB</th>
+          <tr className="bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200">
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right">AB ปกติ</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right">AB พิเศษ</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right bg-blue-50 dark:bg-blue-900/40 font-bold">AB</th>
             
-            <th className="border border-gray-400 p-2 text-right">C ปกติ</th>
-            <th className="border border-gray-400 p-2 text-right">C พิเศษ</th>
-            <th className="border border-gray-400 p-2 text-right bg-blue-50 font-bold">C</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right">C ปกติ</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right">C พิเศษ</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right bg-blue-50 dark:bg-blue-900/40 font-bold">C</th>
 
-            <th className="border border-gray-400 p-2 text-right">P ปกติ</th>
-            <th className="border border-gray-400 p-2 text-right">P พิเศษ</th>
-            <th className="border border-gray-400 p-2 text-right bg-blue-50 font-bold">P</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right">P ปกติ</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right">P พิเศษ</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right bg-blue-50 dark:bg-blue-900/40 font-bold">P</th>
 
-            <th className="border border-gray-400 p-2 text-right">PP ปกติ</th>
-            <th className="border border-gray-400 p-2 text-right">PP พิเศษ</th>
-            <th className="border border-gray-400 p-2 text-right bg-blue-50 font-bold">PP</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right">PP ปกติ</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right">PP พิเศษ</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right bg-blue-50 dark:bg-blue-900/40 font-bold">PP</th>
 
-            <th className="border border-gray-400 p-2 text-right bg-green-100 font-bold">รวม</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right bg-green-100 dark:bg-green-900/40 font-bold">รวม</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="text-gray-800 dark:text-gray-200">
           {/* วนลูปข้อมูลแต่ละชุดเลื่อย */}
           {data.length > 0 ? (
             data.map((row, idx) => (
-              <tr key={idx} className="hover:bg-blue-50 transition-colors bg-white">
-                <td className="border border-gray-400 p-2 text-left font-medium">{row.saw_name || 'ไม่ระบุ'}</td>
+              <tr key={idx} className="hover:bg-blue-50 dark:hover:bg-gray-700/60 transition-colors bg-white dark:bg-gray-800">
+                <td className="border border-gray-400 dark:border-gray-600 p-2 text-left font-medium">{row.saw_name || 'ไม่ระบุ'}</td>
                 
                 {/* กลุ่ม AB */}
-                <td className="border border-gray-400 p-2 text-right">{Number(row.normal_ab) > 0 ? Number(row.normal_ab).toFixed(2) : ''}</td>
-                <td className="border border-gray-400 p-2 text-right">{Number(row.special_ab) > 0 ? Number(row.special_ab).toFixed(2) : ''}</td>
-                <td className="border border-gray-400 p-2 text-right bg-blue-50/30 font-semibold">{Number(row.avg_ab) > 0 ? Number(row.avg_ab).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 dark:border-gray-600 p-2 text-right">{Number(row.normal_ab) > 0 ? Number(row.normal_ab).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 dark:border-gray-600 p-2 text-right">{Number(row.special_ab) > 0 ? Number(row.special_ab).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 dark:border-gray-600 p-2 text-right bg-blue-50/30 dark:bg-blue-900/20 font-semibold">{Number(row.avg_ab) > 0 ? Number(row.avg_ab).toFixed(2) : ''}</td>
 
                 {/* กลุ่ม C */}
-                <td className="border border-gray-400 p-2 text-right">{Number(row.normal_c) > 0 ? Number(row.normal_c).toFixed(2) : ''}</td>
-                <td className="border border-gray-400 p-2 text-right">{Number(row.special_c) > 0 ? Number(row.special_c).toFixed(2) : ''}</td>
-                <td className="border border-gray-400 p-2 text-right bg-blue-50/30 font-semibold">{Number(row.avg_c) > 0 ? Number(row.avg_c).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 dark:border-gray-600 p-2 text-right">{Number(row.normal_c) > 0 ? Number(row.normal_c).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 dark:border-gray-600 p-2 text-right">{Number(row.special_c) > 0 ? Number(row.special_c).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 dark:border-gray-600 p-2 text-right bg-blue-50/30 dark:bg-blue-900/20 font-semibold">{Number(row.avg_c) > 0 ? Number(row.avg_c).toFixed(2) : ''}</td>
 
                 {/* กลุ่ม P */}
-                <td className="border border-gray-400 p-2 text-right">{Number(row.normal_p) > 0 ? Number(row.normal_p).toFixed(2) : ''}</td>
-                <td className="border border-gray-400 p-2 text-right">{Number(row.special_p) > 0 ? Number(row.special_p).toFixed(2) : ''}</td>
-                <td className="border border-gray-400 p-2 text-right bg-blue-50/30 font-semibold">{Number(row.avg_p) > 0 ? Number(row.avg_p).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 dark:border-gray-600 p-2 text-right">{Number(row.normal_p) > 0 ? Number(row.normal_p).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 dark:border-gray-600 p-2 text-right">{Number(row.special_p) > 0 ? Number(row.special_p).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 dark:border-gray-600 p-2 text-right bg-blue-50/30 dark:bg-blue-900/20 font-semibold">{Number(row.avg_p) > 0 ? Number(row.avg_p).toFixed(2) : ''}</td>
 
                 {/* กลุ่ม PP */}
-                <td className="border border-gray-400 p-2 text-right">{Number(row.normal_pp) > 0 ? Number(row.normal_pp).toFixed(2) : ''}</td>
-                <td className="border border-gray-400 p-2 text-right">{Number(row.special_pp) > 0 ? Number(row.special_pp).toFixed(2) : ''}</td>
-                <td className="border border-gray-400 p-2 text-right bg-blue-50/30 font-semibold">{Number(row.avg_pp) > 0 ? Number(row.avg_pp).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 dark:border-gray-600 p-2 text-right">{Number(row.normal_pp) > 0 ? Number(row.normal_pp).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 dark:border-gray-600 p-2 text-right">{Number(row.special_pp) > 0 ? Number(row.special_pp).toFixed(2) : ''}</td>
+                <td className="border border-gray-400 dark:border-gray-600 p-2 text-right bg-blue-50/30 dark:bg-blue-900/20 font-semibold">{Number(row.avg_pp) > 0 ? Number(row.avg_pp).toFixed(2) : ''}</td>
 
                 {/* รวมเฉลี่ยทั้งหมด (ต่อชุดเลื่อย) */}
-                <td className="border border-gray-400 p-2 text-right bg-green-50 text-green-800 font-bold">
+                <td className="border border-gray-400 dark:border-gray-600 p-2 text-right bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300 font-bold">
                   {Number(row.avg_total) > 0 ? Number(row.avg_total).toFixed(2) : ''}
                 </td>
               </tr>
             ))
           ) : (
             <tr>
-              <td colSpan="14" className="border border-gray-400 p-8 text-center text-gray-500">
+              <td colSpan="14" className="border border-gray-400 dark:border-gray-600 p-8 text-center text-gray-500 dark:text-gray-400">
                 ไม่พบข้อมูลในช่วงเวลาที่เลือก
               </td>
             </tr>
@@ -87,26 +87,26 @@ const ReportTable = React.memo(({ data, grandTotal, showFooter }) => {
 
           {/* แถวสรุปรวมทั้งหมด (Grand Total) - โชว์เฉพาะหน้าสุดท้าย */}
           {showFooter && grandTotal && data.length > 0 && (
-            <tr className="bg-gray-300 font-bold text-gray-900 border-t-2 border-gray-600">
-              <td className="border border-gray-500 p-2 text-left bg-gray-400">รวมทั้งหมด</td>
+            <tr className="bg-gray-300 dark:bg-gray-700 font-bold text-gray-900 dark:text-gray-100 border-t-2 border-gray-600 dark:border-gray-500">
+              <td className="border border-gray-500 dark:border-gray-600 p-2 text-left bg-gray-400 dark:bg-gray-600">รวมทั้งหมด</td>
               
-              <td className="border border-gray-500 p-2 text-right">{Number(grandTotal.normal_ab) > 0 ? Number(grandTotal.normal_ab).toFixed(2) : '0'}</td>
-              <td className="border border-gray-500 p-2 text-right">{Number(grandTotal.special_ab) > 0 ? Number(grandTotal.special_ab).toFixed(2) : '0'}</td>
-              <td className="border border-gray-500 p-2 text-right bg-blue-200">{Number(grandTotal.avg_ab) > 0 ? Number(grandTotal.avg_ab).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 dark:border-gray-600 p-2 text-right">{Number(grandTotal.normal_ab) > 0 ? Number(grandTotal.normal_ab).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 dark:border-gray-600 p-2 text-right">{Number(grandTotal.special_ab) > 0 ? Number(grandTotal.special_ab).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 dark:border-gray-600 p-2 text-right bg-blue-200 dark:bg-blue-900/50">{Number(grandTotal.avg_ab) > 0 ? Number(grandTotal.avg_ab).toFixed(2) : '0'}</td>
 
-              <td className="border border-gray-500 p-2 text-right">{Number(grandTotal.normal_c) > 0 ? Number(grandTotal.normal_c).toFixed(2) : '0'}</td>
-              <td className="border border-gray-500 p-2 text-right">{Number(grandTotal.special_c) > 0 ? Number(grandTotal.special_c).toFixed(2) : '0'}</td>
-              <td className="border border-gray-500 p-2 text-right bg-blue-200">{Number(grandTotal.avg_c) > 0 ? Number(grandTotal.avg_c).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 dark:border-gray-600 p-2 text-right">{Number(grandTotal.normal_c) > 0 ? Number(grandTotal.normal_c).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 dark:border-gray-600 p-2 text-right">{Number(grandTotal.special_c) > 0 ? Number(grandTotal.special_c).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 dark:border-gray-600 p-2 text-right bg-blue-200 dark:bg-blue-900/50">{Number(grandTotal.avg_c) > 0 ? Number(grandTotal.avg_c).toFixed(2) : '0'}</td>
 
-              <td className="border border-gray-500 p-2 text-right">{Number(grandTotal.normal_p) > 0 ? Number(grandTotal.normal_p).toFixed(2) : '0'}</td>
-              <td className="border border-gray-500 p-2 text-right">{Number(grandTotal.special_p) > 0 ? Number(grandTotal.special_p).toFixed(2) : '0'}</td>
-              <td className="border border-gray-500 p-2 text-right bg-blue-200">{Number(grandTotal.avg_p) > 0 ? Number(grandTotal.avg_p).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 dark:border-gray-600 p-2 text-right">{Number(grandTotal.normal_p) > 0 ? Number(grandTotal.normal_p).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 dark:border-gray-600 p-2 text-right">{Number(grandTotal.special_p) > 0 ? Number(grandTotal.special_p).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 dark:border-gray-600 p-2 text-right bg-blue-200 dark:bg-blue-900/50">{Number(grandTotal.avg_p) > 0 ? Number(grandTotal.avg_p).toFixed(2) : '0'}</td>
 
-              <td className="border border-gray-500 p-2 text-right">{Number(grandTotal.normal_pp) > 0 ? Number(grandTotal.normal_pp).toFixed(2) : '0'}</td>
-              <td className="border border-gray-500 p-2 text-right">{Number(grandTotal.special_pp) > 0 ? Number(grandTotal.special_pp).toFixed(2) : '0'}</td>
-              <td className="border border-gray-500 p-2 text-right bg-blue-200">{Number(grandTotal.avg_pp) > 0 ? Number(grandTotal.avg_pp).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 dark:border-gray-600 p-2 text-right">{Number(grandTotal.normal_pp) > 0 ? Number(grandTotal.normal_pp).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 dark:border-gray-600 p-2 text-right">{Number(grandTotal.special_pp) > 0 ? Number(grandTotal.special_pp).toFixed(2) : '0'}</td>
+              <td className="border border-gray-500 dark:border-gray-600 p-2 text-right bg-blue-200 dark:bg-blue-900/50">{Number(grandTotal.avg_pp) > 0 ? Number(grandTotal.avg_pp).toFixed(2) : '0'}</td>
 
-              <td className="border border-gray-500 p-2 text-right bg-green-300 text-green-900">
+              <td className="border border-gray-500 dark:border-gray-600 p-2 text-right bg-green-300 dark:bg-green-900/60 text-green-900 dark:text-green-200">
                 {Number(grandTotal.avg_total) > 0 ? Number(grandTotal.avg_total).toFixed(2) : '0'}
               </td>
             </tr>
@@ -295,21 +295,23 @@ export default function AveragePriceReport() {
   const currentRows = reportData.slice(indexOfFirstItem, indexOfLastItem);
 
   return (
-    <div className="p-4 md:p-6 mx-auto min-h-screen bg-gray-50">
+    <div className="p-4 md:p-6 mx-auto min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
       
       {/* ─── 1. ส่วนเงื่อนไขการค้นหา ─── */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6 print:hidden">
-        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <i className="fas fa-chart-line text-blue-600"></i> ค้นหารายงานเปรียบเทียบราคาขายเฉลี่ย
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-6 print:hidden transition-colors duration-300">
+        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+          <i className="fas fa-chart-line text-blue-600 dark:text-blue-400"></i> ค้นหารายงานเปรียบเทียบราคาขายเฉลี่ย
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1 text-gray-700">สาขา <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">สาขา <span className="text-red-500">*</span></label>
             <select
               value={filters.branch_id}
               onChange={handleBranchChange}
-              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-gray-50"
+              disabled={branches.length <= 1}
+              title={branches.length <= 1 ? 'คุณมีสิทธิ์เข้าถึงเฉพาะสาขานี้' : ''}
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:border-gray-300 dark:disabled:border-gray-700 disabled:cursor-not-allowed disabled:opacity-75 transition-colors"
             >
               <option value="">-- เลือกสาขา --</option>
               {branches.map((branch) => (
@@ -319,36 +321,36 @@ export default function AveragePriceReport() {
           </div>
 
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1 text-gray-700">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
             <DatePicker
               selected={filters.start_date ? parseISO(filters.start_date) : null}
               onChange={(date) => handleDateChange(date, 'start_date')}
               dateFormat="dd/MM/yyyy"
               locale={th}
-              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-gray-50"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 transition-colors"
               wrapperClassName="w-full"
             />
           </div>
 
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1 text-gray-700">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
             <DatePicker
               selected={filters.end_date ? parseISO(filters.end_date) : null}
               onChange={(date) => handleDateChange(date, 'end_date')}
               dateFormat="dd/MM/yyyy"
               locale={th}
-              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-gray-50"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 transition-colors"
               wrapperClassName="w-full"
             />
           </div>
 
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1 text-gray-700">รหัสสโตร์</label>
+            <label className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">รหัสสโตร์</label>
             <select 
               name="store_code" 
               value={filters.store_code} 
               onChange={handleFilterChange} 
-              className="w-full border rounded-lg p-2 text-sm outline-none bg-gray-50"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm outline-none bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 transition-colors"
             >
               <option value="">-- รวมทุกสโตร์ --</option>
               {options?.sawWoodTypes?.map(item => (
@@ -397,13 +399,13 @@ export default function AveragePriceReport() {
 
       {/* ─── 2. ส่วนแสดงผลตารางรายงาน ─── */}
       {reportData.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 pb-6 print:border-none print:shadow-none">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 pb-6 print:bg-white print:text-black print:border-none print:shadow-none transition-colors duration-300">
           
           {/* หัวกระดาษ */}
           <div className="text-center mb-6 pt-8">
-            <h1 className="text-xl font-bold text-gray-800">บริษัท วู้ดเวิร์ค จำกัด ( {filters.branch_name} )</h1>
-            <h2 className="text-lg font-semibold text-gray-700 mt-2">รายงานเปรียบเทียบราคาขายเฉลี่ย ตามแผนกและเกรดไม้</h2>
-            <p className="text-md text-gray-600 mt-2">
+            <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">บริษัท วู้ดเวิร์ค จำกัด ( {filters.branch_name} )</h1>
+            <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mt-2">รายงานเปรียบเทียบราคาขายเฉลี่ย ตามแผนกและเกรดไม้</h2>
+            <p className="text-md text-gray-600 dark:text-gray-300 mt-2">
               ตั้งแต่วันที่ {format(parseISO(filters.start_date), 'dd/MM/yyyy')} ถึง {format(parseISO(filters.end_date), 'dd/MM/yyyy')} 
               <span className="ml-2">
                 สโตร์: {filters.store_code || 'รวมทุกสโตร์'}
@@ -422,21 +424,21 @@ export default function AveragePriceReport() {
 
           {/* ─── Pagination ─── */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 mt-4 mx-4 print:hidden">
+            <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-4 mx-4 print:hidden">
               <div className="flex gap-2">
-                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">« หน้าแรก</button>
-                <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">‹ ก่อนหน้า</button>
+                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500">« หน้าแรก</button>
+                <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500">‹ ก่อนหน้า</button>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm">หน้า</span>
-                <select value={currentPage} onChange={(e) => setCurrentPage(Number(e.target.value))} className="border rounded-md py-1 px-2 text-sm font-semibold text-blue-700 outline-none focus:ring-1 focus:ring-blue-500">
+                <span className="text-sm text-gray-700 dark:text-gray-300">หน้า</span>
+                <select value={currentPage} onChange={(e) => setCurrentPage(Number(e.target.value))} className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md py-1 px-2 text-sm font-semibold text-blue-700 dark:text-blue-300 outline-none focus:ring-1 focus:ring-blue-500">
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
-                <span className="text-sm">จาก {totalPages}</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">จาก {totalPages}</span>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">ถัดไป ›</button>
-                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">หน้าสุดท้าย »</button>
+                <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500">ถัดไป ›</button>
+                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500">หน้าสุดท้าย »</button>
               </div>
             </div>
           )}

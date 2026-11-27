@@ -110,7 +110,14 @@ export default function DryWoodDataReport() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <label className="block text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">สาขา <span className="text-red-500">*</span></label>
-            <select name="branch_id" value={filters.branch_id} onChange={handleBranchChange} className="w-full border dark:border-gray-600 rounded-lg p-2 text-sm outline-none bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:border-orange-500 transition-colors">
+            <select
+              name="branch_id"
+              value={filters.branch_id}
+              onChange={handleBranchChange}
+              disabled={branches.length <= 1}
+              title={branches.length <= 1 ? 'คุณมีสิทธิ์เข้าถึงเฉพาะสาขานี้' : ''}
+              className="w-full border dark:border-gray-600 rounded-lg p-2 text-sm outline-none bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:border-orange-500 transition-colors disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:border-gray-300 dark:disabled:border-gray-700 disabled:cursor-not-allowed disabled:opacity-75"
+            >
               <option value="">-- เลือกสาขา --</option>
               {branches.map(b => (
                 <option key={b.id} value={b.id}>{b.branch_code} - {b.branch_name}</option>

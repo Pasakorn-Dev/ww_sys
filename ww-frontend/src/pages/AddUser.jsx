@@ -11,6 +11,11 @@ export default function Users() {
   // ─── State: ข้อมูลผู้ใช้ปัจจุบันและสิทธิ์ ───
   const [currentUser, setCurrentUser] = useState(null);
   const [accessLevel, setAccessLevel] = useState(3);
+  const [permissions, setPermissions] = useState({
+    can_add: false,
+    can_edit: false,
+    can_delete: false,
+  });
 
   // ─── State สำหรับจัดการตารางและการค้นหา ───
   const [users, setUsers] = useState([]);
@@ -62,8 +67,9 @@ export default function Users() {
       try {
         const currentPath = window.location.pathname;
 
-        // ดึงข้อมูลตัวเลือกและรายการผู้ใช้งานพร้อมกัน
-        const [branchRes, groupRes, deptRes, usersRes] = await Promise.all([
+        // ดึงข้อมูลสิทธิ์เมนู ตัวเลือก และรายการผู้ใช้งานพร้อมกัน
+        const [menuRes, branchRes, groupRes, deptRes, usersRes] = await Promise.all([
+          apiFetch('/menus'),
           apiFetch(`/branches/allowed?menu=${currentPath}`),
           apiFetch('/master-options/groups'),
           apiFetch('/master-options/departments'),
@@ -71,6 +77,17 @@ export default function Users() {
         ]);
 
         if (!isMounted) return;
+
+        if (menuRes?.success && Array.isArray(menuRes.data)) {
+          const currentMenu = menuRes.data.find((m) => m.link === currentPath);
+          if (currentMenu) {
+            setPermissions({
+              can_add: Boolean(currentMenu.can_add),
+              can_edit: Boolean(currentMenu.can_edit),
+              can_delete: Boolean(currentMenu.can_delete),
+            });
+          }
+        }
 
         if (branchRes?.success) {
           setBranches(branchRes.data || []);
@@ -155,6 +172,7 @@ export default function Users() {
   };
 
   const openAddModal = () => {
+    if (!permissions.can_add) return;
     setEditingId(null);
     setFormData(initialFormState);
     resetAvatarState();
@@ -162,6 +180,7 @@ export default function Users() {
   };
 
   const openEditModal = async (userId) => {
+    if (!permissions.can_edit) return;
     setEditingId(userId);
     resetAvatarState();
     setIsModalOpen(true);
@@ -280,6 +299,11 @@ export default function Users() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    const isEditMode = editingId !== null;
+    if ((isEditMode && !permissions.can_edit) || (!isEditMode && !permissions.can_add)) {
+      return;
+    }
+
     const cleanUsername = formData.username.trim();
     const cleanFullname = formData.fullname.trim();
     const cleanPassword = formData.password.trim();
@@ -307,7 +331,6 @@ export default function Users() {
 
     setLoading(true);
 
-    const isEditMode = editingId !== null;
     const url = isEditMode ? `/auth/manage/update/${editingId}` : '/auth/manage/create';
     const method = isEditMode ? 'PUT' : 'POST';
 
@@ -371,6 +394,7 @@ export default function Users() {
 
   // ─── 4. ระบบลบผู้ใช้งาน (พร้อมระบบป้องกันการลบบัญชีตัวเอง) ───
   const handleDelete = (userId, fullname) => {
+    if (!permissions.can_delete) return;
     if (currentUser && Number(currentUser.id) === Number(userId)) {
       Swal.fire({
         icon: 'warning',
@@ -461,12 +485,14 @@ export default function Users() {
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white text-sm transition-colors"
               />
             </div>
-            <button 
-              onClick={openAddModal}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition flex items-center gap-2 whitespace-nowrap text-sm"
-            >
-              <i className="fas fa-plus"></i> เพิ่มผู้ใช้
-            </button>
+            {permissions.can_add && (
+              <button 
+                onClick={openAddModal}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition flex items-center gap-2 whitespace-nowrap text-sm"
+              >
+                <i className="fas fa-plus"></i> เพิ่มผู้ใช้
+              </button>
+            )}
           </div>
         </div>
 
@@ -480,19 +506,21 @@ export default function Users() {
                   <th className="p-4 font-semibold">ชื่อ-นามสกุล</th>
                   <th className="p-4 font-semibold">กลุ่มสิทธิ์</th>
                   <th className="p-4 font-semibold">สาขาหลัก</th>
-                  <th className="p-4 font-semibold text-center">จัดการ</th>
+                  {(permissions.can_edit || permissions.can_delete) && (
+                    <th className="p-4 font-semibold text-center">จัดการ</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="text-sm divide-y divide-gray-200 dark:divide-gray-700">
                 {isFetchingUsers ? (
                   <tr>
-                    <td colSpan="5" className="p-8 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={permissions.can_edit || permissions.can_delete ? 5 : 4} className="p-8 text-center text-gray-500 dark:text-gray-400">
                       <i className="fas fa-spinner fa-spin mr-2 text-blue-600"></i> กำลังโหลด...
                     </td>
                   </tr>
                 ) : filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="p-8 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={permissions.can_edit || permissions.can_delete ? 5 : 4} className="p-8 text-center text-gray-500 dark:text-gray-400">
                       ไม่พบข้อมูลผู้ใช้งาน
                     </td>
                   </tr>
@@ -529,25 +557,31 @@ export default function Users() {
                           </span>
                         </td>
                         <td className="p-4 text-gray-600 dark:text-gray-300">{u.branch_name || '-'}</td>
-                        <td className="p-4 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            <button
-                              onClick={() => openEditModal(u.id)}
-                              className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition"
-                              title="แก้ไข"
-                            >
-                              <i className="fas fa-edit"></i>
-                            </button>
-                            <button
-                              onClick={() => handleDelete(u.id, u.fullname)}
-                              disabled={isSelf}
-                              className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition disabled:opacity-30 disabled:cursor-not-allowed"
-                              title={isSelf ? 'ไม่สามารถลบบัญชีที่กำลังใช้งานอยู่ได้' : 'ลบ'}
-                            >
-                              <i className="fas fa-trash-alt"></i>
-                            </button>
-                          </div>
-                        </td>
+                        {(permissions.can_edit || permissions.can_delete) && (
+                          <td className="p-4 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              {permissions.can_edit && (
+                                <button
+                                  onClick={() => openEditModal(u.id)}
+                                  className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition"
+                                  title="แก้ไข"
+                                >
+                                  <i className="fas fa-edit"></i>
+                                </button>
+                              )}
+                              {permissions.can_delete && (
+                                <button
+                                  onClick={() => handleDelete(u.id, u.fullname)}
+                                  disabled={isSelf}
+                                  className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition disabled:opacity-30 disabled:cursor-not-allowed"
+                                  title={isSelf ? 'ไม่สามารถลบบัญชีที่กำลังใช้งานอยู่ได้' : 'ลบ'}
+                                >
+                                  <i className="fas fa-trash-alt"></i>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     );
                   })

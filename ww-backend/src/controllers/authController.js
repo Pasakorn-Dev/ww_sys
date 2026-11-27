@@ -268,6 +268,11 @@ const authController = {
     deleteUserAdmin: async (req, res) => {
         try {
             const userId = req.params.id;
+
+            if(userId === '1'){
+                return res.status(500).json({ success: false, message: 'ไม่สามารถลบผู้ใช้นี้ได้ ผู้ใช้เป็นสิทธิ์สูงสุด' });
+            }
+
             const deleted = await UserModel.deleteUserAdmin(userId);
             if (!deleted) return res.status(404).json({ success: false, message: 'ไม่พบผู้ใช้' });
             await deleteAvatarFile(deleted.avatar);

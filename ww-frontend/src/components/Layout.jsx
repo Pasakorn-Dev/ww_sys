@@ -143,12 +143,30 @@ export default function Layout() {
   }, []);
 
   // ─── Handler: Logout ──────────────────────────────────────
-  const handleLogout = async () => {
+  const performLogout = async () => {
     try {
       await apiFetch('/auth/logout', { method: 'POST' }); // ให้เซิร์ฟเวอร์ล้าง httpOnly cookie
     } catch { /* ออกจากระบบฝั่ง client ต่อให้เรียกไม่สำเร็จ */ }
     clearSession();
     navigate('/login', { replace: true });
+  };
+
+  const handleLogout = async () => {
+    const result = await Swal.fire({
+      icon: 'warning',
+      title: 'ยืนยันการออกจากระบบ',
+      text: 'คุณต้องการออกจากระบบใช่หรือไม่?',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'ออกจากระบบ',
+      cancelButtonText: 'ยกเลิก',
+      reverseButtons: true,
+    });
+
+    if (result.isConfirmed) {
+      await performLogout();
+    }
   };
 
   // ─── Handler: เปลี่ยนรหัสผ่าน ─────────────────────────────
@@ -225,7 +243,7 @@ export default function Layout() {
         <p>{loadError}</p>
         <div className="flex gap-3">
           <button onClick={() => window.location.reload()} className="px-4 py-2 rounded bg-green-600 text-white">ลองใหม่</button>
-          <button onClick={handleLogout} className="px-4 py-2 rounded border border-gray-400">กลับหน้าเข้าสู่ระบบ</button>
+          <button onClick={performLogout} className="px-4 py-2 rounded border border-gray-400">กลับหน้าเข้าสู่ระบบ</button>
         </div>
       </div>
     );

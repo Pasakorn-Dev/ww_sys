@@ -241,7 +241,9 @@ export default function WoodPriceManager() {
             <select
               value={selectedBranch}
               onChange={(e) => setSelectedBranch(e.target.value)}
-              className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+              disabled={allowedBranches.length <= 1}
+              title={allowedBranches.length <= 1 ? 'คุณมีสิทธิ์จัดการเฉพาะสาขานี้' : ''}
+              className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:border-gray-300 dark:disabled:border-gray-700 disabled:cursor-not-allowed disabled:opacity-75"
             >
               <option value="" disabled>-- กรุณาเลือกสาขา --</option>
               {allowedBranches.map(b => (
@@ -303,17 +305,17 @@ export default function WoodPriceManager() {
                 <th className="p-3 font-semibold w-40 border-b dark:border-gray-700">ราคาใหม่ (฿)</th>
               </tr>
             </thead>
-            <tbody className="text-sm divide-y divide-gray-200">
+            <tbody className="text-sm divide-y divide-gray-200 dark:divide-gray-700">
               {isLoading ? (
                 <tr>
-                  <td colSpan="5" className="p-12 text-center text-gray-500">
-                    <i className="fas fa-spinner fa-spin text-2xl mb-3 block text-blue-600"></i> 
+                  <td colSpan="5" className="p-12 text-center text-gray-500 dark:text-gray-400">
+                    <i className="fas fa-spinner fa-spin text-2xl mb-3 block text-blue-600 dark:text-blue-400"></i> 
                     กำลังโหลดข้อมูล...
                   </td>
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="p-12 text-center text-gray-500 font-medium">
+                  <td colSpan="5" className="p-12 text-center text-gray-500 dark:text-gray-400 font-medium">
                     กรุณาเลือกสาขา และกดค้นหาเพื่อแสดงข้อมูล
                   </td>
                 </tr>
@@ -325,27 +327,27 @@ export default function WoodPriceManager() {
                       key={item.id} 
                       className={`transition-colors duration-150 ${
                         isEdited 
-                          ? 'bg-blue-50/80 hover:bg-blue-100/60' 
-                          : 'bg-white hover:bg-gray-100/80'
+                          ? 'bg-blue-50/80 hover:bg-blue-100/60 dark:bg-blue-900/20 dark:hover:bg-blue-900/30' 
+                          : 'bg-white hover:bg-gray-100/80 dark:bg-gray-800 dark:hover:bg-gray-700/60'
                       }`}
                     >
                       {/* บาร์โค้ด / รหัสไม้ */}
-                      <td className="p-3 font-mono font-medium text-gray-900 whitespace-nowrap">
+                      <td className="p-3 font-mono font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">
                         {item.wood_code || '-'}
                       </td>
 
                       {/* ขนาด */}
-                      <td className="p-3 font-semibold text-gray-900 whitespace-nowrap">
+                      <td className="p-3 font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">
                         {item.thick} x {item.width} x {item.length}
                       </td>
 
                       {/* มิล */}
-                      <td className="p-3 text-center font-medium text-gray-800">
+                      <td className="p-3 text-center font-medium text-gray-800 dark:text-gray-200">
                         {item.mil}
                       </td>
 
                       {/* ราคาเดิม */}
-                      <td className="p-3 text-right font-bold text-gray-900">
+                      <td className="p-3 text-right font-bold text-gray-900 dark:text-gray-100">
                         {Number(item.unit_price).toFixed(2)}
                       </td>
 
@@ -353,7 +355,7 @@ export default function WoodPriceManager() {
                       <td className="p-3">
                         <div className="relative">
                           <span className={`absolute inset-y-0 left-0 flex items-center pl-3 text-sm font-bold ${
-                            isEdited ? 'text-blue-600' : 'text-gray-500'
+                            isEdited ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
                           }`}>
                             ฿
                           </span>
@@ -365,8 +367,8 @@ export default function WoodPriceManager() {
                             onChange={(e) => handlePriceChange(item.id, e.target.value)}
                             className={`w-full pl-8 pr-3 py-1.5 text-sm font-semibold rounded-md outline-none border transition-all duration-200 ${
                               isEdited 
-                                ? 'bg-white border-blue-500 text-blue-900 focus:ring-2 focus:ring-blue-500/20 shadow-sm' 
-                                : 'bg-gray-50/80 border-gray-300 text-gray-900 placeholder-gray-400 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 hover:border-gray-400'
+                                ? 'bg-white dark:bg-gray-900 border-blue-500 text-blue-900 dark:text-blue-300 focus:ring-2 focus:ring-blue-500/20 shadow-sm' 
+                                : 'bg-gray-50/80 dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:bg-white dark:focus:bg-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 hover:border-gray-400 dark:hover:border-gray-500'
                             }`}
                           />
                         </div>

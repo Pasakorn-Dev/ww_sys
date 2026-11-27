@@ -181,21 +181,22 @@ export default function ProductionThickMilReport() {
   const totalPages = Math.ceil(reportData.length / itemsPerPage);
 
   return (
-    <div className="p-4 md:p-6 mx-auto min-h-screen bg-gray-50">
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6 print:hidden">
-        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <i className="fas fa-layer-group text-blue-600"></i> รายงานการผลิต แยกตาม ความหนา-มิลไม้
+    <div className="p-4 md:p-6 mx-auto min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-6 print:hidden transition-colors duration-300">
+        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+          <i className="fas fa-layer-group text-blue-600 dark:text-blue-400"></i> รายงานการผลิต แยกตาม ความหนา-มิลไม้
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1 text-gray-700">สาขา <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">สาขา <span className="text-red-500">*</span></label>
             <select
               name="branch_id"
               value={filters.branch_id}
               onChange={handleBranchChange}
               disabled={isLoading || (accessLevel !== 1 && branches.length <= 1)}
-              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-gray-50 disabled:bg-gray-200 disabled:text-gray-500"
+              title={accessLevel !== 1 && branches.length <= 1 ? 'คุณมีสิทธิ์เข้าถึงเฉพาะสาขานี้' : ''}
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:border-gray-300 dark:disabled:border-gray-700 disabled:cursor-not-allowed disabled:opacity-75 transition-colors"
             >
               <option value="" disabled>-- เลือกสาขา --</option>
               {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
@@ -203,36 +204,36 @@ export default function ProductionThickMilReport() {
           </div>
 
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1 text-gray-700">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
             <DatePicker
               selected={filters.start_date ? parseISO(filters.start_date) : null}
               onChange={(date) => handleDateChange(date, 'start_date')}
               dateFormat="dd/MM/yyyy"
               locale={th}
-              className="w-full border rounded-md p-2 text-sm outline-none bg-gray-50"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm outline-none bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:border-blue-500 transition-colors"
               wrapperClassName="w-full"
             />
           </div>
 
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1 text-gray-700">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
             <DatePicker
               selected={filters.end_date ? parseISO(filters.end_date) : null}
               onChange={(date) => handleDateChange(date, 'end_date')}
               dateFormat="dd/MM/yyyy"
               locale={th}
-              className="w-full border rounded-md p-2 text-sm outline-none bg-gray-50"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm outline-none bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:border-blue-500 transition-colors"
               wrapperClassName="w-full"
             />
           </div>
 
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1 text-gray-700">เกรดไม้</label>
+            <label className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">เกรดไม้</label>
             <select
               name="grade"
               value={filters.grade}
               onChange={handleFilterChange}
-              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-white"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 transition-colors"
             >
               <option value="AB">AB</option>
               <option value="C">C</option>
@@ -243,12 +244,12 @@ export default function ProductionThickMilReport() {
           </div>
 
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1 text-gray-700">รหัสสโตร์</label>
+            <label className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">รหัสสโตร์</label>
             <select 
               name="store_code" 
               value={filters.store_code} 
               onChange={handleFilterChange} 
-              className="w-full border rounded-lg p-2 text-sm outline-none bg-gray-50"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm outline-none bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 transition-colors"
             >
               <option value="">-- รวมทุกสโตร์ --</option>
               {options?.sawWoodTypes?.map(item => (
@@ -262,7 +263,7 @@ export default function ProductionThickMilReport() {
           <button 
             onClick={handleSearch} 
             disabled={isLoading} 
-            className="bg-blue-600 text-white px-8 py-2 rounded-md text-sm font-semibold hover:bg-blue-700 shadow-sm flex items-center justify-center min-w-[120px]"
+            className="bg-blue-600 text-white px-8 py-2 rounded-md text-sm font-semibold hover:bg-blue-700 shadow-sm flex items-center justify-center min-w-[120px] transition-colors"
           >
             {isLoading ? <><i className="fas fa-spinner fa-spin mr-2"></i>กำลังโหลด...</> : <><i className="fas fa-search mr-2"></i>ดึงข้อมูล</>}
           </button>
@@ -284,124 +285,124 @@ export default function ProductionThickMilReport() {
       </div>
 
       {reportData.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto pb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-x-auto pb-6 print:bg-white print:text-black transition-colors duration-300">
           <div className="text-center mb-6 pt-6">
-            <h1 className="text-xl font-bold text-gray-800">รายงานการผลิต แยกตาม ความหนา-มิลไม้</h1>
-            <h2 className="text-md font-semibold text-gray-700 mt-2">บริษัท วู้ดเวอร์ค จำกัด ({filters.branch_name})</h2>
-            <p className="text-sm text-gray-600 mt-1">
+            <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">รายงานการผลิต แยกตาม ความหนา-มิลไม้</h1>
+            <h2 className="text-md font-semibold text-gray-700 dark:text-gray-200 mt-2">บริษัท วู้ดเวอร์ค จำกัด ({filters.branch_name})</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
               ตั้งแต่วันที่ {format(parseISO(filters.start_date), 'dd/MM/yyyy')} ถึง {format(parseISO(filters.end_date), 'dd/MM/yyyy')} 
             </p>
             {/* 💡 2. เพิ่มข้อความระบุเงื่อนไข "เกรดไม้" บริเวณหัวรายงาน */}
-            <p className="text-sm text-gray-500 mt-1">
-              เกรดไม้: <span className="font-semibold text-blue-600">{filters.grade === 'ALL' ? 'รวมทุกเกรด' : (filters.grade || 'AB')}</span>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              เกรดไม้: <span className="font-semibold text-blue-600 dark:text-blue-400">{filters.grade === 'ALL' ? 'รวมทุกเกรด' : (filters.grade || 'AB')}</span>
             </p>
           </div>
 
-          <table className="w-full text-xs border-collapse border border-gray-400 whitespace-nowrap min-w-max px-4 mx-4" style={{ width: 'calc(100% - 32px)' }}>
+          <table className="w-full text-xs border-collapse border border-gray-400 dark:border-gray-600 whitespace-nowrap min-w-max px-4 mx-4" style={{ width: 'calc(100% - 32px)' }}>
             <thead>
-              <tr className="bg-[#b4c6e7] text-gray-800 font-semibold border-y-2 border-gray-500">
-                <th className="border border-gray-400 p-2 text-left" colSpan="2">ขนาดไม้</th>
+              <tr className="bg-[#b4c6e7] dark:bg-blue-900/70 text-gray-800 dark:text-blue-100 font-semibold border-y-2 border-gray-500 dark:border-gray-600">
+                <th className="border border-gray-400 dark:border-gray-600 p-2 text-left" colSpan="2">ขนาดไม้</th>
                 {/* 💡 3. เปลี่ยนหัวคอลัมน์จาก "AB" ให้แสดงชื่อตามเกรดที่เลือก */}
-                <th className="border border-gray-400 p-2 text-right">
+                <th className="border border-gray-400 dark:border-gray-600 p-2 text-right">
                   {filters.grade === 'ALL' ? 'ทุกเกรด' : (filters.grade || 'AB')}
                 </th>
-                <th className="border border-gray-400 p-2 text-right">% กว้าง</th>
-                <th className="border border-gray-400 p-2 text-right">% ยาว</th>
-                <th className="border border-gray-400 p-2 text-right">ราคา</th>
-                <th className="border border-gray-400 p-2 text-right">จำนวนเงิน</th>
+                <th className="border border-gray-400 dark:border-gray-600 p-2 text-right">% กว้าง</th>
+                <th className="border border-gray-400 dark:border-gray-600 p-2 text-right">% ยาว</th>
+                <th className="border border-gray-400 dark:border-gray-600 p-2 text-right">ราคา</th>
+                <th className="border border-gray-400 dark:border-gray-600 p-2 text-right">จำนวนเงิน</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="text-gray-800 dark:text-gray-200">
               {currentData.map((tmGroup, idx) => (
                 <React.Fragment key={idx}>
-                  <tr className="bg-white text-gray-800 border-t border-gray-400">
-                    <td className="border border-gray-400 p-2 pl-3 w-32">ความหนา</td>
-                    <td className="border border-gray-400 p-2 w-40">{tmGroup.thick_mil} mm</td>
-                    <td className="border border-gray-400 p-2" colSpan="5"></td>
+                  <tr className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 border-t border-gray-400 dark:border-gray-600">
+                    <td className="border border-gray-400 dark:border-gray-600 p-2 pl-3 w-32 font-semibold">ความหนา</td>
+                    <td className="border border-gray-400 dark:border-gray-600 p-2 w-40 font-semibold">{tmGroup.thick_mil} mm</td>
+                    <td className="border border-gray-400 dark:border-gray-600 p-2" colSpan="5"></td>
                   </tr>
 
                   {tmGroup.lengths.map((lenGroup, lIdx) => (
                     <React.Fragment key={lIdx}>
                       {lenGroup.items.map((item, iIdx) => (
-                        <tr key={iIdx} className="hover:bg-gray-50 bg-white">
-                          <td className="border border-gray-400 p-1 bg-white"></td>
-                          <td className="border border-gray-400 p-1 pl-2 text-blue-800">{item.wood_code}</td>
-                          <td className="border border-gray-400 p-1 text-right">{item.ab_volumn.toFixed(4)}</td>
-                          <td className="border border-gray-400 p-1 text-right text-gray-600">{item.pct_width.toFixed(2)}%</td>
-                          <td className="border border-gray-400 p-1 text-right bg-white"></td>
-                          <td className="border border-gray-400 p-1 text-right">{item.avg_price > 0 ? item.avg_price.toFixed(2) : ''}</td>
-                          <td className="border border-gray-400 p-1 text-right">{item.ab_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                        <tr key={iIdx} className="hover:bg-gray-50 dark:hover:bg-gray-700/60 bg-white dark:bg-gray-800 transition-colors">
+                          <td className="border border-gray-400 dark:border-gray-600 p-1 bg-white dark:bg-gray-800"></td>
+                          <td className="border border-gray-400 dark:border-gray-600 p-1 pl-2 text-blue-800 dark:text-blue-300">{item.wood_code}</td>
+                          <td className="border border-gray-400 dark:border-gray-600 p-1 text-right">{item.ab_volumn.toFixed(4)}</td>
+                          <td className="border border-gray-400 dark:border-gray-600 p-1 text-right text-gray-600 dark:text-gray-400">{item.pct_width.toFixed(2)}%</td>
+                          <td className="border border-gray-400 dark:border-gray-600 p-1 text-right bg-white dark:bg-gray-800"></td>
+                          <td className="border border-gray-400 dark:border-gray-600 p-1 text-right">{item.avg_price > 0 ? item.avg_price.toFixed(2) : ''}</td>
+                          <td className="border border-gray-400 dark:border-gray-600 p-1 text-right">{item.ab_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                         </tr>
                       ))}
-                      <tr className="bg-[#fff2cc] font-semibold text-gray-800">
-                        <td className="border border-gray-400 p-1 pl-3" colSpan="2">รวมยาว {lenGroup.length}</td>
-                        <td className="border border-gray-400 p-1 text-right">{lenGroup.sub_volumn.toFixed(4)}</td>
-                        <td className="border border-gray-400 p-1 text-right bg-white"></td>
-                        <td className="border border-gray-400 p-1 text-right">{lenGroup.pct_length.toFixed(2)}%</td>
-                        <td className="border border-gray-400 p-1 text-right bg-white"></td>
-                        <td className="border border-gray-400 p-1 text-right">{lenGroup.sub_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                      <tr className="bg-[#fff2cc] dark:bg-amber-900/35 font-semibold text-gray-800 dark:text-amber-100">
+                        <td className="border border-gray-400 dark:border-gray-600 p-1 pl-3" colSpan="2">รวมยาว {lenGroup.length}</td>
+                        <td className="border border-gray-400 dark:border-gray-600 p-1 text-right">{lenGroup.sub_volumn.toFixed(4)}</td>
+                        <td className="border border-gray-400 dark:border-gray-600 p-1 text-right bg-white dark:bg-gray-800"></td>
+                        <td className="border border-gray-400 dark:border-gray-600 p-1 text-right">{lenGroup.pct_length.toFixed(2)}%</td>
+                        <td className="border border-gray-400 dark:border-gray-600 p-1 text-right bg-white dark:bg-gray-800"></td>
+                        <td className="border border-gray-400 dark:border-gray-600 p-1 text-right">{lenGroup.sub_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                       </tr>
                     </React.Fragment>
                   ))}
 
-                  <tr className="bg-[#c6e0b4] font-bold text-gray-900 border-b border-gray-500">
-                    <td className="border border-gray-400 p-2 pl-3 text-green-900" colSpan="2">รวมหนา {tmGroup.thick_mil} mm</td>
-                    <td className="border border-gray-400 p-2 text-right text-green-900">{tmGroup.total_volumn.toFixed(4)}</td>
-                    <td className="border border-gray-400 p-2 text-right bg-white" colSpan="3"></td>
-                    <td className="border border-gray-400 p-2 text-right text-green-900">{tmGroup.total_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  <tr className="bg-[#c6e0b4] dark:bg-emerald-900/40 font-bold text-gray-900 dark:text-emerald-100 border-b border-gray-500 dark:border-gray-600">
+                    <td className="border border-gray-400 dark:border-gray-600 p-2 pl-3 text-green-900 dark:text-emerald-200" colSpan="2">รวมหนา {tmGroup.thick_mil} mm</td>
+                    <td className="border border-gray-400 dark:border-gray-600 p-2 text-right text-green-900 dark:text-emerald-200">{tmGroup.total_volumn.toFixed(4)}</td>
+                    <td className="border border-gray-400 dark:border-gray-600 p-2 text-right bg-white dark:bg-gray-800" colSpan="3"></td>
+                    <td className="border border-gray-400 dark:border-gray-600 p-2 text-right text-green-900 dark:text-emerald-200">{tmGroup.total_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                   </tr>
                   
-                  <tr className="bg-white font-medium">
-                    <td className="border border-gray-400 p-1 pl-3" colSpan="2">% หน้าไม้นี้ รวมพิเศษ</td>
-                    <td className="border border-gray-400 p-1 text-right bg-[#ffe699] font-bold text-orange-900">{tmGroup.pct_thick_total.toFixed(2)}%</td>
-                    <td className="border border-gray-400 p-1 text-right bg-white" colSpan="4"></td>
+                  <tr className="bg-white dark:bg-gray-800 font-medium">
+                    <td className="border border-gray-400 dark:border-gray-600 p-1 pl-3" colSpan="2">% หน้าไม้นี้ รวมพิเศษ</td>
+                    <td className="border border-gray-400 dark:border-gray-600 p-1 text-right bg-[#ffe699] dark:bg-amber-800/50 font-bold text-orange-900 dark:text-amber-200">{tmGroup.pct_thick_total.toFixed(2)}%</td>
+                    <td className="border border-gray-400 dark:border-gray-600 p-1 text-right bg-white dark:bg-gray-800" colSpan="4"></td>
                   </tr>
-                  <tr className="bg-white font-medium">
-                    <td className="border border-gray-400 p-1 pl-3" colSpan="2">ราคาเฉลี่ย</td>
-                    <td className="border border-gray-400 p-1 text-right bg-[#ff0000] font-bold text-white">{tmGroup.avg_price.toFixed(2)}</td>
-                    <td className="border border-gray-400 p-1 text-right bg-white" colSpan="4"></td>
+                  <tr className="bg-white dark:bg-gray-800 font-medium">
+                    <td className="border border-gray-400 dark:border-gray-600 p-1 pl-3" colSpan="2">ราคาเฉลี่ย</td>
+                    <td className="border border-gray-400 dark:border-gray-600 p-1 text-right bg-[#ff0000] dark:bg-red-700 font-bold text-white">{tmGroup.avg_price.toFixed(2)}</td>
+                    <td className="border border-gray-400 dark:border-gray-600 p-1 text-right bg-white dark:bg-gray-800" colSpan="4"></td>
                   </tr>
                 </React.Fragment>
               ))}
 
               {grandTotalData && (currentPage === totalPages || totalPages === 0) && (
                 <>
-                  <tr className="bg-[#8ea9db] font-bold text-gray-900 border-t-4 border-gray-600">
-                    <td className="border border-gray-500 p-2 pl-3" colSpan="2">รวม ลบ. ฟุต ทั้งหมด</td>
-                    <td className="border border-gray-500 p-2 text-right text-blue-900">{grandTotalData.total_volumn.toFixed(4)}</td>
-                    <td className="border border-gray-500 p-2 text-right">100%</td>
-                    <td className="border border-gray-500 p-2 text-right bg-white" colSpan="2"></td>
-                    <td className="border border-gray-500 p-2 text-right text-blue-900">{grandTotalData.total_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  <tr className="bg-[#8ea9db] dark:bg-blue-900/60 font-bold text-gray-900 dark:text-blue-100 border-t-4 border-gray-600 dark:border-gray-500">
+                    <td className="border border-gray-500 dark:border-gray-600 p-2 pl-3" colSpan="2">รวม ลบ. ฟุต ทั้งหมด</td>
+                    <td className="border border-gray-500 dark:border-gray-600 p-2 text-right text-blue-900 dark:text-blue-200">{grandTotalData.total_volumn.toFixed(4)}</td>
+                    <td className="border border-gray-500 dark:border-gray-600 p-2 text-right">100%</td>
+                    <td className="border border-gray-500 dark:border-gray-600 p-2 text-right bg-white dark:bg-gray-800" colSpan="2"></td>
+                    <td className="border border-gray-500 dark:border-gray-600 p-2 text-right text-blue-900 dark:text-blue-200">{grandTotalData.total_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                   </tr>
-                  <tr className="bg-gray-200 font-bold">
-                    <td className="border border-gray-500 p-2 pl-3" colSpan="2">ราคาเฉลี่ย</td>
-                    <td className="border border-gray-500 p-2 text-right text-orange-900 bg-[#ffe699]">{grandTotalData.avg_price.toFixed(2)}</td>
-                    <td className="border border-gray-500 p-2 text-right bg-white" colSpan="4"></td>
+                  <tr className="bg-gray-200 dark:bg-gray-700 font-bold text-gray-900 dark:text-gray-100">
+                    <td className="border border-gray-500 dark:border-gray-600 p-2 pl-3" colSpan="2">ราคาเฉลี่ย</td>
+                    <td className="border border-gray-500 dark:border-gray-600 p-2 text-right text-orange-900 dark:text-amber-200 bg-[#ffe699] dark:bg-amber-800/50">{grandTotalData.avg_price.toFixed(2)}</td>
+                    <td className="border border-gray-500 dark:border-gray-600 p-2 text-right bg-white dark:bg-gray-800" colSpan="4"></td>
                   </tr>
 
-                  <tr className="bg-white">
+                  <tr className="bg-white dark:bg-gray-800">
                     <td colSpan="7" className="p-0 border-0">
                       <div className="mt-4 w-1/2 min-w-[300px]">
-                        <table className="w-full text-xs border-collapse border border-gray-300">
+                        <table className="w-full text-xs border-collapse border border-gray-300 dark:border-gray-600">
                           <thead>
-                            <tr className="bg-gray-100 font-semibold text-gray-700">
-                              <th className="border border-gray-300 p-2 text-left">สรุปสัดส่วนความยาว</th>
-                              <th className="border border-gray-300 p-2 text-right">ปริมาตร</th>
-                              <th className="border border-gray-300 p-2 text-right">เปอร์เซ็นต์</th>
+                            <tr className="bg-gray-100 dark:bg-gray-700 font-semibold text-gray-700 dark:text-gray-200">
+                              <th className="border border-gray-300 dark:border-gray-600 p-2 text-left">สรุปสัดส่วนความยาว</th>
+                              <th className="border border-gray-300 dark:border-gray-600 p-2 text-right">ปริมาตร</th>
+                              <th className="border border-gray-300 dark:border-gray-600 p-2 text-right">เปอร์เซ็นต์</th>
                             </tr>
                           </thead>
-                          <tbody>
+                          <tbody className="text-gray-800 dark:text-gray-200">
                             {lengthSummary.map((sum, i) => (
-                              <tr key={i} className="hover:bg-gray-50">
-                                <td className="border border-gray-300 p-1 pl-3">รวมปริมาตร {sum.length} ม.</td>
-                                <td className="border border-gray-300 p-1 text-right">{sum.volumn > 0 ? sum.volumn.toFixed(4) : ''}</td>
-                                <td className="border border-gray-300 p-1 text-right">{sum.pct > 0 ? sum.pct.toFixed(2) + '%' : ''}</td>
+                              <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700/60">
+                                <td className="border border-gray-300 dark:border-gray-600 p-1 pl-3">รวมปริมาตร {sum.length} ม.</td>
+                                <td className="border border-gray-300 dark:border-gray-600 p-1 text-right">{sum.volumn > 0 ? sum.volumn.toFixed(4) : ''}</td>
+                                <td className="border border-gray-300 dark:border-gray-600 p-1 text-right">{sum.pct > 0 ? sum.pct.toFixed(2) + '%' : ''}</td>
                               </tr>
                             ))}
-                            <tr className="bg-gray-100 font-bold text-gray-800">
-                              <td className="border border-gray-300 p-2 pl-3">รวมปริมาตรทั้งหมด</td>
-                              <td className="border border-gray-300 p-2 text-right">{grandTotalData.total_volumn.toFixed(2)}</td>
-                              <td className="border border-gray-300 p-2 text-right">100.00%</td>
+                            <tr className="bg-gray-100 dark:bg-gray-700 font-bold text-gray-800 dark:text-gray-100">
+                              <td className="border border-gray-300 dark:border-gray-600 p-2 pl-3">รวมปริมาตรทั้งหมด</td>
+                              <td className="border border-gray-300 dark:border-gray-600 p-2 text-right">{grandTotalData.total_volumn.toFixed(2)}</td>
+                              <td className="border border-gray-300 dark:border-gray-600 p-2 text-right">100.00%</td>
                             </tr>
                           </tbody>
                         </table>
@@ -414,21 +415,21 @@ export default function ProductionThickMilReport() {
           </table>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 mt-4 mx-4 print:hidden">
+            <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-4 mx-4 print:hidden">
               <div className="flex gap-2">
-                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">« หน้าแรก</button>
-                <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">‹ ก่อนหน้า</button>
+                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500">« หน้าแรก</button>
+                <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500">‹ ก่อนหน้า</button>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm">หน้า</span>
-                <select value={currentPage} onChange={(e) => setCurrentPage(Number(e.target.value))} className="border rounded-md py-1 px-2 text-sm font-semibold text-blue-700 outline-none">
+                <span className="text-sm text-gray-700 dark:text-gray-300">หน้า</span>
+                <select value={currentPage} onChange={(e) => setCurrentPage(Number(e.target.value))} className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md py-1 px-2 text-sm font-semibold text-blue-700 dark:text-blue-300 outline-none">
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
-                <span className="text-sm">จาก {totalPages}</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">จาก {totalPages}</span>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">ถัดไป ›</button>
-                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md border hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400">หน้าสุดท้าย »</button>
+                <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500">ถัดไป ›</button>
+                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500">หน้าสุดท้าย »</button>
               </div>
             </div>
           )}

@@ -173,7 +173,8 @@ export default function SyncMaster() {
                   value={selectedBranch}
                   onChange={(e) => setSelectedBranch(e.target.value)}
                   disabled={status === 'syncing' || (accessLevel !== 1 && allowedBranches.length <= 1)}
-                  className="w-full appearance-none bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white py-3 px-4 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-500 cursor-pointer shadow-sm text-sm transition-colors"
+                  title={accessLevel !== 1 && allowedBranches.length <= 1 ? 'คุณมีสิทธิ์เข้าถึงเฉพาะสาขานี้' : ''}
+                  className="w-full appearance-none bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white py-3 px-4 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400 cursor-pointer disabled:cursor-not-allowed disabled:opacity-75 shadow-sm text-sm transition-colors"
                 >
                   {accessLevel === 1 && <option value={0}>🌟 ทุกสาขาทั้งบริษัท (All Branches)</option>}
                   {allowedBranches.map(branch => (

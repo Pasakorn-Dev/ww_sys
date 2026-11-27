@@ -11,88 +11,88 @@ import { format, parseISO } from 'date-fns';
 const ReportTable = React.memo(({ data, grandTotal }) => {
   return (
     <div className="overflow-x-auto pb-4">
-      <table className="w-full text-[11px] md:text-xs border-collapse border border-gray-400 whitespace-nowrap min-w-max">
+      <table className="w-full text-[11px] md:text-xs border-collapse border border-gray-400 dark:border-gray-600 whitespace-nowrap min-w-max">
         <thead>
-          <tr className="bg-gray-100 text-gray-800 font-bold border-y-2 border-gray-500">
-            <th className="border border-gray-400 p-2 text-left">วันที่ผลิต</th>
-            <th className="border border-gray-400 p-2 text-right w-24">AB</th>
-            <th className="border border-gray-400 p-2 text-right w-24">AB พิเศษ</th>
-            <th className="border border-gray-400 p-2 text-right w-24">C</th>
-            <th className="border border-gray-400 p-2 text-right w-24">C พิเศษ</th>
-            <th className="border border-gray-400 p-2 text-right w-24">P ปกติ</th>
-            <th className="border border-gray-400 p-2 text-right w-24">P พิเศษ</th>
-            <th className="border border-gray-400 p-2 text-right w-24">PP ปกติ</th>
-            <th className="border border-gray-400 p-2 text-right w-24">PP พิเศษ</th>
-            <th className="border border-gray-400 p-2 text-right bg-green-50 w-24">รวม</th>
+          <tr className="bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 font-bold border-y-2 border-gray-500 dark:border-gray-600">
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-left">วันที่ผลิต</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right w-24">AB</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right w-24">AB พิเศษ</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right w-24">C</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right w-24">C พิเศษ</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right w-24">P ปกติ</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right w-24">P พิเศษ</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right w-24">PP ปกติ</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right w-24">PP พิเศษ</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-2 text-right bg-green-50 dark:bg-green-900/40 w-24">รวม</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="text-gray-800 dark:text-gray-200">
           {data.length > 0 ? (
             data.map((monthGroup, mIdx) => (
               <React.Fragment key={mIdx}>
                 {monthGroup.days.map((day, dIdx) => (
                   <React.Fragment key={dIdx}>
                     {/* บรรทัดที่ 1: ปริมาตร */}
-                    <tr className="bg-white hover:bg-gray-50 transition-colors">
-                      <td className="border border-gray-400 p-2 px-3 text-left font-medium text-gray-700" rowSpan="2">
+                    <tr className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors">
+                      <td className="border border-gray-400 dark:border-gray-600 p-2 px-3 text-left font-medium text-gray-700 dark:text-gray-200" rowSpan="2">
                         {format(new Date(day.date), 'dd/MM/yyyy')}
                       </td>
-                      <td className="border border-gray-400 p-1.5 px-2 text-right text-blue-800">{day.vols.vol_normal_ab > 0 ? day.vols.vol_normal_ab.toFixed(2) : ''}</td>
-                      <td className="border border-gray-400 p-1.5 px-2 text-right text-blue-800">{day.vols.vol_special_ab > 0 ? day.vols.vol_special_ab.toFixed(2) : ''}</td>
-                      <td className="border border-gray-400 p-1.5 px-2 text-right text-green-700">{day.vols.vol_normal_c > 0 ? day.vols.vol_normal_c.toFixed(2) : ''}</td>
-                      <td className="border border-gray-400 p-1.5 px-2 text-right text-green-700">{day.vols.vol_special_c > 0 ? day.vols.vol_special_c.toFixed(2) : ''}</td>
-                      <td className="border border-gray-400 p-1.5 px-2 text-right text-orange-700">{day.vols.vol_normal_p > 0 ? day.vols.vol_normal_p.toFixed(2) : ''}</td>
-                      <td className="border border-gray-400 p-1.5 px-2 text-right text-orange-700">{day.vols.vol_special_p > 0 ? day.vols.vol_special_p.toFixed(2) : ''}</td>
-                      <td className="border border-gray-400 p-1.5 px-2 text-right text-purple-700">{day.vols.vol_normal_pp > 0 ? day.vols.vol_normal_pp.toFixed(2) : ''}</td>
-                      <td className="border border-gray-400 p-1.5 px-2 text-right text-purple-700">{day.vols.vol_special_pp > 0 ? day.vols.vol_special_pp.toFixed(2) : ''}</td>
-                      <td className="border border-gray-400 p-1.5 px-2 text-right font-bold text-gray-900 bg-gray-50">{day.vols.total_volumn > 0 ? day.vols.total_volumn.toFixed(2) : ''}</td>
+                      <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right text-blue-800 dark:text-blue-300">{day.vols.vol_normal_ab > 0 ? day.vols.vol_normal_ab.toFixed(2) : ''}</td>
+                      <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right text-blue-800 dark:text-blue-300">{day.vols.vol_special_ab > 0 ? day.vols.vol_special_ab.toFixed(2) : ''}</td>
+                      <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right text-green-700 dark:text-green-300">{day.vols.vol_normal_c > 0 ? day.vols.vol_normal_c.toFixed(2) : ''}</td>
+                      <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right text-green-700 dark:text-green-300">{day.vols.vol_special_c > 0 ? day.vols.vol_special_c.toFixed(2) : ''}</td>
+                      <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right text-orange-700 dark:text-orange-300">{day.vols.vol_normal_p > 0 ? day.vols.vol_normal_p.toFixed(2) : ''}</td>
+                      <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right text-orange-700 dark:text-orange-300">{day.vols.vol_special_p > 0 ? day.vols.vol_special_p.toFixed(2) : ''}</td>
+                      <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right text-purple-700 dark:text-purple-300">{day.vols.vol_normal_pp > 0 ? day.vols.vol_normal_pp.toFixed(2) : ''}</td>
+                      <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right text-purple-700 dark:text-purple-300">{day.vols.vol_special_pp > 0 ? day.vols.vol_special_pp.toFixed(2) : ''}</td>
+                      <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right font-bold text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700/50">{day.vols.total_volumn > 0 ? day.vols.total_volumn.toFixed(2) : ''}</td>
                     </tr>
                     {/* บรรทัดที่ 2: สัดส่วน % */}
-                    <tr className="bg-white hover:bg-gray-50 transition-colors text-gray-500">
-                      <td className="border border-gray-400 p-1 px-2 text-right">{day.pcts.vol_normal_ab > 0 ? day.pcts.vol_normal_ab.toFixed(2) + '%' : ''}</td>
-                      <td className="border border-gray-400 p-1 px-2 text-right">{day.pcts.vol_special_ab > 0 ? day.pcts.vol_special_ab.toFixed(2) + '%' : ''}</td>
-                      <td className="border border-gray-400 p-1 px-2 text-right">{day.pcts.vol_normal_c > 0 ? day.pcts.vol_normal_c.toFixed(2) + '%' : ''}</td>
-                      <td className="border border-gray-400 p-1 px-2 text-right">{day.pcts.vol_special_c > 0 ? day.pcts.vol_special_c.toFixed(2) + '%' : ''}</td>
-                      <td className="border border-gray-400 p-1 px-2 text-right">{day.pcts.vol_normal_p > 0 ? day.pcts.vol_normal_p.toFixed(2) + '%' : ''}</td>
-                      <td className="border border-gray-400 p-1 px-2 text-right">{day.pcts.vol_special_p > 0 ? day.pcts.vol_special_p.toFixed(2) + '%' : ''}</td>
-                      <td className="border border-gray-400 p-1 px-2 text-right">{day.pcts.vol_normal_pp > 0 ? day.pcts.vol_normal_pp.toFixed(2) + '%' : ''}</td>
-                      <td className="border border-gray-400 p-1 px-2 text-right">{day.pcts.vol_special_pp > 0 ? day.pcts.vol_special_pp.toFixed(2) + '%' : ''}</td>
-                      <td className="border border-gray-400 p-1 px-2 text-right bg-gray-50">{day.pcts.total_volumn > 0 ? day.pcts.total_volumn.toFixed(2) + '%' : ''}</td>
+                    <tr className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors text-gray-500 dark:text-gray-400">
+                      <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right">{day.pcts.vol_normal_ab > 0 ? day.pcts.vol_normal_ab.toFixed(2) + '%' : ''}</td>
+                      <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right">{day.pcts.vol_special_ab > 0 ? day.pcts.vol_special_ab.toFixed(2) + '%' : ''}</td>
+                      <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right">{day.pcts.vol_normal_c > 0 ? day.pcts.vol_normal_c.toFixed(2) + '%' : ''}</td>
+                      <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right">{day.pcts.vol_special_c > 0 ? day.pcts.vol_special_c.toFixed(2) + '%' : ''}</td>
+                      <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right">{day.pcts.vol_normal_p > 0 ? day.pcts.vol_normal_p.toFixed(2) + '%' : ''}</td>
+                      <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right">{day.pcts.vol_special_p > 0 ? day.pcts.vol_special_p.toFixed(2) + '%' : ''}</td>
+                      <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right">{day.pcts.vol_normal_pp > 0 ? day.pcts.vol_normal_pp.toFixed(2) + '%' : ''}</td>
+                      <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right">{day.pcts.vol_special_pp > 0 ? day.pcts.vol_special_pp.toFixed(2) + '%' : ''}</td>
+                      <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right bg-gray-50 dark:bg-gray-700/50">{day.pcts.total_volumn > 0 ? day.pcts.total_volumn.toFixed(2) + '%' : ''}</td>
                     </tr>
                   </React.Fragment>
                 ))}
 
                 {/* ─── สรุปรายเดือน ─── */}
-                <tr className="bg-gray-100 text-gray-800 border-t-2 border-gray-400">
-                  <td className="border border-gray-400 p-2 px-3 text-center font-bold" rowSpan="2">
+                <tr className="bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 border-t-2 border-gray-400 dark:border-gray-500">
+                  <td className="border border-gray-400 dark:border-gray-600 p-2 px-3 text-center font-bold" rowSpan="2">
                     รวมรายเดือน : {monthGroup.month_label}
                   </td>
-                  <td className="border border-gray-400 p-1.5 px-2 text-right text-blue-800">{monthGroup.monthly_total.vol_normal_ab > 0 ? monthGroup.monthly_total.vol_normal_ab.toFixed(2) : ''}</td>
-                  <td className="border border-gray-400 p-1.5 px-2 text-right text-blue-800">{monthGroup.monthly_total.vol_special_ab > 0 ? monthGroup.monthly_total.vol_special_ab.toFixed(2) : ''}</td>
-                  <td className="border border-gray-400 p-1.5 px-2 text-right text-green-700">{monthGroup.monthly_total.vol_normal_c > 0 ? monthGroup.monthly_total.vol_normal_c.toFixed(2) : ''}</td>
-                  <td className="border border-gray-400 p-1.5 px-2 text-right text-green-700">{monthGroup.monthly_total.vol_special_c > 0 ? monthGroup.monthly_total.vol_special_c.toFixed(2) : ''}</td>
-                  <td className="border border-gray-400 p-1.5 px-2 text-right text-orange-700">{monthGroup.monthly_total.vol_normal_p > 0 ? monthGroup.monthly_total.vol_normal_p.toFixed(2) : ''}</td>
-                  <td className="border border-gray-400 p-1.5 px-2 text-right text-orange-700">{monthGroup.monthly_total.vol_special_p > 0 ? monthGroup.monthly_total.vol_special_p.toFixed(2) : ''}</td>
-                  <td className="border border-gray-400 p-1.5 px-2 text-right text-purple-700">{monthGroup.monthly_total.vol_normal_pp > 0 ? monthGroup.monthly_total.vol_normal_pp.toFixed(2) : ''}</td>
-                  <td className="border border-gray-400 p-1.5 px-2 text-right text-purple-700">{monthGroup.monthly_total.vol_special_pp > 0 ? monthGroup.monthly_total.vol_special_pp.toFixed(2) : ''}</td>
-                  <td className="border border-gray-400 p-1.5 px-2 text-right font-bold text-gray-900 bg-gray-200">{monthGroup.monthly_total.total_volumn > 0 ? monthGroup.monthly_total.total_volumn.toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right text-blue-800 dark:text-blue-300">{monthGroup.monthly_total.vol_normal_ab > 0 ? monthGroup.monthly_total.vol_normal_ab.toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right text-blue-800 dark:text-blue-300">{monthGroup.monthly_total.vol_special_ab > 0 ? monthGroup.monthly_total.vol_special_ab.toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right text-green-700 dark:text-green-300">{monthGroup.monthly_total.vol_normal_c > 0 ? monthGroup.monthly_total.vol_normal_c.toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right text-green-700 dark:text-green-300">{monthGroup.monthly_total.vol_special_c > 0 ? monthGroup.monthly_total.vol_special_c.toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right text-orange-700 dark:text-orange-300">{monthGroup.monthly_total.vol_normal_p > 0 ? monthGroup.monthly_total.vol_normal_p.toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right text-orange-700 dark:text-orange-300">{monthGroup.monthly_total.vol_special_p > 0 ? monthGroup.monthly_total.vol_special_p.toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right text-purple-700 dark:text-purple-300">{monthGroup.monthly_total.vol_normal_pp > 0 ? monthGroup.monthly_total.vol_normal_pp.toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right text-purple-700 dark:text-purple-300">{monthGroup.monthly_total.vol_special_pp > 0 ? monthGroup.monthly_total.vol_special_pp.toFixed(2) : ''}</td>
+                  <td className="border border-gray-400 dark:border-gray-600 p-1.5 px-2 text-right font-bold text-gray-900 dark:text-white bg-gray-200 dark:bg-gray-600">{monthGroup.monthly_total.total_volumn > 0 ? monthGroup.monthly_total.total_volumn.toFixed(2) : ''}</td>
                 </tr>
-                <tr className="bg-gray-100 text-gray-600 font-semibold border-b-2 border-gray-400">
-                  <td className="border border-gray-400 p-1 px-2 text-right">{monthGroup.monthly_pcts.vol_normal_ab > 0 ? monthGroup.monthly_pcts.vol_normal_ab.toFixed(2) + '%' : ''}</td>
-                  <td className="border border-gray-400 p-1 px-2 text-right">{monthGroup.monthly_pcts.vol_special_ab > 0 ? monthGroup.monthly_pcts.vol_special_ab.toFixed(2) + '%' : ''}</td>
-                  <td className="border border-gray-400 p-1 px-2 text-right">{monthGroup.monthly_pcts.vol_normal_c > 0 ? monthGroup.monthly_pcts.vol_normal_c.toFixed(2) + '%' : ''}</td>
-                  <td className="border border-gray-400 p-1 px-2 text-right">{monthGroup.monthly_pcts.vol_special_c > 0 ? monthGroup.monthly_pcts.vol_special_c.toFixed(2) + '%' : ''}</td>
-                  <td className="border border-gray-400 p-1 px-2 text-right">{monthGroup.monthly_pcts.vol_normal_p > 0 ? monthGroup.monthly_pcts.vol_normal_p.toFixed(2) + '%' : ''}</td>
-                  <td className="border border-gray-400 p-1 px-2 text-right">{monthGroup.monthly_pcts.vol_special_p > 0 ? monthGroup.monthly_pcts.vol_special_p.toFixed(2) + '%' : ''}</td>
-                  <td className="border border-gray-400 p-1 px-2 text-right">{monthGroup.monthly_pcts.vol_normal_pp > 0 ? monthGroup.monthly_pcts.vol_normal_pp.toFixed(2) + '%' : ''}</td>
-                  <td className="border border-gray-400 p-1 px-2 text-right">{monthGroup.monthly_pcts.vol_special_pp > 0 ? monthGroup.monthly_pcts.vol_special_pp.toFixed(2) + '%' : ''}</td>
-                  <td className="border border-gray-400 p-1 px-2 text-right bg-gray-200">{monthGroup.monthly_pcts.total_volumn > 0 ? monthGroup.monthly_pcts.total_volumn.toFixed(2) + '%' : ''}</td>
+                <tr className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-semibold border-b-2 border-gray-400 dark:border-gray-500">
+                  <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right">{monthGroup.monthly_pcts.vol_normal_ab > 0 ? monthGroup.monthly_pcts.vol_normal_ab.toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right">{monthGroup.monthly_pcts.vol_special_ab > 0 ? monthGroup.monthly_pcts.vol_special_ab.toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right">{monthGroup.monthly_pcts.vol_normal_c > 0 ? monthGroup.monthly_pcts.vol_normal_c.toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right">{monthGroup.monthly_pcts.vol_special_c > 0 ? monthGroup.monthly_pcts.vol_special_c.toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right">{monthGroup.monthly_pcts.vol_normal_p > 0 ? monthGroup.monthly_pcts.vol_normal_p.toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right">{monthGroup.monthly_pcts.vol_special_p > 0 ? monthGroup.monthly_pcts.vol_special_p.toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right">{monthGroup.monthly_pcts.vol_normal_pp > 0 ? monthGroup.monthly_pcts.vol_normal_pp.toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right">{monthGroup.monthly_pcts.vol_special_pp > 0 ? monthGroup.monthly_pcts.vol_special_pp.toFixed(2) + '%' : ''}</td>
+                  <td className="border border-gray-400 dark:border-gray-600 p-1 px-2 text-right bg-gray-200 dark:bg-gray-600">{monthGroup.monthly_pcts.total_volumn > 0 ? monthGroup.monthly_pcts.total_volumn.toFixed(2) + '%' : ''}</td>
                 </tr>
               </React.Fragment>
             ))
           ) : (
             <tr>
-              <td colSpan="10" className="border border-gray-400 p-8 text-center text-gray-500">
+              <td colSpan="10" className="border border-gray-400 dark:border-gray-600 p-8 text-center text-gray-500 dark:text-gray-400">
                 ไม่พบข้อมูลในช่วงเวลาที่เลือก
               </td>
             </tr>
@@ -100,19 +100,19 @@ const ReportTable = React.memo(({ data, grandTotal }) => {
 
           {/* ─── Grand Total ─── */}
           {grandTotal && data.length > 0 && (
-            <tr className="bg-gray-300 font-bold text-gray-900 border-t-2 border-gray-500 text-sm">
-              <td className="border border-gray-400 p-2.5 px-3 text-center tracking-wide">
+            <tr className="bg-gray-300 dark:bg-gray-700 font-bold text-gray-900 dark:text-gray-100 border-t-2 border-gray-500 text-sm">
+              <td className="border border-gray-400 dark:border-gray-600 p-2.5 px-3 text-center tracking-wide">
                 รวมทั้งหมด
               </td>
-              <td className="border border-gray-400 p-2.5 px-2 text-right">{grandTotal.vols.vol_normal_ab > 0 ? grandTotal.vols.vol_normal_ab.toFixed(2) : ''}</td>
-              <td className="border border-gray-400 p-2.5 px-2 text-right">{grandTotal.vols.vol_special_ab > 0 ? grandTotal.vols.vol_special_ab.toFixed(2) : ''}</td>
-              <td className="border border-gray-400 p-2.5 px-2 text-right">{grandTotal.vols.vol_normal_c > 0 ? grandTotal.vols.vol_normal_c.toFixed(2) : ''}</td>
-              <td className="border border-gray-400 p-2.5 px-2 text-right">{grandTotal.vols.vol_special_c > 0 ? grandTotal.vols.vol_special_c.toFixed(2) : ''}</td>
-              <td className="border border-gray-400 p-2.5 px-2 text-right">{grandTotal.vols.vol_normal_p > 0 ? grandTotal.vols.vol_normal_p.toFixed(2) : ''}</td>
-              <td className="border border-gray-400 p-2.5 px-2 text-right">{grandTotal.vols.vol_special_p > 0 ? grandTotal.vols.vol_special_p.toFixed(2) : ''}</td>
-              <td className="border border-gray-400 p-2.5 px-2 text-right">{grandTotal.vols.vol_normal_pp > 0 ? grandTotal.vols.vol_normal_pp.toFixed(2) : ''}</td>
-              <td className="border border-gray-400 p-2.5 px-2 text-right">{grandTotal.vols.vol_special_pp > 0 ? grandTotal.vols.vol_special_pp.toFixed(2) : ''}</td>
-              <td className="border border-gray-400 p-2.5 px-2 text-right bg-gray-400 text-black">{grandTotal.vols.total_volumn > 0 ? grandTotal.vols.total_volumn.toFixed(2) : ''}</td>
+              <td className="border border-gray-400 dark:border-gray-600 p-2.5 px-2 text-right">{grandTotal.vols.vol_normal_ab > 0 ? grandTotal.vols.vol_normal_ab.toFixed(2) : ''}</td>
+              <td className="border border-gray-400 dark:border-gray-600 p-2.5 px-2 text-right">{grandTotal.vols.vol_special_ab > 0 ? grandTotal.vols.vol_special_ab.toFixed(2) : ''}</td>
+              <td className="border border-gray-400 dark:border-gray-600 p-2.5 px-2 text-right">{grandTotal.vols.vol_normal_c > 0 ? grandTotal.vols.vol_normal_c.toFixed(2) : ''}</td>
+              <td className="border border-gray-400 dark:border-gray-600 p-2.5 px-2 text-right">{grandTotal.vols.vol_special_c > 0 ? grandTotal.vols.vol_special_c.toFixed(2) : ''}</td>
+              <td className="border border-gray-400 dark:border-gray-600 p-2.5 px-2 text-right">{grandTotal.vols.vol_normal_p > 0 ? grandTotal.vols.vol_normal_p.toFixed(2) : ''}</td>
+              <td className="border border-gray-400 dark:border-gray-600 p-2.5 px-2 text-right">{grandTotal.vols.vol_special_p > 0 ? grandTotal.vols.vol_special_p.toFixed(2) : ''}</td>
+              <td className="border border-gray-400 dark:border-gray-600 p-2.5 px-2 text-right">{grandTotal.vols.vol_normal_pp > 0 ? grandTotal.vols.vol_normal_pp.toFixed(2) : ''}</td>
+              <td className="border border-gray-400 dark:border-gray-600 p-2.5 px-2 text-right">{grandTotal.vols.vol_special_pp > 0 ? grandTotal.vols.vol_special_pp.toFixed(2) : ''}</td>
+              <td className="border border-gray-400 dark:border-gray-600 p-2.5 px-2 text-right bg-gray-400 dark:bg-gray-600 text-black dark:text-white">{grandTotal.vols.total_volumn > 0 ? grandTotal.vols.total_volumn.toFixed(2) : ''}</td>
             </tr>
           )}
         </tbody>
@@ -289,23 +289,24 @@ export default function DailyProductionReport() {
   };
 
   return (
-    <div className="p-4 md:p-6 mx-auto min-h-screen bg-gray-50">
+    <div className="p-4 md:p-6 mx-auto min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
       
       {/* ─── โซนค้นหา ─── */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6 print:hidden">
-        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <i className="fas fa-calendar-alt text-blue-600"></i> ค้นหารายงานสรุปผลผลิตไม้รายวันและประจำเดือน
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-6 print:hidden transition-colors duration-300">
+        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+          <i className="fas fa-calendar-alt text-blue-600 dark:text-blue-400"></i> ค้นหารายงานสรุปผลผลิตไม้รายวันและประจำเดือน
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1 text-gray-700">สาขา <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">สาขา <span className="text-red-500">*</span></label>
             <select
               name="branch_id"
               value={filters.branch_id}
               onChange={handleBranchChange}
               disabled={isLoading || (accessLevel !== 1 && branches.length <= 1)}
-              className="w-full border rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-gray-50 disabled:bg-gray-200 disabled:text-gray-500"
+              title={accessLevel !== 1 && branches.length <= 1 ? 'คุณมีสิทธิ์เข้าถึงเฉพาะสาขานี้' : ''}
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm outline-none focus:border-blue-500 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:border-gray-300 dark:disabled:border-gray-700 disabled:cursor-not-allowed disabled:opacity-75 transition-colors"
             >
               <option value="" disabled>-- เลือกสาขา --</option>
               {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
@@ -313,25 +314,25 @@ export default function DailyProductionReport() {
           </div>
 
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1 text-gray-700">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
             <DatePicker
               selected={filters.start_date ? parseISO(filters.start_date) : null}
               onChange={(date) => handleDateChange(date, 'start_date')}
               dateFormat="dd/MM/yyyy"
               locale={th}
-              className="w-full border rounded-md p-2 text-sm outline-none bg-gray-50"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm outline-none bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:border-blue-500 transition-colors"
               wrapperClassName="w-full"
             />
           </div>
 
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1 text-gray-700">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
             <DatePicker
               selected={filters.end_date ? parseISO(filters.end_date) : null}
               onChange={(date) => handleDateChange(date, 'end_date')}
               dateFormat="dd/MM/yyyy"
               locale={th}
-              className="w-full border rounded-md p-2 text-sm outline-none bg-gray-50"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm outline-none bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:border-blue-500 transition-colors"
               wrapperClassName="w-full"
             />
           </div>
@@ -341,7 +342,7 @@ export default function DailyProductionReport() {
           <button 
             onClick={handleSearch} 
             disabled={isLoading} 
-            className="bg-blue-600 text-white px-8 py-2 rounded-md text-sm font-semibold hover:bg-blue-700 shadow-sm flex items-center justify-center min-w-[120px]"
+            className="bg-blue-600 text-white px-8 py-2 rounded-md text-sm font-semibold hover:bg-blue-700 shadow-sm flex items-center justify-center min-w-[120px] transition-colors"
           >
             {isLoading ? <><i className="fas fa-spinner fa-spin mr-2"></i>กำลังโหลด...</> : <><i className="fas fa-search mr-2"></i>ดึงข้อมูล</>}
           </button>
@@ -363,16 +364,16 @@ export default function DailyProductionReport() {
 
       {/* ─── โซนแสดงรายงาน ─── */}
       {reportData.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 pb-6 print:border-none print:shadow-none min-h-[900px] flex flex-col justify-between">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 pb-6 print:bg-white print:text-black print:border-none print:shadow-none min-h-[900px] flex flex-col justify-between transition-colors duration-300">
           <div>
             <div className="text-center mb-6 pt-6">
-              <h1 className="text-lg font-bold text-gray-800">บริษัท วู้ดเวอร์ค จำกัด ({filters.branch_name})</h1>
-              <h2 className="text-md font-semibold text-gray-700 mt-1">รายงานสรุปผลผลิตไม้รายวันและประจำเดือน</h2>
-              <p className="text-sm text-gray-600 mt-1">
+              <h1 className="text-lg font-bold text-gray-800 dark:text-gray-100">บริษัท วู้ดเวอร์ค จำกัด ({filters.branch_name})</h1>
+              <h2 className="text-md font-semibold text-gray-700 dark:text-gray-200 mt-1">รายงานสรุปผลผลิตไม้รายวันและประจำเดือน</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                 ตั้งแต่วันที่ {format(parseISO(filters.start_date), 'dd/MM/yyyy')} ถึง {format(parseISO(filters.end_date), 'dd/MM/yyyy')}
                 <span className="ml-2">สโตร์: ทั้งหมด</span>
               </p>
-              <p className="text-sm text-gray-600">แหล่งที่มา: ทั้งหมด &nbsp;|&nbsp; กลุ่มไม้: ทั้งหมด</p>
+              <p className="text-sm text-gray-600 dark:text-gray-300">แหล่งที่มา: ทั้งหมด &nbsp;|&nbsp; กลุ่มไม้: ทั้งหมด</p>
             </div>
 
             <div className="px-4">

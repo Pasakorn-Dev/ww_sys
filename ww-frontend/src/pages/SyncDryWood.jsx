@@ -128,6 +128,8 @@ export default function SyncDryWood() {
     }
   };
 
+  const validBranches = branches.filter(b => b.id !== 0);
+
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto flex flex-col min-h-[80vh] transition-colors duration-300">
       <div className="bg-white dark:bg-gray-800 w-full rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col lg:flex-row flex-1 transition-colors duration-300">
@@ -151,11 +153,12 @@ export default function SyncDryWood() {
               <select 
                 value={selectedBranch} 
                 onChange={(e) => setSelectedBranch(e.target.value)} 
-                disabled={status === 'syncing'} 
-                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-100 rounded-xl p-3 outline-none focus:ring-2 focus:ring-orange-500 text-sm transition-colors"
+                disabled={status === 'syncing' || validBranches.length <= 1}
+                title={validBranches.length <= 1 ? 'คุณมีสิทธิ์เข้าถึงเฉพาะสาขานี้' : ''}
+                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-100 rounded-xl p-3 outline-none focus:ring-2 focus:ring-orange-500 text-sm transition-colors disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:border-gray-300 dark:disabled:border-gray-700 disabled:cursor-not-allowed disabled:opacity-75"
               >
                 <option value="" className="bg-white dark:bg-gray-700">-- กรุณาเลือกสาขา --</option>
-                {branches.filter(b => b.id !== 0).map(b => (
+                {validBranches.map(b => (
                   <option key={b.id} value={b.id} className="bg-white dark:bg-gray-700">
                     {b.branch_name}
                   </option>

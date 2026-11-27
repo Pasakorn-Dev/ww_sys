@@ -160,8 +160,9 @@ export default function SyncSawWood() {
               <select
                 value={selectedBranch}
                 onChange={(e) => setSelectedBranch(e.target.value)}
-                disabled={status === 'syncing'}
-                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-colors duration-300 disabled:opacity-60"
+                disabled={status === 'syncing' || validBranches.length <= 1}
+                title={validBranches.length <= 1 ? 'คุณมีสิทธิ์เข้าถึงเฉพาะสาขานี้' : ''}
+                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-colors duration-300 disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:border-gray-300 dark:disabled:border-gray-700 disabled:cursor-not-allowed disabled:opacity-75"
               >
                 <option value="">-- กรุณาเลือกสาขา --</option>
                 {validBranches.map(b => (

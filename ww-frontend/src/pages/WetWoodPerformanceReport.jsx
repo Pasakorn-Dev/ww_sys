@@ -15,42 +15,42 @@ const ReportTable = React.memo(({ data, grandTotal, expectedColumns, showFooter 
 
   return (
     <div className="overflow-x-auto pb-4">
-      <table className="w-full text-[11px] md:text-[12px] border-collapse border border-gray-400 whitespace-nowrap min-w-max text-center">
+      <table className="w-full text-[11px] md:text-[12px] border-collapse border border-gray-400 dark:border-gray-600 whitespace-nowrap min-w-max text-center">
         <thead>
           {/* แถวหัวตารางชั้นที่ 1 (ชื่อเกรด) */}
-          <tr className="bg-gray-300 text-gray-800 font-bold border-y-2 border-gray-500">
-            <th rowSpan="2" className="border border-gray-400 p-2 align-middle w-16">รหัส</th>
-            <th rowSpan="2" className="border border-gray-400 p-2 align-middle min-w-[200px] text-left">ชื่อพนักงาน</th>
+          <tr className="bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-100 font-bold border-y-2 border-gray-500 dark:border-gray-600">
+            <th rowSpan="2" className="border border-gray-400 dark:border-gray-600 p-2 align-middle w-16">รหัส</th>
+            <th rowSpan="2" className="border border-gray-400 dark:border-gray-600 p-2 align-middle min-w-[200px] text-left">ชื่อพนักงาน</th>
             
             {expectedColumns.map((col, idx) => (
-              <th key={idx} colSpan="2" className="border border-gray-400 p-2 align-middle">
+              <th key={idx} colSpan="2" className="border border-gray-400 dark:border-gray-600 p-2 align-middle">
                 {getColumnLabel(col)}
               </th>
             ))}
             
-            <th colSpan="2" className="border border-gray-400 p-2 align-middle bg-gray-400">
+            <th colSpan="2" className="border border-gray-400 dark:border-gray-600 p-2 align-middle bg-gray-400 dark:bg-gray-600">
               รวม
             </th>
           </tr>
           {/* แถวหัวตารางชั้นที่ 2 (ปริมาตร / จำนวนเงิน) */}
-          <tr className="bg-gray-200 text-gray-700 font-semibold border-b-2 border-gray-400">
+          <tr className="bg-gray-200 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 font-semibold border-b-2 border-gray-400 dark:border-gray-600">
             {expectedColumns.map((_, idx) => (
               <React.Fragment key={`sub-${idx}`}>
-                <th className="border border-gray-400 p-1 min-w-[70px]">ปริมาตร</th>
-                <th className="border border-gray-400 p-1 min-w-[80px]">จำนวนเงิน</th>
+                <th className="border border-gray-400 dark:border-gray-600 p-1 min-w-[70px]">ปริมาตร</th>
+                <th className="border border-gray-400 dark:border-gray-600 p-1 min-w-[80px]">จำนวนเงิน</th>
               </React.Fragment>
             ))}
-            <th className="border border-gray-400 p-1 min-w-[70px] bg-gray-300">ปริมาตร</th>
-            <th className="border border-gray-400 p-1 min-w-[80px] bg-gray-300">จำนวนเงิน</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-1 min-w-[70px] bg-gray-300 dark:bg-gray-600">ปริมาตร</th>
+            <th className="border border-gray-400 dark:border-gray-600 p-1 min-w-[80px] bg-gray-300 dark:bg-gray-600">จำนวนเงิน</th>
           </tr>
         </thead>
         
-        <tbody>
+        <tbody className="text-gray-800 dark:text-gray-200">
           {data.length > 0 ? (
             data.map((emp, index) => (
-              <tr key={index} className="bg-white hover:bg-gray-50">
-                <td className="border border-gray-400 p-1.5 text-center text-gray-600">{emp.employee_code}</td>
-                <td className="border border-gray-400 p-1.5 text-left font-medium text-gray-800">{emp.employee_name}</td>
+              <tr key={index} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors">
+                <td className="border border-gray-400 dark:border-gray-600 p-1.5 text-center text-gray-600 dark:text-gray-400">{emp.employee_code}</td>
+                <td className="border border-gray-400 dark:border-gray-600 p-1.5 text-left font-medium text-gray-800 dark:text-gray-100">{emp.employee_name}</td>
                 
                 {/* ข้อมูลของแต่ละเกรด */}
                 {expectedColumns.map((col, cIdx) => {
@@ -58,10 +58,10 @@ const ReportTable = React.memo(({ data, grandTotal, expectedColumns, showFooter 
                   const cellData = emp.grades[colKey];
                   return (
                     <React.Fragment key={cIdx}>
-                      <td className="border border-gray-400 p-1 text-right text-gray-800">
+                      <td className="border border-gray-400 dark:border-gray-600 p-1 text-right text-gray-800 dark:text-gray-200">
                         {cellData && cellData.volumn > 0 ? Number(cellData.volumn).toFixed(4) : ''}
                       </td>
-                      <td className="border border-gray-400 p-1 text-right text-gray-900 font-medium">
+                      <td className="border border-gray-400 dark:border-gray-600 p-1 text-right text-gray-900 dark:text-gray-100 font-medium">
                         {cellData && cellData.net_wage > 0 ? Number(cellData.net_wage).toLocaleString(undefined, {minimumFractionDigits: 2}) : ''}
                       </td>
                     </React.Fragment>
@@ -69,17 +69,17 @@ const ReportTable = React.memo(({ data, grandTotal, expectedColumns, showFooter 
                 })}
                 
                 {/* ยอดรวมของพนักงานคนนี้ */}
-                <td className="border border-gray-400 p-1 text-right font-bold bg-blue-50/30 text-blue-900">
+                <td className="border border-gray-400 dark:border-gray-600 p-1 text-right font-bold bg-blue-50/30 dark:bg-blue-900/25 text-blue-900 dark:text-blue-300">
                   {Number(emp.total_volumn).toFixed(4)}
                 </td>
-                <td className="border border-gray-400 p-1 text-right font-bold bg-blue-100/50 text-blue-900">
+                <td className="border border-gray-400 dark:border-gray-600 p-1 text-right font-bold bg-blue-100/50 dark:bg-blue-900/40 text-blue-900 dark:text-blue-200">
                   {Number(emp.total_net_wage).toLocaleString(undefined, {minimumFractionDigits: 2})}
                 </td>
               </tr>
             ))
           ) : (
              <tr>
-               <td colSpan={expectedColumns.length * 2 + 4} className="border border-gray-400 p-8 text-center text-gray-500">
+               <td colSpan={expectedColumns.length * 2 + 4} className="border border-gray-400 dark:border-gray-600 p-8 text-center text-gray-500 dark:text-gray-400">
                  ไม่พบข้อมูลในช่วงเวลาที่เลือก
                </td>
              </tr>
@@ -87,26 +87,26 @@ const ReportTable = React.memo(({ data, grandTotal, expectedColumns, showFooter 
 
           {/* บรรทัดสรุป Grand Total (แสดงเฉพาะหน้าสุดท้าย) */}
           {showFooter && grandTotal && data.length > 0 && (
-            <tr className="bg-gray-300 font-bold text-gray-900 border-t-2 border-gray-600 text-[12px]">
-              <td colSpan="2" className="border border-gray-400 p-2 text-center align-middle tracking-wider">รวมทั้งหมด</td>
+            <tr className="bg-gray-300 dark:bg-gray-700 font-bold text-gray-900 dark:text-gray-100 border-t-2 border-gray-600 dark:border-gray-500 text-[12px]">
+              <td colSpan="2" className="border border-gray-400 dark:border-gray-600 p-2 text-center align-middle tracking-wider">รวมทั้งหมด</td>
               {expectedColumns.map((col, cIdx) => {
                 const colKey = `${col.grade}_${col.is_special ? 'spc' : 'norm'}`;
                 const gtCell = grandTotal[colKey];
                 return (
                   <React.Fragment key={`gt-${cIdx}`}>
-                    <td className="border border-gray-400 p-2 text-right">
+                    <td className="border border-gray-400 dark:border-gray-600 p-2 text-right">
                       {gtCell && gtCell.volumn > 0 ? Number(gtCell.volumn).toFixed(4) : ''}
                     </td>
-                    <td className="border border-gray-400 p-2 text-right">
+                    <td className="border border-gray-400 dark:border-gray-600 p-2 text-right">
                       {gtCell && gtCell.net_wage > 0 ? Number(gtCell.net_wage).toLocaleString(undefined, {minimumFractionDigits: 2}) : ''}
                     </td>
                   </React.Fragment>
                 );
               })}
-              <td className="border border-gray-400 p-2 text-right bg-blue-200 text-blue-900">
+              <td className="border border-gray-400 dark:border-gray-600 p-2 text-right bg-blue-200 dark:bg-blue-900/50 text-blue-900 dark:text-blue-200">
                 {Number(grandTotal.total_volumn).toFixed(4)}
               </td>
-              <td className="border border-gray-400 p-2 text-right bg-blue-300 text-blue-900">
+              <td className="border border-gray-400 dark:border-gray-600 p-2 text-right bg-blue-300 dark:bg-blue-800/60 text-blue-900 dark:text-blue-100">
                 {Number(grandTotal.total_net_wage).toLocaleString(undefined, {minimumFractionDigits: 2})}
               </td>
             </tr>
@@ -317,22 +317,23 @@ export default function WetWoodPerformanceReport() {
   const currentRows = reportData.slice(indexOfFirstItem, indexOfLastItem);
 
   return (
-    <div className="p-4 md:p-6 mx-auto min-h-screen bg-gray-50">
+    <div className="p-4 md:p-6 mx-auto min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
       {/* ─── กล่องค้นหา ─── */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6 print:hidden">
-        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <i className="fas fa-users-cog text-teal-600"></i> รายงานสรุปค่าแรงจัดเรียงไม้เปียก แยกรายคน
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-6 print:hidden transition-colors duration-300">
+        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+          <i className="fas fa-users-cog text-teal-600 dark:text-teal-400"></i> รายงานสรุปค่าแรงจัดเรียงไม้เปียก แยกรายคน
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1 text-gray-700">สาขา <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">สาขา <span className="text-red-500">*</span></label>
             <select
               name="branch_id"
               value={filters.branch_id}
               onChange={handleBranchChange}
               disabled={isLoading || (accessLevel !== 1 && branches.length <= 1)}
-              className="w-full border rounded-md p-2 text-sm outline-none focus:border-teal-500 bg-gray-50 disabled:bg-gray-200 disabled:text-gray-500"
+              title={accessLevel !== 1 && branches.length <= 1 ? 'คุณมีสิทธิ์เข้าถึงเฉพาะสาขานี้' : ''}
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm outline-none focus:border-teal-500 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:border-gray-300 dark:disabled:border-gray-700 disabled:cursor-not-allowed disabled:opacity-75 transition-colors"
             >
               <option value="" disabled>-- เลือกสาขา --</option>
               {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
@@ -340,36 +341,36 @@ export default function WetWoodPerformanceReport() {
           </div>
           
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1 text-gray-700">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">วันที่เริ่มต้น <span className="text-red-500">*</span></label>
             <DatePicker
               selected={filters.start_date ? parseISO(filters.start_date) : null}
               onChange={(date) => handleDateChange(date, 'start_date')}
               dateFormat="dd/MM/yyyy" locale={th}
-              className="w-full border rounded-md p-2 text-sm outline-none bg-gray-50"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm outline-none bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:border-teal-500 transition-colors"
               wrapperClassName="w-full"
             />
           </div>
           
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1 text-gray-700">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">วันที่สิ้นสุด <span className="text-red-500">*</span></label>
             <DatePicker
               selected={filters.end_date ? parseISO(filters.end_date) : null}
               onChange={(date) => handleDateChange(date, 'end_date')}
               dateFormat="dd/MM/yyyy" locale={th}
-              className="w-full border rounded-md p-2 text-sm outline-none bg-gray-50"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm outline-none bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:border-teal-500 transition-colors"
               wrapperClassName="w-full"
             />
           </div>
           
           <div className="flex flex-col">
-            <label className="text-xs font-semibold mb-1 text-gray-700">ช่วงสโตร์ (ไม้เปียก)</label>
+            <label className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">ช่วงสโตร์ (ไม้เปียก)</label>
             <input 
               type="text" 
               name="store_code" 
               value={filters.store_code} 
               onChange={handleFilterChange} 
               placeholder="เช่น 21/00 - 21/99"
-              className="w-full border rounded-md p-2 text-sm outline-none bg-gray-50 focus:border-teal-500"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm outline-none bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-teal-500 transition-colors"
             />
           </div>
         </div>
@@ -378,7 +379,7 @@ export default function WetWoodPerformanceReport() {
           <button 
             onClick={handleSearch} 
             disabled={isLoading} 
-            className="bg-teal-600 text-white px-8 py-2 rounded-md text-sm font-semibold hover:bg-teal-700 shadow-sm flex items-center justify-center min-w-[120px]"
+            className="bg-teal-600 text-white px-8 py-2 rounded-md text-sm font-semibold hover:bg-teal-700 shadow-sm flex items-center justify-center min-w-[120px] transition-colors"
           >
             {isLoading ? <><i className="fas fa-spinner fa-spin mr-2"></i>กำลังโหลด...</> : <><i className="fas fa-search mr-2"></i>ดึงข้อมูล</>}
           </button>
@@ -401,17 +402,17 @@ export default function WetWoodPerformanceReport() {
 
       {/* ─── ตารางแสดงผล ─── */}
       {reportData.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 pb-6 print:border-none print:shadow-none min-h-[900px] flex flex-col justify-between">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 pb-6 print:bg-white print:text-black print:border-none print:shadow-none min-h-[900px] flex flex-col justify-between transition-colors duration-300">
           
           <div>
             {/* หัวกระดาษ (Header) */}
             <div className="text-center mb-6 pt-6">
-              <h1 className="text-lg font-bold text-gray-800">บริษัท วู้ดเวอร์ค จำกัด ({filters.branch_name})</h1>
-              <h2 className="text-md font-semibold text-gray-700 mt-1">รายงานสรุปค่าแรงเรียงไม้เปียก แยกรายคน</h2>
-              <p className="text-sm text-gray-600 mt-1">
+              <h1 className="text-lg font-bold text-gray-800 dark:text-gray-100">บริษัท วู้ดเวอร์ค จำกัด ({filters.branch_name})</h1>
+              <h2 className="text-md font-semibold text-gray-700 dark:text-gray-200 mt-1">รายงานสรุปค่าแรงเรียงไม้เปียก แยกรายคน</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                 ตั้งแต่วันที่ {format(parseISO(filters.start_date), 'dd/MM/yyyy')} ถึง {format(parseISO(filters.end_date), 'dd/MM/yyyy')}
               </p>
-              <p className="text-sm text-gray-600 mt-1">รหัสสโตร์: <span className="font-semibold">{filters.store_code || '21/00 - 21/99'}</span></p>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">รหัสสโตร์: <span className="font-semibold">{filters.store_code || '21/00 - 21/99'}</span></p>
             </div>
 
             <div className="px-4">
@@ -426,43 +427,43 @@ export default function WetWoodPerformanceReport() {
 
           {/* ลายเซ็นต์ท้ายรายงาน (แสดงเฉพาะหน้าสุดท้าย) */}
           {(currentPage === totalPages || totalPages === 0) && (
-            <div className="mt-12 px-10 grid grid-cols-3 gap-8 text-center text-sm mb-4 print:mt-24">
+            <div className="mt-12 px-10 grid grid-cols-3 gap-8 text-center text-sm mb-4 print:mt-24 text-gray-700 dark:text-gray-300 print:text-black">
               <div>
                 <p>...........................................................</p>
-                <p className="mt-2 text-gray-600">ผู้รายงาน</p>
+                <p className="mt-2 text-gray-600 dark:text-gray-300">ผู้รายงาน</p>
               </div>
               <div>
                 <p>...........................................................</p>
-                <p className="mt-2 text-gray-600">ฝ่ายข้อมูลโรงงาน</p>
+                <p className="mt-2 text-gray-600 dark:text-gray-300">ฝ่ายข้อมูลโรงงาน</p>
               </div>
               <div>
                 <p>...........................................................</p>
-                <p className="mt-2 text-gray-600">ผู้จัดการโรงงาน</p>
+                <p className="mt-2 text-gray-600 dark:text-gray-300">ผู้จัดการโรงงาน</p>
               </div>
             </div>
           )}
 
           {/* ระบบแบ่งหน้า (Pagination) */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 mt-4 mx-4 print:hidden">
+            <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-4 mx-4 print:hidden">
               <div className="flex gap-2">
-                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm border hover:bg-gray-50 disabled:bg-gray-100 rounded-md">« หน้าแรก</button>
-                <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm border hover:bg-gray-50 disabled:bg-gray-100 rounded-md">‹ ก่อนหน้า</button>
+                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-md">« หน้าแรก</button>
+                <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-md">‹ ก่อนหน้า</button>
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-sm">หน้า</span>
-                <select value={currentPage} onChange={(e) => setCurrentPage(Number(e.target.value))} className="border py-1 px-2 text-sm text-teal-700 font-bold rounded-md outline-none focus:ring-1 focus:ring-teal-500">
+                <span className="text-sm text-gray-700 dark:text-gray-300">หน้า</span>
+                <select value={currentPage} onChange={(e) => setCurrentPage(Number(e.target.value))} className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 py-1 px-2 text-sm text-teal-700 dark:text-teal-300 font-bold rounded-md outline-none focus:ring-1 focus:ring-teal-500">
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                     <option key={page} value={page}>{page}</option>
                   ))}
                 </select>
-                <span className="text-sm">จาก {totalPages}</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">จาก {totalPages}</span>
               </div>
 
               <div className="flex gap-2">
-                <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm border hover:bg-gray-50 disabled:bg-gray-100 rounded-md">ถัดไป ›</button>
-                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm border hover:bg-gray-50 disabled:bg-gray-100 rounded-md">หน้าสุดท้าย »</button>
+                <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-md">ถัดไป ›</button>
+                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500 rounded-md">หน้าสุดท้าย »</button>
               </div>
             </div>
           )}
