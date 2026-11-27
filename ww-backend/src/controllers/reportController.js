@@ -633,16 +633,34 @@ const fetchDryWoodPerfDataHelper = async (branch_id, start_date, end_date, store
   };
 };
 
+const formatStoreCodeHeader = ({ store_code_start, store_code_end, store_code }) => {
+  if (store_code_start && store_code_end) {
+    return store_code_start === store_code_end
+      ? store_code_start
+      : `${store_code_start} ถึง ${store_code_end}`;
+  }
+  if (store_code_start) return `ตั้งแต่ ${store_code_start}`;
+  if (store_code_end) return `ถึง ${store_code_end}`;
+  return store_code || 'รวมทุกสโตร์';
+};
+
 const reportController = {
   getProductionCover: async (req, res) => {
     try {
-      const { branch_id, start_date, end_date, store_code } = req.query;
+      const { branch_id, start_date, end_date, store_code, store_code_start, store_code_end } = req.query;
 
       if (!branch_id || !start_date || !end_date) {
         return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
       }
 
-      const rows = await ReportModel.getProductionCoverReport({ branch_id, start_date, end_date, store_code });
+      const rows = await ReportModel.getProductionCoverReport({
+        branch_id,
+        start_date,
+        end_date,
+        store_code,
+        store_code_start,
+        store_code_end
+      });
 
       // จัดกลุ่มข้อมูลตาม ประเภท (ปกติ/พิเศษ) และ เกรดไม้
       const groupedData = {};
@@ -675,7 +693,7 @@ const reportController = {
             branch_name: branchName,
             start_date,
             end_date,
-            store_code: store_code || 'รวมทุกสโตร์'
+            store_code: formatStoreCodeHeader({ store_code_start, store_code_end, store_code })
           },
           groups: Object.values(groupedData)
         }
@@ -688,14 +706,21 @@ const reportController = {
   // 💡 เพิ่มฟังก์ชันรูปแบบที่ 2 (จัดกลุ่มตามชุดเลื่อย)
   getProductionCoverFormat2: async (req, res) => {
     try {
-      const { branch_id, start_date, end_date, store_code } = req.query;
+      const { branch_id, start_date, end_date, store_code, store_code_start, store_code_end } = req.query;
 
       if (!branch_id || !start_date || !end_date) {
         return res.status(400).json({ success: false, message: 'ระบุพารามิเตอร์ไม่ครบถ้วน' });
       }
 
       // เรียกใช้ Model ตัวใหม่
-      const rows = await ReportModel.getProductionCoverReportFormat2({ branch_id, start_date, end_date, store_code });
+      const rows = await ReportModel.getProductionCoverReportFormat2({
+        branch_id,
+        start_date,
+        end_date,
+        store_code,
+        store_code_start,
+        store_code_end
+      });
 
       const groupedData = {};
       let branchName = '';
@@ -730,7 +755,7 @@ const reportController = {
             branch_name: branchName,
             start_date,
             end_date,
-            store_code: store_code || 'รวมทุกสโตร์'
+            store_code: formatStoreCodeHeader({ store_code_start, store_code_end, store_code })
           },
           groups: Object.values(groupedData)
         }
@@ -833,6 +858,27 @@ const reportController = {
           const thickSubRow = worksheet.addRow(['รวมหนา', thick.thick, Number(thick.subTotal.ab_volumn).toFixed(4), '', '100.00%', '', Number(thick.subTotal.ab_amt).toFixed(2), Number(thick.subTotal.spc_volumn).toFixed(4), '', thick.subTotal.spc_volumn > 0 ? '100.00%' : '', '', Number(thick.subTotal.spc_amt).toFixed(2)]);
           thickSubRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6E0B4' } };
           thickSubRow.font = { bold: true };
+          
+          // 💡 บรรทัดที่เพิ่ม: % ความหนา (ชุด) รวมพิเศษ
+          const pctAllRow = worksheet.addRow(['% ความหนา (ชุด) รวมพิเศษ', '', '', thick.subTotal.ab_volumn > 0 ? thick.pct_thick_all_ab.toFixed(2) + '%' : '', '', '', '', '', '', thick.subTotal.spc_volumn > 0 ? thick.pct_thick_all_spc.toFixed(2) + '%' : '', '', '']);
+          pctAllRow.getCell(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE699' } };
+          pctAllRow.getCell(4).font = { bold: true, color: { argb: 'FF804000' } };
+          pctAllRow.getCell(10).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE699' } };
+          pctAllRow.getCell(10).font = { bold: true, color: { argb: 'FF804000' } };
+          
+          // 💡 บรรทัดที่เพิ่ม: % ความหนา (ชุด) แยก ปกติ ,พิเศษ
+          const pctSepRow = worksheet.addRow(['% ความหนา (ชุด) แยก ปกติ ,พิเศษ', '', '', thick.subTotal.ab_volumn > 0 ? thick.pct_thick_sep_ab.toFixed(2) + '%' : '', '', '', '', '', '', thick.subTotal.spc_volumn > 0 ? thick.pct_thick_sep_spc.toFixed(2) + '%' : '', '', '']);
+          pctSepRow.getCell(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8CBAD' } };
+          pctSepRow.getCell(4).font = { bold: true, color: { argb: 'FF804000' } };
+          pctSepRow.getCell(10).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8CBAD' } };
+          pctSepRow.getCell(10).font = { bold: true, color: { argb: 'FF804000' } };
+          
+          // 💡 บรรทัดที่เพิ่ม: ราคาเฉลี่ย ของความหนา
+          const avgPriceRow = worksheet.addRow(['ราคาเฉลี่ย', '', '', thick.subTotal.ab_volumn > 0 ? thick.avg_price_ab.toFixed(2) : '', '', '', '', '', '', thick.subTotal.spc_volumn > 0 ? thick.avg_price_spc.toFixed(2) : '', '', '']);
+          avgPriceRow.getCell(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } };
+          avgPriceRow.getCell(4).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          avgPriceRow.getCell(10).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } };
+          avgPriceRow.getCell(10).font = { bold: true, color: { argb: 'FFFFFFFF' } };
         });
       });
 
@@ -856,6 +902,22 @@ const reportController = {
         gtRow4.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } }; 
         gtRow4.font = { bold: true, color: { argb: 'FFFFFFFF' } }; 
       }
+
+      // ตีเส้นขอบตารางและกำหนดฟอนต์ TH Sarabun
+      worksheet.eachRow({ includeEmpty: true }, function(row) {
+        row.eachCell({ includeEmpty: true }, function(cell) {
+          // กำหนดฟอนต์ TH Sarabun โดยคงสไตล์เดิมไว้ (เช่น ตัวหนา หรือสี)
+          cell.font = {
+            ...(cell.font || {}),
+            name: 'TH Sarabun New',
+            size: cell.font?.size || 16 
+          };
+
+          if (!cell.border) {
+            cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+          }
+        });
+      });
 
       // ส่งกลับเป็นไฟล์ Binary (Blob)
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -1722,6 +1784,21 @@ const reportController = {
         gtAvgRow.font = { bold: true };
       }
 
+      // ตีเส้นขอบตารางและกำหนดฟอนต์ TH Sarabun
+      worksheet.eachRow({ includeEmpty: true }, function(row) {
+        row.eachCell({ includeEmpty: true }, function(cell) {
+          // กำหนดฟอนต์ TH Sarabun โดยคงสไตล์เดิมไว้ (เช่น ตัวหนา หรือสี)
+          cell.font = {
+            ...(cell.font || {}),
+            name: 'TH SarabunPSK',
+            size: cell.font?.size || 16 
+          };
+
+          if (!cell.border) {
+            cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+          }
+        });
+      });
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', 'attachment; filename=production_thick_mil.xlsx');
       await workbook.xlsx.write(res);
@@ -2024,7 +2101,17 @@ const reportController = {
 
       worksheet.eachRow({ includeEmpty: true }, row => {
         row.eachCell({ includeEmpty: true }, cell => {
-          if (!cell.border) cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+          // 1. ตั้งค่า Font เป็น TH Sarabun New โดยรักษาค่าเดิม (เช่น ตัวหนา หรือ สี) ไว้
+          cell.font = {
+            ...(cell.font || {}),
+            name: 'TH Sarabun New',
+            size: cell.font?.size || 16 // ฟอนต์ Sarabun แนะนำให้ใช้ขนาด 14-16
+          };
+
+          // 2. ตีเส้นขอบตาราง
+          if (!cell.border) {
+            cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+          }
         });
       });
 
@@ -3179,10 +3266,19 @@ const reportController = {
         }
       }
 
-      // ตีเส้นขอบตาราง
       worksheet.eachRow({ includeEmpty: true }, row => {
         row.eachCell({ includeEmpty: true }, cell => {
-          if (!cell.border) cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+          // 1. ตั้งค่า Font เป็น TH Sarabun New โดยรักษาค่าเดิม (เช่น ตัวหนา หรือ สี) ไว้
+          cell.font = {
+            ...(cell.font || {}),
+            name: 'TH SarabunPSK',
+            size: cell.font?.size || 16 // ฟอนต์ Sarabun แนะนำให้ใช้ขนาด 14-16
+          };
+
+          // 2. ตีเส้นขอบตาราง
+          if (!cell.border) {
+            cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+          }
         });
       });
 
@@ -3228,61 +3324,75 @@ const reportController = {
       let tbodyHtml = '';
       formattedData.forEach((emp) => {
         const empName = emp.employee_code ? `${emp.employee_code} ${emp.employee_name}` : emp.employee_name;
-        
-        // 💡 ครอบข้อมูลของพนักงานแต่ละคนด้วย <tbody> เดี่ยวๆ เพื่อป้องกันไม่ให้ถูกตัดขาดกลางหน้ากระดาษ (Page break)
-        tbodyHtml += `<tbody style="page-break-inside: avoid;">`;
 
         if (isFormat2) {
           const saws = Object.values(emp.saws);
-          saws.forEach((saw, sIdx) => {
-            let volRow = `<tr>`;
-            
-            // 💡 แก้ไข: นับ rowSpan ให้ครอบคลุม: (จำนวนชุดเลื่อย x 2 บรรทัดย่อย) + บรรทัด "รวม" สุทธิ 2 บรรทัด
-            if (sIdx === 0) {
-               volRow += `<td rowspan="${(saws.length * 2) + 2}" class="left pl" style="background-color: #fefce8; vertical-align: middle;">${empName}</td>`;
+          // แบ่งชุดเลื่อยเป็นก้อนละไม่เกิน 8 ชุดต่อ <tbody> เพื่อไม่ให้สูงเกิน 1 หน้ากระดาษ
+          // ทำให้ page-break-inside: avoid ทำงานได้จริง และไม่เกิดช่องว่างเมื่อตัดข้ามหน้า
+          const MAX_SAWS_PER_CHUNK = 8;
+
+          const buildEmpSummaryRows = () => {
+            let sumVol = `<tr class="bold" style="background-color: #e2efda; border-top: 1px solid #000;"><td colspan="2" rowspan="2" class="center" style="vertical-align: middle;">รวม</td>`;
+            let sumPct = `<tr class="text-xs" style="background-color: #e2efda; border-bottom: 2px solid #555;">`;
+            expectedGrades.forEach(g => {
+              uniqueLengths.forEach(l => {
+                sumVol += `<td>${emp.summary.grades[g].lengths[l] > 0 ? emp.summary.grades[g].lengths[l].toFixed(4) : '0.0000'}</td>`;
+                sumPct += `<td class="text-gray">${emp.summary.grades[g].pcts[l] > 0 ? emp.summary.grades[g].pcts[l].toFixed(2) + '%' : '0.00%'}</td>`;
+              });
+              sumVol += `<td style="background-color: #c6e0b4;">${emp.summary.grades[g].total > 0 ? emp.summary.grades[g].total.toFixed(4) : '0.0000'}</td>`;
+              sumPct += `<td class="text-gray" style="background-color: #c6e0b4;">${emp.summary.grades[g].pct_total > 0 ? emp.summary.grades[g].pct_total.toFixed(2) + '%' : '0.00%'}</td>`;
+            });
+            uniqueLengths.forEach(l => {
+              sumVol += `<td style="background-color: #c6e0b4;">${emp.summary.total_all_grades.lengths[l] > 0 ? emp.summary.total_all_grades.lengths[l].toFixed(4) : '0.0000'}</td>`;
+              sumPct += `<td class="text-gray" style="background-color: #c6e0b4;">${emp.summary.total_all_grades.pcts[l] > 0 ? emp.summary.total_all_grades.pcts[l].toFixed(2) + '%' : '0.00%'}</td>`;
+            });
+            sumVol += `<td style="background-color: #a9d08e; color: #14532d;">${emp.summary.total_all_grades.total > 0 ? emp.summary.total_all_grades.total.toFixed(4) : '0.0000'}</td></tr>`;
+            sumPct += `<td class="text-gray" style="background-color: #a9d08e;">${emp.summary.total_all_grades.pct_total > 0 ? emp.summary.total_all_grades.pct_total.toFixed(2) + '%' : '0.00%'}</td></tr>`;
+            return sumVol + sumPct;
+          };
+
+          if (saws.length === 0) {
+            tbodyHtml += `<tbody style="page-break-inside: avoid;">${buildEmpSummaryRows()}</tbody>`;
+          } else {
+            for (let start = 0; start < saws.length; start += MAX_SAWS_PER_CHUNK) {
+              const chunk = saws.slice(start, start + MAX_SAWS_PER_CHUNK);
+              const isLastChunk = start + MAX_SAWS_PER_CHUNK >= saws.length;
+
+              tbodyHtml += `<tbody style="page-break-inside: avoid;">`;
+              chunk.forEach((saw, cIdx) => {
+                let volRow = `<tr>`;
+                if (cIdx === 0) {
+                  volRow += `<td rowspan="${chunk.length * 2}" class="left pl" style="background-color: #fefce8; vertical-align: middle;">${empName}</td>`;
+                }
+                volRow += `<td rowspan="2" class="left pl" style="vertical-align: middle;">${saw.saw_name}</td>`;
+                expectedGrades.forEach(g => {
+                  uniqueLengths.forEach(l => { volRow += `<td>${saw.grades[g].lengths[l] > 0 ? saw.grades[g].lengths[l].toFixed(4) : '0.0000'}</td>`; });
+                  volRow += `<td class="bold bg-gray-light">${saw.grades[g].total > 0 ? saw.grades[g].total.toFixed(4) : '0.0000'}</td>`;
+                });
+                uniqueLengths.forEach(l => { volRow += `<td style="background-color: #eff6ff;">${saw.total_all_grades.lengths[l] > 0 ? saw.total_all_grades.lengths[l].toFixed(4) : '0.0000'}</td>`; });
+                volRow += `<td class="bold" style="background-color: #dbeafe;">${saw.total_all_grades.total > 0 ? saw.total_all_grades.total.toFixed(4) : '0.0000'}</td></tr>`;
+
+                let pctRow = `<tr class="text-gray text-xs">`;
+                expectedGrades.forEach(g => {
+                  uniqueLengths.forEach(l => { pctRow += `<td>${saw.grades[g].pcts[l] > 0 ? saw.grades[g].pcts[l].toFixed(2) + '%' : '0.00%'}</td>`; });
+                  pctRow += `<td class="bold bg-gray-light">${saw.grades[g].pct_total > 0 ? saw.grades[g].pct_total.toFixed(2) + '%' : '0.00%'}</td>`;
+                });
+                uniqueLengths.forEach(l => { pctRow += `<td style="background-color: #eff6ff;">${saw.total_all_grades.pcts[l] > 0 ? saw.total_all_grades.pcts[l].toFixed(2) + '%' : '0.00%'}</td>`; });
+                pctRow += `<td class="bold" style="background-color: #dbeafe;">${saw.total_all_grades.pct_total > 0 ? saw.total_all_grades.pct_total.toFixed(2) + '%' : '0.00%'}</td></tr>`;
+
+                tbodyHtml += volRow + pctRow;
+              });
+
+              if (isLastChunk) {
+                tbodyHtml += buildEmpSummaryRows();
+              }
+              tbodyHtml += `</tbody>`;
             }
-            
-            volRow += `<td rowspan="2" class="left pl" style="vertical-align: middle;">${saw.saw_name}</td>`;
-            expectedGrades.forEach(g => {
-              uniqueLengths.forEach(l => { volRow += `<td>${saw.grades[g].lengths[l] > 0 ? saw.grades[g].lengths[l].toFixed(4) : '0.0000'}</td>`; });
-              volRow += `<td class="bold bg-gray-light">${saw.grades[g].total > 0 ? saw.grades[g].total.toFixed(4) : '0.0000'}</td>`;
-            });
-            uniqueLengths.forEach(l => { volRow += `<td style="background-color: #eff6ff;">${saw.total_all_grades.lengths[l] > 0 ? saw.total_all_grades.lengths[l].toFixed(4) : '0.0000'}</td>`; });
-            volRow += `<td class="bold" style="background-color: #dbeafe;">${saw.total_all_grades.total > 0 ? saw.total_all_grades.total.toFixed(4) : '0.0000'}</td></tr>`;
-
-            let pctRow = `<tr class="text-gray text-xs">`;
-            expectedGrades.forEach(g => {
-              uniqueLengths.forEach(l => { pctRow += `<td>${saw.grades[g].pcts[l] > 0 ? saw.grades[g].pcts[l].toFixed(2) + '%' : '0.00%'}</td>`; });
-              pctRow += `<td class="bold bg-gray-light">${saw.grades[g].pct_total > 0 ? saw.grades[g].pct_total.toFixed(2) + '%' : '0.00%'}</td>`;
-            });
-            uniqueLengths.forEach(l => { pctRow += `<td style="background-color: #eff6ff;">${saw.total_all_grades.pcts[l] > 0 ? saw.total_all_grades.pcts[l].toFixed(2) + '%' : '0.00%'}</td>`; });
-            pctRow += `<td class="bold" style="background-color: #dbeafe;">${saw.total_all_grades.pct_total > 0 ? saw.total_all_grades.pct_total.toFixed(2) + '%' : '0.00%'}</td></tr>`;
-
-            tbodyHtml += volRow + pctRow;
-          });
-
-          // 💡 แก้ไข: บรรทัดรวมพนักงาน ผสานเซลล์อย่างสมบูรณ์แบบ
-          let sumVol = `<tr class="bold" style="background-color: #e2efda; border-top: 1px solid #000;"><td rowspan="2" class="center" style="vertical-align: middle;">รวม</td>`;
-          let sumPct = `<tr class="text-xs" style="background-color: #e2efda; border-bottom: 2px solid #555;">`;
-          expectedGrades.forEach(g => {
-            uniqueLengths.forEach(l => { 
-              sumVol += `<td>${emp.summary.grades[g].lengths[l] > 0 ? emp.summary.grades[g].lengths[l].toFixed(4) : '0.0000'}</td>`; 
-              sumPct += `<td class="text-gray">${emp.summary.grades[g].pcts[l] > 0 ? emp.summary.grades[g].pcts[l].toFixed(2) + '%' : '0.00%'}</td>`;
-            });
-            sumVol += `<td style="background-color: #c6e0b4;">${emp.summary.grades[g].total > 0 ? emp.summary.grades[g].total.toFixed(4) : '0.0000'}</td>`;
-            sumPct += `<td class="text-gray" style="background-color: #c6e0b4;">${emp.summary.grades[g].pct_total > 0 ? emp.summary.grades[g].pct_total.toFixed(2) + '%' : '0.00%'}</td>`;
-          });
-          uniqueLengths.forEach(l => { 
-            sumVol += `<td style="background-color: #c6e0b4;">${emp.summary.total_all_grades.lengths[l] > 0 ? emp.summary.total_all_grades.lengths[l].toFixed(4) : '0.0000'}</td>`; 
-            sumPct += `<td class="text-gray" style="background-color: #c6e0b4;">${emp.summary.total_all_grades.pcts[l] > 0 ? emp.summary.total_all_grades.pcts[l].toFixed(2) + '%' : '0.00%'}</td>`;
-          });
-          sumVol += `<td style="background-color: #a9d08e; color: #14532d;">${emp.summary.total_all_grades.total > 0 ? emp.summary.total_all_grades.total.toFixed(4) : '0.0000'}</td></tr>`;
-          sumPct += `<td class="text-gray" style="background-color: #a9d08e;">${emp.summary.total_all_grades.pct_total > 0 ? emp.summary.total_all_grades.pct_total.toFixed(2) + '%' : '0.00%'}</td></tr>`;
-
-          tbodyHtml += sumVol + sumPct;
+          }
 
         } else {
           // Format 1
+          tbodyHtml += `<tbody style="page-break-inside: avoid;">`;
           let volRow = `<tr><td rowspan="2" class="left pl" style="vertical-align: middle;">${empName}</td>`;
           let pctRow = `<tr class="text-gray text-xs">`;
           expectedGrades.forEach(g => {
@@ -3300,9 +3410,8 @@ const reportController = {
           volRow += `<td class="bold" style="background-color: #dbeafe;">${emp.summary.total_all_grades.total > 0 ? emp.summary.total_all_grades.total.toFixed(4) : '0.0000'}</td></tr>`;
           pctRow += `<td class="bold" style="background-color: #dbeafe;">${emp.summary.total_all_grades.pct_total > 0 ? emp.summary.total_all_grades.pct_total.toFixed(2) + '%' : '0.00%'}</td></tr>`;
 
-          tbodyHtml += volRow + pctRow;
+          tbodyHtml += volRow + pctRow + `</tbody>`;
         }
-        tbodyHtml += `</tbody>`; // ปิด tbody ของพนักงานคนนี้
       });
 
       // Grand Total

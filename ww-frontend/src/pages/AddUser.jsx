@@ -1,12 +1,10 @@
 // src/pages/AddUser.jsx
 import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import apiFetch from '../services/apiFetch';
-// import { getSessionUser } from '../utils/session';
-// แก้ไขด้านบนของไฟล์ src/pages/AddUser.jsx
+import apiFetch, { API_URL } from '../services/apiFetch';
 import { getUser } from '../utils/session';
 
-// และใน useEffect (บรรทัดที่ 46) เปลี่ยนจาก getSessionUser() เป็น:
+const getAvatarUrl = (filename) => (filename ? `${API_URL}/uploads/avatars/${filename}` : '');
 
 
 export default function Users() {
@@ -23,6 +21,9 @@ export default function Users() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null); // null = โหมดเพิ่ม, มีค่า = โหมดแก้ไข
   const [loading, setLoading] = useState(false);
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState('');
+  const [removeAvatar, setRemoveAvatar] = useState(false);
 
   // ─── Master Data สำหรับ Dropdown ───
   const [branches, setBranches] = useState([]);
@@ -144,14 +145,25 @@ export default function Users() {
   };
 
   // ─── 2. จัดการ Modal ───
+  const resetAvatarState = () => {
+    if (avatarPreview && avatarPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(avatarPreview);
+    }
+    setAvatarFile(null);
+    setAvatarPreview('');
+    setRemoveAvatar(false);
+  };
+
   const openAddModal = () => {
     setEditingId(null);
     setFormData(initialFormState);
+    resetAvatarState();
     setIsModalOpen(true);
   };
 
   const openEditModal = async (userId) => {
     setEditingId(userId);
+    resetAvatarState();
     setIsModalOpen(true);
 
     try {
@@ -169,6 +181,7 @@ export default function Users() {
             ? u.allowed_branches.map(Number)
             : []
         });
+        setAvatarPreview(getAvatarUrl(u.avatar));
       } else {
         Swal.fire({
           icon: 'warning',
@@ -192,7 +205,52 @@ export default function Users() {
   const closeModal = () => {
     setIsModalOpen(false);
     setFormData(initialFormState);
+    resetAvatarState();
     setEditingId(null);
+  };
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ไฟล์ไม่ถูกต้อง',
+        text: 'รองรับเฉพาะไฟล์รูปภาพ (.jpg, .png, .webp, .gif)',
+        ...getSwalTheme()
+      });
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ไฟล์มีขนาดใหญ่เกินไป',
+        text: 'กรุณาเลือกรูปภาพขนาดไม่เกิน 2 MB',
+        ...getSwalTheme()
+      });
+      e.target.value = '';
+      return;
+    }
+
+    if (avatarPreview && avatarPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(avatarPreview);
+    }
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+    setRemoveAvatar(false);
+  };
+
+  const handleRemoveAvatar = () => {
+    if (avatarPreview && avatarPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(avatarPreview);
+    }
+    setAvatarFile(null);
+    setAvatarPreview('');
+    setRemoveAvatar(true);
   };
 
   // ─── 3. Handlers ฟอร์มและการบันทึก ───
@@ -255,17 +313,26 @@ export default function Users() {
 
     try {
       const primaryBranchId = parseInt(formData.branch_id, 10);
+      const payload = new FormData();
+      payload.append('username', cleanUsername);
+      if (cleanPassword) payload.append('password', cleanPassword);
+      payload.append('fullname', cleanFullname);
+      payload.append('group_id', String(parseInt(formData.group_id, 10)));
+      payload.append('branch_id', String(primaryBranchId));
+      if (formData.dept_id) payload.append('dept_id', String(parseInt(formData.dept_id, 10)));
+      payload.append(
+        'allowed_branches',
+        JSON.stringify(formData.allowed_branches.filter((id) => id !== primaryBranchId))
+      );
+      if (avatarFile) {
+        payload.append('avatar', avatarFile);
+      } else if (isEditMode && removeAvatar) {
+        payload.append('remove_avatar', 'true');
+      }
+
       const res = await apiFetch(url, {
         method,
-        body: JSON.stringify({
-          username: cleanUsername,
-          password: cleanPassword,
-          fullname: cleanFullname,
-          group_id: parseInt(formData.group_id, 10),
-          branch_id: primaryBranchId,
-          dept_id: formData.dept_id ? parseInt(formData.dept_id, 10) : null,
-          allowed_branches: formData.allowed_branches.filter((id) => id !== primaryBranchId)
-        })
+        body: payload
       });
 
       if (res?.success) {
@@ -277,6 +344,9 @@ export default function Users() {
           showConfirmButton: false,
           ...getSwalTheme()
         });
+        if (isEditMode && currentUser && Number(currentUser.id) === Number(editingId)) {
+          window.dispatchEvent(new Event('user-profile-updated'));
+        }
         closeModal();
         fetchUsers();
       } else {
@@ -432,12 +502,25 @@ export default function Users() {
                     return (
                       <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                         <td className="p-4 font-medium text-gray-800 dark:text-gray-200">
-                          {u.username}
-                          {isSelf && (
-                            <span className="ml-2 text-xs bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 px-2 py-0.5 rounded-full">
-                              คุณ
-                            </span>
-                          )}
+                          <div className="flex items-center gap-3">
+                            {u.avatar ? (
+                              <img
+                                src={getAvatarUrl(u.avatar)}
+                                alt={u.fullname || u.username}
+                                className="w-8 h-8 rounded-full object-cover border border-gray-200 dark:border-gray-600 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 flex items-center justify-center shrink-0">
+                                <i className="fas fa-user text-xs"></i>
+                              </div>
+                            )}
+                            <span>{u.username}</span>
+                            {isSelf && (
+                              <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 px-2 py-0.5 rounded-full">
+                                คุณ
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="p-4 text-gray-600 dark:text-gray-300">{u.fullname}</td>
                         <td className="p-4 text-gray-600 dark:text-gray-300">
@@ -493,6 +576,44 @@ export default function Users() {
 
             <div className="p-6 overflow-y-auto custom-scrollbar">
               <form id="userForm" onSubmit={handleSubmit} className="space-y-6">
+                {/* อัปโหลดรูปโปรไฟล์ */}
+                <div className="flex flex-col sm:flex-row items-center gap-4 pb-5 border-b border-gray-200 dark:border-gray-700">
+                  <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
+                    {avatarPreview ? (
+                      <img src={avatarPreview} alt="Avatar preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <i className="fas fa-user text-2xl text-gray-400"></i>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-center sm:items-start gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="cursor-pointer bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-2">
+                        <i className="fas fa-camera"></i>
+                        <span>{avatarPreview ? 'เปลี่ยนรูปภาพ' : 'อัปโหลดรูปภาพ'}</span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/gif"
+                          onChange={handleAvatarChange}
+                          className="hidden"
+                        />
+                      </label>
+                      {avatarPreview && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveAvatar}
+                          className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1"
+                        >
+                          <i className="fas fa-trash-alt"></i>
+                          <span>ลบรูปภาพ</span>
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      รองรับไฟล์ .jpg, .png, .webp, .gif ขนาดไม่เกิน 2 MB
+                    </p>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">

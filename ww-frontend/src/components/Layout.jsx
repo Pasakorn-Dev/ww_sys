@@ -1,7 +1,7 @@
 // src/components/Layout.jsx
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
-import apiFetch from '../services/apiFetch';
+import apiFetch, { API_URL } from '../services/apiFetch';
 import Swal from 'sweetalert2';
 import { clearSession, getUser, setUser as saveUser } from '../utils/session';
 
@@ -21,6 +21,22 @@ export default function Layout() {
   const [isCollapsed, setIsCollapsed] = useState(false);     // 🌟 สำหรับ Desktop (ย่อ/ขยาย)
   
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+  const [avatarError, setAvatarError] = useState(false);
+
+  // State สำหรับ Modal เปลี่ยนรหัสผ่าน
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    current_password: '',
+    new_password: '',
+    confirm_password: '',
+  });
+  const [showPasswords, setShowPasswords] = useState({
+    current: false,
+    new: false,
+    confirm: false,
+  });
+  const [passwordError, setPasswordError] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // ─── Effect: จัดการ Dark mode ─────────────────────────────
   useEffect(() => {
@@ -106,6 +122,26 @@ export default function Layout() {
     };
   }, [navigate, location.pathname]);
 
+  // อัปเดตข้อมูลผู้ใช้ทันทีเมื่อมีการแก้ไขโปรไฟล์/รูปภาพของตัวเอง
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.avatar]);
+
+  useEffect(() => {
+    const handleProfileUpdated = async () => {
+      try {
+        const me = await apiFetch('/auth/me');
+        if (me?.success && me.data) {
+          setUser(me.data);
+          saveUser(me.data);
+          setAvatarError(false);
+        }
+      } catch { /* ignore */ }
+    };
+    window.addEventListener('user-profile-updated', handleProfileUpdated);
+    return () => window.removeEventListener('user-profile-updated', handleProfileUpdated);
+  }, []);
+
   // ─── Handler: Logout ──────────────────────────────────────
   const handleLogout = async () => {
     try {
@@ -113,6 +149,73 @@ export default function Layout() {
     } catch { /* ออกจากระบบฝั่ง client ต่อให้เรียกไม่สำเร็จ */ }
     clearSession();
     navigate('/login', { replace: true });
+  };
+
+  // ─── Handler: เปลี่ยนรหัสผ่าน ─────────────────────────────
+  const openPasswordModal = () => {
+    setPasswordForm({ current_password: '', new_password: '', confirm_password: '' });
+    setShowPasswords({ current: false, new: false, confirm: false });
+    setPasswordError('');
+    setIsPasswordModalOpen(true);
+  };
+
+  const closePasswordModal = () => {
+    if (isChangingPassword) return;
+    setIsPasswordModalOpen(false);
+  };
+
+  const handlePasswordInputChange = (e) => {
+    setPasswordForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    if (passwordError) setPasswordError('');
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    const { current_password, new_password, confirm_password } = passwordForm;
+
+    if (!current_password || !new_password || !confirm_password) {
+      setPasswordError('กรุณากรอกข้อมูลให้ครบทุกช่อง');
+      return;
+    }
+    if (new_password.length < 6 || new_password.length > 72) {
+      setPasswordError('รหัสผ่านใหม่ต้องมีความยาว 6-72 ตัวอักษร');
+      return;
+    }
+    if (current_password === new_password) {
+      setPasswordError('รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม');
+      return;
+    }
+    if (new_password !== confirm_password) {
+      setPasswordError('รหัสผ่านใหม่และการยืนยันรหัสผ่านไม่ตรงกัน');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    setPasswordError('');
+    try {
+      const res = await apiFetch('/auth/change-password', {
+        method: 'PUT',
+        body: JSON.stringify({ current_password, new_password, confirm_password }),
+      });
+
+      if (!res) return; // 401: apiFetch จัดการ session หมดอายุให้แล้ว
+      if (res.success) {
+        setIsPasswordModalOpen(false);
+        Swal.fire({
+          icon: 'success',
+          title: 'สำเร็จ',
+          text: res.message || 'เปลี่ยนรหัสผ่านสำเร็จ',
+          timer: 1800,
+          showConfirmButton: false,
+        });
+      } else {
+        setPasswordError(res.message || 'ไม่สามารถเปลี่ยนรหัสผ่านได้');
+      }
+    } catch (error) {
+      setPasswordError(error.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   // ─── Error state (server/DB ไม่พร้อม) ──────────────────────
@@ -302,13 +405,37 @@ export default function Layout() {
               </span>
             </button>
 
-            {/* User greeting */}
-            <span className="text-gray-600 dark:text-gray-300 hidden md:block">
-              สวัสดี,{' '}
-              <span className="font-bold text-blue-600 dark:text-blue-400">
-                {user.fullname || user.username}
+            {/* User avatar & greeting */}
+            <div className="flex items-center gap-2.5">
+              {user.avatar && !avatarError ? (
+                <img
+                  src={`${API_URL}/uploads/avatars/${user.avatar}`}
+                  alt={user.fullname || user.username}
+                  onError={() => setAvatarError(true)}
+                  className="w-9 h-9 rounded-full object-cover border-2 border-blue-200 dark:border-blue-500/40 shadow-sm shrink-0"
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-200 dark:border-blue-500/30 shrink-0">
+                  <i className="fas fa-user text-sm"></i>
+                </div>
+              )}
+              <span className="text-gray-600 dark:text-gray-300 hidden md:block">
+                สวัสดี,{' '}
+                <span className="font-bold text-blue-600 dark:text-blue-400">
+                  {user.fullname || user.username}
+                </span>
               </span>
-            </span>
+            </div>
+
+            {/* Change Password */}
+            <button
+              onClick={openPasswordModal}
+              title="เปลี่ยนรหัสผ่าน"
+              className="bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-3 py-2 rounded-lg shadow-sm hover:bg-blue-100 dark:hover:bg-blue-500/20 transition flex items-center gap-2 text-sm"
+            >
+              <i className="fas fa-key"></i>
+              <span className="hidden md:inline">เปลี่ยนรหัสผ่าน</span>
+            </button>
 
             {/* Logout */}
             <button
@@ -326,6 +453,102 @@ export default function Layout() {
           <Outlet />
         </div>
       </main>
+
+      {/* Modal เปลี่ยนรหัสผ่าน */}
+      {isPasswordModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={closePasswordModal}
+        >
+          <div
+            className="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                <i className="fas fa-key text-blue-600 dark:text-blue-400"></i>
+                เปลี่ยนรหัสผ่าน
+              </h3>
+              <button
+                type="button"
+                onClick={closePasswordModal}
+                disabled={isChangingPassword}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+              >
+                <i className="fas fa-times text-lg"></i>
+              </button>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="p-6 space-y-4">
+              {passwordError && (
+                <div className="p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 text-sm flex items-center gap-2">
+                  <i className="fas fa-exclamation-circle shrink-0"></i>
+                  <span>{passwordError}</span>
+                </div>
+              )}
+
+              {[
+                { name: 'current_password', key: 'current', label: 'รหัสผ่านเดิม', placeholder: 'กรอกรหัสผ่านเดิม' },
+                { name: 'new_password', key: 'new', label: 'รหัสผ่านใหม่ (6-72 ตัวอักษร)', placeholder: 'กรอกรหัสผ่านใหม่' },
+                { name: 'confirm_password', key: 'confirm', label: 'ยืนยันรหัสผ่านใหม่', placeholder: 'กรอกรหัสผ่านใหม่อีกครั้ง' },
+              ].map((field) => (
+                <div key={field.name}>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {field.label} <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPasswords[field.key] ? 'text' : 'password'}
+                      name={field.name}
+                      value={passwordForm[field.name]}
+                      onChange={handlePasswordInputChange}
+                      placeholder={field.placeholder}
+                      autoComplete={field.name === 'current_password' ? 'current-password' : 'new-password'}
+                      className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 pr-10 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:border-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswords((prev) => ({ ...prev, [field.key]: !prev[field.key] }))}
+                      className="absolute inset-y-0 right-0 px-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                      tabIndex={-1}
+                    >
+                      <i className={`fas ${showPasswords[field.key] ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              <div className="pt-2 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={closePasswordModal}
+                  disabled={isChangingPassword}
+                  className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm font-medium transition"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold shadow transition flex items-center gap-2"
+                >
+                  {isChangingPassword ? (
+                    <>
+                      <i className="fas fa-spinner fa-spin"></i>
+                      กำลังบันทึก...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-save"></i>
+                      บันทึกรหัสผ่าน
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,7 +1,158 @@
 const { getMysqlConnection } = require('../config/mysqlDb');
 const TransactionModel = require('../models/transactionModel');
+const pool = require('../config/db');
+
+const formatLocalDate = (date) => {
+  if (!(date instanceof Date)) return date;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getDefaultCronDateRange = (start_date, end_date) => {
+  if (start_date && end_date) return { start_date, end_date };
+  const today = new Date();
+  const threeDaysAgo = new Date(today);
+  threeDaysAgo.setDate(today.getDate() - 3);
+  return {
+    start_date: formatLocalDate(threeDaysAgo),
+    end_date: formatLocalDate(today),
+  };
+};
+
+// Helper กลางสำหรับ Cron Job ซิงค์ข้อมูลทุกสาขา
+const runCronSyncAllBranches = async (
+  { tag, label, getRateMap, getOldData, cleanupDeleted, mapRows, upsert },
+  dateRange = {}
+) => {
+  const { start_date, end_date } = getDefaultCronDateRange(dateRange.start_date, dateRange.end_date);
+  console.log(`[${tag}] ⏳ เริ่ม${label}ทุกสาขา (${start_date} ถึง ${end_date})`);
+
+  const { rows: branches } = await pool.query('SELECT id, branch_name FROM branches ORDER BY id');
+  const results = [];
+
+  for (const branch of branches) {
+    const branch_id = branch.id;
+    try {
+      const mysqlPool = await getMysqlConnection(branch_id);
+      const rateMap = await getRateMap(branch_id);
+      const oldData = await getOldData(mysqlPool, start_date, end_date);
+      const activeIds = [...new Set(oldData.map(row => row.wood_size_amount_map_id))];
+
+      await cleanupDeleted(branch_id, start_date, end_date, activeIds);
+
+      if (oldData.length === 0) {
+        console.log(`[${tag}] สาขา ${branch.branch_name} (${branch_id}): ไม่พบข้อมูล`);
+        results.push({ branch_id, branch_name: branch.branch_name, total_synced: 0, status: 'no_data' });
+        continue;
+      }
+
+      const insertValues = mapRows(oldData, rateMap, branch_id);
+      const totalSynced = await upsert(insertValues);
+
+      console.log(`[${tag}] ✅ สาขา ${branch.branch_name} (${branch_id}): ซิงค์ ${totalSynced} รายการ`);
+      results.push({ branch_id, branch_name: branch.branch_name, total_synced: totalSynced, status: 'success' });
+    } catch (error) {
+      console.error(`[${tag}] ❌ สาขา ${branch.branch_name} (${branch_id}):`, error.message);
+      results.push({ branch_id, branch_name: branch.branch_name, total_synced: 0, status: 'error', error: error.message });
+    }
+  }
+
+  const totalAll = results.reduce((sum, r) => sum + r.total_synced, 0);
+  console.log(`[${tag}] 🏁 ซิงค์ทุกสาขาเสร็จสิ้น รวม ${totalAll} รายการ`);
+  return results;
+};
 
 const transactionController = {
+  // ─── Cron Job: ซิงค์ไม้เลื่อยทุกสาขาอัตโนมัติ ───
+  cronSyncSawWoods: (dateRange) => runCronSyncAllBranches({
+    tag: 'Cron SawWood',
+    label: 'ซิงค์ไม้เลื่อย',
+    getRateMap: TransactionModel.getUnitPricesByBranch,
+    getOldData: TransactionModel.getOldTransactions,
+    cleanupDeleted: TransactionModel.cleanupDeletedTransactions,
+    upsert: TransactionModel.upsertTransactions,
+    mapRows: (oldData, priceMap, branch_id) => oldData.map(row => [
+      row.wood_size_amount_map_id,
+      row.barcode_id,
+      formatLocalDate(row.produce_date),
+      row.log_wood_type_id || null,
+      row.log_wood_eval_size_id || null,
+      row.ws_customer_id || null,
+      row.transaction_type_id || null,
+      row.saw_time_id || null,
+      row.saw_name || null,
+      row.wood_size_id || null,
+      row.saw_wood_type_id || null,
+      row.amount || 0,
+      row.volumn || 0,
+      priceMap.get(row.wood_size_id) || 0,
+      branch_id,
+      row.sawer_id || null,
+    ]),
+  }, dateRange),
+
+  // ─── Cron Job: ซิงค์ไม้เปียกทุกสาขาอัตโนมัติ ───
+  cronSyncWetWoods: (dateRange) => runCronSyncAllBranches({
+    tag: 'Cron WetWood',
+    label: 'ซิงค์ไม้เปียก',
+    getRateMap: TransactionModel.getUnitWagesByBranch,
+    getOldData: TransactionModel.getOldWetWoodTransactions,
+    cleanupDeleted: TransactionModel.cleanupDeletedWetWoodTransactions,
+    upsert: TransactionModel.upsertWetWoodTransactions,
+    mapRows: (oldData, wageMap, branch_id) => {
+      // กรองแถวที่ซ้ำซ้อนกันใน MySQL (ป้องกัน ON CONFLICT เออเร่อ)
+      const uniqueDataMap = new Map();
+      oldData.forEach(row => uniqueDataMap.set(row.wood_size_amount_map_id, row));
+      return Array.from(uniqueDataMap.values()).map(row => [
+        row.wood_size_amount_map_id,
+        branch_id,
+        row.barcode_id,
+        formatLocalDate(row.produce_date),
+        row.wood_size_id || null,
+        row.wet_wood_type_id || null,
+        row.sorter_id || null,
+        row.ws_customer_id || null,
+        row.amount || 0,
+        row.volumn || 0,
+        wageMap.get(row.wood_size_id) || 0,
+      ]);
+    },
+  }, dateRange),
+
+  // ─── Cron Job: ซิงค์ไม้แห้งทุกสาขาอัตโนมัติ ───
+  cronSyncDryWoods: (dateRange) => runCronSyncAllBranches({
+    tag: 'Cron DryWood',
+    label: 'ซิงค์ไม้แห้ง',
+    getRateMap: TransactionModel.getDryWagesByBranch,
+    getOldData: TransactionModel.getOldDryWoodTransactions,
+    cleanupDeleted: TransactionModel.cleanupDeletedDryWoodTransactions,
+    upsert: TransactionModel.upsertDryWoodTransactions,
+    mapRows: (oldData, wageMap, branch_id) => {
+      // กรองแถวที่ซ้ำซ้อนกันใน MySQL (ป้องกัน ON CONFLICT เออเร่อ)
+      const uniqueDataMap = new Map();
+      oldData.forEach(row => uniqueDataMap.set(row.wood_size_amount_map_id, row));
+      return Array.from(uniqueDataMap.values()).map(row => {
+        // ตรรกะคิดค่าแรงไม้แห้ง: ถ้าเป็นสโตร์ 104/13 ใช้เรทตัดสั้น ไม่งั้นใช้เรทปกติ
+        const rates = wageMap.get(row.wood_size_id) || { wage: 0, wage_cut: 0 };
+        const unitWage = row.store_code === '104/13' ? rates.wage_cut : rates.wage;
+        return [
+          row.wood_size_amount_map_id,
+          branch_id,
+          row.barcode_id,
+          formatLocalDate(row.produce_date),
+          row.wood_size_id || null,
+          row.wood_store_id || null,
+          row.sorter_id || null,
+          row.amount || 0,
+          row.volumn || 0,
+          unitWage,
+        ];
+      });
+    },
+  }, dateRange),
+
   syncSawWoods: async (req, res) => {
     const { branch_id, start_date, end_date } = req.body;
 

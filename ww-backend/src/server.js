@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
@@ -9,9 +10,13 @@ const validateEnv = require('./utils/validateEnv');
 validateEnv(); // ถ้า config ไม่ปลอดภัยใน production จะหยุดทันที
 
 const csrfMiddleware = require('./middlewares/csrfMiddleware');
+
 // require('./cronJobs'); // เปิดใช้งานระบบตั้งเวลาอัตโนมัติเบื้องหลัง
 
 const app = express();
+
+// อนุญาตให้ Express เชื่อใจ Reverse Proxy (Nginx) และดึง IP จาก Header อัตโนมัติ
+app.set('trust proxy', 1);
 
 // ซ่อน header ที่บอกว่าใช้ Express
 app.disable('x-powered-by');
@@ -74,6 +79,9 @@ app.use('/api/master-options', masterOptionsRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
+// ให้บริการไฟล์รูปภาพที่อัปโหลดผ่าน /api/uploads (ทำงานผ่าน proxy ทั้ง dev และ prod)
+app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // Health check (ไม่เปิดเผยรายละเอียดภายใน)
 app.get('/api/status', (req, res) => res.json({ success: true }));
 
@@ -86,7 +94,8 @@ app.use((err, req, res, next) => {
     if (err.message === 'Not allowed by CORS') return res.status(403).json({ success: false, message: 'Origin ไม่ได้รับอนุญาต' });
     if (err.type === 'entity.too.large') return res.status(413).json({ success: false, message: 'ข้อมูลมีขนาดใหญ่เกินไป' });
     if (err.type === 'entity.parse.failed') return res.status(400).json({ success: false, message: 'รูปแบบข้อมูลไม่ถูกต้อง' });
-    if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ success: false, message: 'ไฟล์มีขนาดใหญ่เกินไป' });
+    if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ success: false, message: 'ไฟล์มีขนาดใหญ่เกินไป (ไม่เกิน 2MB)' });
+    if (err.message === 'INVALID_AVATAR_TYPE') return res.status(400).json({ success: false, message: 'รองรับเฉพาะไฟล์รูปภาพ (.jpg, .png, .webp, .gif)' });
     console.error('[Unhandled Error]', err);
     res.status(500).json({ success: false, message: 'Server Error' });
 });

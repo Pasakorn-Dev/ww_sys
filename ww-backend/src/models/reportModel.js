@@ -1,14 +1,36 @@
 const pool = require('../config/db');
 
+const buildStoreCodeFilter = ({ store_code_start, store_code_end, store_code }, params) => {
+  if (store_code_start && store_code_end) {
+    params.push(store_code_start, store_code_end);
+    return `AND swt.code BETWEEN $${params.length - 1} AND $${params.length}`;
+  }
+  if (store_code_start) {
+    params.push(store_code_start);
+    return `AND swt.code >= $${params.length}`;
+  }
+  if (store_code_end) {
+    params.push(store_code_end);
+    return `AND swt.code <= $${params.length}`;
+  }
+  if (store_code) {
+    params.push(store_code);
+    return `AND swt.code = $${params.length}`;
+  }
+  return '';
+};
+
 const ReportModel = {
   getProductionCoverReport: async (filters) => {
-    const { branch_id, start_date, end_date, store_code } = filters;
+    const { branch_id, start_date, end_date } = filters;
+    const params = [branch_id, start_date, end_date];
+    const storeCodeCondition = buildStoreCodeFilter(filters, params);
 
     // Query จัดกลุ่มและรวมผลยอด amount และ volumn
     const query = `
       SELECT 
         b.branch_name,
-        swt.code AS store_code,
+        -- swt.code AS store_code,
         ws.is_special,
         ws.grade,
         ws.wood_code,
@@ -20,10 +42,10 @@ const ReportModel = {
       LEFT JOIN master_saw_wood_types swt ON t.saw_wood_type_id = swt.old_id AND t.branch_id = swt.branch_id
       WHERE t.branch_id = $1
         AND t.produce_date BETWEEN $2 AND $3
-        ${store_code ? `AND swt.code = $4` : ``}
+        ${storeCodeCondition}
       GROUP BY 
         b.branch_name, 
-        swt.code, 
+        -- swt.code, 
         ws.is_special, 
         ws.grade, 
         ws.wood_code
@@ -33,21 +55,20 @@ const ReportModel = {
         ws.wood_code ASC
     `;
 
-    const params = [branch_id, start_date, end_date];
-    if (store_code) params.push(store_code);
-
     const { rows } = await pool.query(query, params);
     return rows;
   },
 
   // 💡 เพิ่มฟังก์ชันรูปแบบที่ 2 (จัดกลุ่มตามชุดเลื่อย)
   getProductionCoverReportFormat2: async (filters) => {
-    const { branch_id, start_date, end_date, store_code } = filters;
+    const { branch_id, start_date, end_date } = filters;
+    const params = [branch_id, start_date, end_date];
+    const storeCodeCondition = buildStoreCodeFilter(filters, params);
 
     const query = `
       SELECT 
         b.branch_name,
-        swt.code AS store_code,
+        -- swt.code AS store_code,
         ws.is_special,
         ws.grade,
         t.saw_name,
@@ -60,10 +81,10 @@ const ReportModel = {
       LEFT JOIN master_saw_wood_types swt ON t.saw_wood_type_id = swt.old_id AND t.branch_id = swt.branch_id
       WHERE t.branch_id = $1
         AND t.produce_date BETWEEN $2 AND $3
-        ${store_code ? `AND swt.code = $4` : ``}
+        ${storeCodeCondition}
       GROUP BY 
         b.branch_name, 
-        swt.code, 
+        -- swt.code, 
         ws.is_special, 
         ws.grade, 
         t.saw_name, 
@@ -74,9 +95,6 @@ const ReportModel = {
         ws.grade ASC, 
         ws.wood_code ASC
     `;
-
-    const params = [branch_id, start_date, end_date];
-    if (store_code) params.push(store_code);
 
     const { rows } = await pool.query(query, params);
     return rows;
