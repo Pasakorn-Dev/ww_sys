@@ -150,7 +150,7 @@ const authController = {
     createUserAdmin: async (req, res) => {
         const uploadedAvatar = req.file ? req.file.filename : null;
         try {
-            const { username, password, fullname, group_id, branch_id, dept_id, allowed_branches } = req.body;
+            const { username, password, fullname, group_id, branch_id, dept_id, allowed_branches, force_logout, sync_lock } = req.body;
 
             // Basic Validation
             if (!username || !password || !fullname || !group_id || !branch_id) {
@@ -171,7 +171,9 @@ const authController = {
                 branch_id: Number(branch_id), 
                 dept_id: dept_id ? Number(dept_id) : null,
                 allowed_branches: parseAllowedBranches(allowed_branches),
-                avatar: uploadedAvatar
+                avatar: uploadedAvatar,
+                force_logout: Number(force_logout) === 1 ? 1 : 0,
+                sync_lock: Number(sync_lock) === 1 ? 1 : 0,
             });
             
             res.status(201).json({ success: true, message: 'เพิ่มผู้ใช้งานและกำหนดสิทธิ์สาขาสำเร็จ', data: newUser });
@@ -192,7 +194,7 @@ const authController = {
         const uploadedAvatar = req.file ? req.file.filename : null;
         try {
             const userId = req.params.id; // รับ ID จาก URL
-            const { username, password, fullname, group_id, branch_id, dept_id, allowed_branches, remove_avatar } = req.body;
+            const { username, password, fullname, group_id, branch_id, dept_id, allowed_branches, remove_avatar, force_logout, sync_lock } = req.body;
             const shouldRemoveAvatar = remove_avatar === 'true' || remove_avatar === true;
 
             // Basic Validation
@@ -222,7 +224,9 @@ const authController = {
                 dept_id: dept_id ? Number(dept_id) : null,
                 allowed_branches: parseAllowedBranches(allowed_branches),
                 avatar: uploadedAvatar,
-                remove_avatar: shouldRemoveAvatar
+                remove_avatar: shouldRemoveAvatar,
+                force_logout: Number(force_logout) === 1 ? 1 : 0,
+                sync_lock: Number(sync_lock) === 1 ? 1 : 0,
             });
 
             if (existingUser?.avatar && (uploadedAvatar || shouldRemoveAvatar)) {

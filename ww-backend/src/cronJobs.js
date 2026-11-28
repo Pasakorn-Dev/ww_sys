@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const masterController = require('./controllers/masterController');
+const employeeSyncController = require('./controllers/employeeSyncController');
 const transactionController = require('./controllers/transactionController');
 
 // จำลองระบบหลอกว่ามี Request/Response เพื่อสั่งให้ Controller ทำงาน
@@ -38,6 +39,26 @@ const runAutoSyncTransactions = async (label, syncFn) => {
         console.error(`[Cron] ❌ ซิงค์${label}ผิดพลาด:`, error);
     }
 };
+
+// ตั้งเวลาซิงค์ข้อมูลพนักงานจาก SQL Server: ตี 1 ครึ่ง ของทุกวัน
+const runAutoSyncEmployees = async () => {
+    console.log(`[Cron] ⏳ เริ่มซิงค์ข้อมูลพนักงานจาก SQL Server: ${new Date().toLocaleString('th-TH')}`);
+    try {
+        const summary = await employeeSyncController.runEmployeeSync();
+        console.log(
+            `[Cron] 🏁 ซิงค์พนักงานสำเร็จ: ต้นทาง ${summary.total_source}, เพิ่ม ${summary.created}, อัปเดต ${summary.updated}, ปิดใช้งาน ${summary.deactivated} (${summary.sync_time} วิ)`
+        );
+    } catch (error) {
+        console.error('[Cron] ❌ ซิงค์พนักงานผิดพลาด:', error);
+    }
+};
+
+cron.schedule('30 1 * * *', () => {
+    runAutoSyncEmployees();
+}, {
+    scheduled: true,
+    timezone: "Asia/Bangkok"
+});
 
 // ----------------------------------------------------
 // ตั้งเวลาทำงาน: ตัวอย่างตั้งไว้ที่ 02:00 น. (ตี 2 ของทุกวัน)

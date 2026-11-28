@@ -43,7 +43,9 @@ export default function Users() {
     group_id: '',
     branch_id: '',
     dept_id: '',
-    allowed_branches: []
+    allowed_branches: [],
+    force_logout: 0,
+    sync_lock: 0
   };
   const [formData, setFormData] = useState(initialFormState);
 
@@ -198,7 +200,9 @@ export default function Users() {
           dept_id: u.dept_id || '',
           allowed_branches: Array.isArray(u.allowed_branches)
             ? u.allowed_branches.map(Number)
-            : []
+            : [],
+          force_logout: Number(u.force_logout) === 1 ? 1 : 0,
+          sync_lock: Number(u.sync_lock) === 1 ? 1 : 0
         });
         setAvatarPreview(getAvatarUrl(u.avatar));
       } else {
@@ -347,6 +351,8 @@ export default function Users() {
         'allowed_branches',
         JSON.stringify(formData.allowed_branches.filter((id) => id !== primaryBranchId))
       );
+      payload.append('force_logout', String(Number(formData.force_logout) === 1 ? 1 : 0));
+      payload.append('sync_lock', String(Number(formData.sync_lock) === 1 ? 1 : 0));
       if (avatarFile) {
         payload.append('avatar', avatarFile);
       } else if (isEditMode && removeAvatar) {
@@ -506,6 +512,8 @@ export default function Users() {
                   <th className="p-4 font-semibold">ชื่อ-นามสกุล</th>
                   <th className="p-4 font-semibold">กลุ่มสิทธิ์</th>
                   <th className="p-4 font-semibold">สาขาหลัก</th>
+                  <th className="p-4 font-semibold text-center">สถานะใช้งาน</th>
+                  <th className="p-4 font-semibold text-center">สถานะการซิงค์</th>
                   {(permissions.can_edit || permissions.can_delete) && (
                     <th className="p-4 font-semibold text-center">จัดการ</th>
                   )}
@@ -514,13 +522,13 @@ export default function Users() {
               <tbody className="text-sm divide-y divide-gray-200 dark:divide-gray-700">
                 {isFetchingUsers ? (
                   <tr>
-                    <td colSpan={permissions.can_edit || permissions.can_delete ? 5 : 4} className="p-8 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={permissions.can_edit || permissions.can_delete ? 7 : 6} className="p-8 text-center text-gray-500 dark:text-gray-400">
                       <i className="fas fa-spinner fa-spin mr-2 text-blue-600"></i> กำลังโหลด...
                     </td>
                   </tr>
                 ) : filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={permissions.can_edit || permissions.can_delete ? 5 : 4} className="p-8 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={permissions.can_edit || permissions.can_delete ? 7 : 6} className="p-8 text-center text-gray-500 dark:text-gray-400">
                       ไม่พบข้อมูลผู้ใช้งาน
                     </td>
                   </tr>
@@ -557,6 +565,32 @@ export default function Users() {
                           </span>
                         </td>
                         <td className="p-4 text-gray-600 dark:text-gray-300">{u.branch_name || '-'}</td>
+                        <td className="p-4 text-center">
+                          {Number(u.force_logout) === 1 ? (
+                            <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                              ปิดการใช้งาน
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                              ใช้งาน
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-4 text-center">
+                          {Number(u.sync_lock) === 1 ? (
+                            <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                              <i className="fas fa-lock text-[10px]"></i>
+                              ไม่ซิงค์
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300 text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                              <i className="fas fa-sync-alt text-[10px]"></i>
+                              ซิงค์ปกติ
+                            </span>
+                          )}
+                        </td>
                         {(permissions.can_edit || permissions.can_delete) && (
                           <td className="p-4 text-center">
                             <div className="flex items-center justify-center gap-2">
@@ -736,6 +770,35 @@ export default function Users() {
                       {branches.filter((b) => b.id !== 0).map((b) => (
                         <option key={b.id} value={b.id}>{b.branch_name}</option>
                       ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 border-t border-gray-200 dark:border-gray-700 pt-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      สถานะการใช้งาน
+                    </label>
+                    <select
+                      value={formData.force_logout}
+                      onChange={(e) => setFormData({ ...formData, force_logout: Number(e.target.value) })}
+                      className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2.5 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value={0}>ใช้งาน (0)</option>
+                      <option value={1}>ปิดการใช้งาน (1)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      สถานะการซิงค์ข้อมูล
+                    </label>
+                    <select
+                      value={formData.sync_lock}
+                      onChange={(e) => setFormData({ ...formData, sync_lock: Number(e.target.value) })}
+                      className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2.5 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value={0}>ซิงค์ปกติ (0)</option>
+                      <option value={1}>ไม่ซิงค์ (1)</option>
                     </select>
                   </div>
                 </div>

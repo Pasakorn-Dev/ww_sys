@@ -23,7 +23,7 @@ services:
   # ---------- 2) Backend ----------
   backend:
     build: ./ww-backend
-    image: pasakorndev/my-backend:v1.0.0
+    image: pasakorndev/my-backend:v1.0.1
     restart: unless-stopped
     env_file: .env
     depends_on:
@@ -35,7 +35,7 @@ services:
   # ---------- 3) Frontend (nginx ตัวเล็กเสิร์ฟไฟล์ static) ----------
   frontend:
     build: ./ww-frontend
-    image: pasakorndev/my-frontend:v1.0.0
+    image: pasakorndev/my-frontend:v1.0.1
     restart: unless-stopped
     networks: [app-net]
     security_opt: ["no-new-privileges:true"]

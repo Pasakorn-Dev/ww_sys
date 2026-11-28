@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer'); // <--- เพิ่มตรงนี้
 const masterController = require('../controllers/masterController');
+const employeeSyncController = require('../controllers/employeeSyncController');
 const woodPriceController = require('../controllers/woodPriceController'); // <--- เพิ่มตรงนี้
 const verifyToken = require('../middlewares/authMiddleware');
 const checkPermission = require('../middlewares/permissionMiddleware'); // นำเข้า Middleware เช็คสิทธิ์
@@ -25,6 +26,7 @@ const upload = multer({
 
 // เพิ่ม API ยิงคำสั่ง Sync ข้อมูล (เช็คสิทธิ์แอดมินหรือคนที่มีสิทธิ์กดเพิ่มข้อมูล)
 router.post('/sync', verifyToken, checkPermission('/sync-master', 'add'), branchScope({ allowAll: true }), masterController.syncMasterData);
+router.post('/sync-employees', verifyToken, checkPermission('/sync-master', 'add'), employeeSyncController.syncEmployees);
 
 // ========================================================
 // 🪵 API สำหรับระบบจัดการราคาไม้เลื่อย (Wood Price Manager)
